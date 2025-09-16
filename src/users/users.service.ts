@@ -91,7 +91,7 @@ export class UsersService {
     }
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+  async update(id: string, updateUserDto: UpdateUserDto): Promise<User | null> {
     try {
       const user = await this.findUser(id);
       if (!user) {
