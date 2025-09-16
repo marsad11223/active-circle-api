@@ -7,11 +7,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
-
-enum Role {
-  Admin = 'Admin',
-  User = 'User',
-}
+import { Role } from 'src/schemas/user.schema';
 
 export class CreateUserDto {
   @IsNotEmpty()

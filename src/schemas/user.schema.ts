@@ -32,7 +32,7 @@ export class User {
   @Prop({ default: Date.now })
   updated_at: Date;
 
-  @Prop({ default: Date.now })
+  @Prop({ default: null })
   deleted_at: Date;
 }
 
