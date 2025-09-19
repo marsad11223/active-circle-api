@@ -89,7 +89,7 @@ export class AuthService {
     const encodedData = Buffer.from(JSON.stringify(payload)).toString('base64');
 
     // 4. Create reset link (for now using localhost:3000)
-    const resetLink = `http://localhost:3000/resetpassword?token=${encodedData}`;
+    const resetLink = `http://localhost:3000/reset-password?token=${encodedData}`;
 
     try {
       // 5. Send email
