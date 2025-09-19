@@ -53,12 +53,15 @@ export class UsersService {
   }
 
   async contactUs(contactUsDto: ContactUsDto): Promise<any> {
-    const { subject, body, email } = contactUsDto;
+    const { subject, body, email, name } = contactUsDto;
     try {
       await this.mailerService.sendMail({
-        to: 'sales@bookmarkfu.com', // replace this email with casy's email
+        to: 'marsad11223@gmail.com',
         subject: subject,
-        text: `Hi Casy, \n\n${body} \n\n user email: ${email}`,
+        html: `<p>Name: ${name}</p>
+        <p>Email: ${email}</p>
+        <p>Subject: ${subject}</p>
+        <p>Message: ${body}</p>`,
       });
 
       return {
