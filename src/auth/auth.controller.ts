@@ -20,12 +20,10 @@ export class AuthController {
 
   // forgot password
   @Post('forgotPassword')
-  forgotPassword(
+  async forgotPassword(
     @Body() { email }: { email: string },
   ): Promise<{ message: string }> {
-    return Promise.resolve({
-      message: `Forgot password link sent to your email ${email}`,
-    });
+    return await this.authService.forgotPassword(email);
   }
 
   @Post('resetPassword')

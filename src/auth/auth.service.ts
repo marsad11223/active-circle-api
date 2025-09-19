@@ -14,7 +14,6 @@ import * as bcrypt from 'bcrypt';
 import { LoginUserDto } from './dto/login-user.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { MailerService } from '@nestjs-modules/mailer';
-import { generateStrongPassword } from 'src/utils/helper';
 
 @Injectable()
 export class AuthService {
@@ -72,31 +71,86 @@ export class AuthService {
     }
   }
 
+  // forgot password
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    // 1. Check if user exists
+    const user = await this.userModel.findOne({ email });
+    if (!user) {
+      throw new NotFoundException('User with this email not found');
+    }
+
+    // 2. Prepare payload
+    const payload = {
+      email: user.email,
+      authenticated: true,
+    };
+
+    // 3. Encode payload to Base64
+    const encodedData = Buffer.from(JSON.stringify(payload)).toString('base64');
+
+    // 4. Create reset link (for now using localhost:3000)
+    const resetLink = `http://localhost:3000/resetpassword?token=${encodedData}`;
+
+    try {
+      // 5. Send email
+      await this.mailerService.sendMail({
+        to: user.email,
+        subject: 'Forgot Password Request',
+        html: `
+        <p>Hello ${user.email},</p>
+        <p>You requested to reset your password. Please click the link below to reset:</p>
+        <a href="${resetLink}">Reset Password</a>
+        <p>If you did not request this, please ignore this email.</p>
+      `,
+      });
+
+      // 6. Return confirmation
+      return {
+        message: `Password reset link has been sent to ${user.email}`,
+      };
+    } catch (error) {
+      throw new BadRequestException('Error while sending reset email', error);
+    }
+  }
+
   async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<any> {
-    const { email } = resetPasswordDto;
-    const password = generateStrongPassword();
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    const { email, password, confirmPassword } = resetPasswordDto;
+
+    // 1. Check if passwords match
+    if (password !== confirmPassword) {
+      throw new BadRequestException('Passwords do not match');
+    }
+
+    // 2. Find user by email
     const user = await this.userModel.findOne({ email });
     if (!user) {
       throw new NotFoundException('Email not found');
     }
+
     try {
+      // 3. Hash new password
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+
+      // 4. Update user record
       await this.userModel.findByIdAndUpdate(
         { _id: user._id },
         { password: hashedPassword, updated_at: Date.now() },
         { new: true },
       );
+
+      // 5. Send confirmation email
       await this.mailerService.sendMail({
         to: user.email,
-        subject: 'Reset Password',
-        text: `Your new password for BookmarkFoo is: ${password}`,
+        subject: 'Password Reset Successful',
+        text: `Your password for WieFührerschein has been successfully reset.`,
       });
+
       return {
-        message: 'Your new password has been sent to your email.',
+        message: 'Your password has been reset successfully.',
       };
     } catch (error) {
-      throw new BadRequestException('Error while reseting password', error);
+      throw new BadRequestException('Error while resetting password', error);
     }
   }
 }
