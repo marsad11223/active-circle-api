@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { Role, User } from 'src/schemas/user.schema';
 
 export function IsAdmin(user: User) {
-  if (user.role !== Role.SuperAdmin && user.role !== Role.SchoolAdmin) {
+  if (user.role !== Role.superAdmin && user.role !== Role.host) {
     throw new BadRequestException('Only Admin can perform this action');
   }
 }
