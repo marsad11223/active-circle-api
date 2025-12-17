@@ -60,7 +60,7 @@ export class SubscriptionService {
         email: user.email,
         name: user.name,
         metadata: {
-          userId: userId,
+          userId: userId.toString(), // Convert ObjectId to string for Stripe
         },
       });
       stripeCustomerId = customer.id;
