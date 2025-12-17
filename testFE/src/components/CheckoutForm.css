@@ -1,0 +1,36 @@
+.checkout-form {
+  margin-top: 20px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+
+.card-element {
+  padding: 12px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  background: white;
+  transition: border-color 0.3s;
+}
+
+.card-element:focus-within {
+  border-color: #667eea;
+}
+
+.payment-info {
+  margin: 20px 0;
+  padding: 15px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.payment-info p {
+  margin: 5px 0;
+  font-size: 14px;
+  color: #6b7280;
+}
+

@@ -1,0 +1,33 @@
+🚀 QUICK START GUIDE
+
+1. CREATE .env FILE
+   Create a file named ".env" (no .txt extension!) in this testFE folder:
+   
+   REACT_APP_API_URL=http://localhost:3000
+   REACT_APP_STRIPE_PUBLISHABLE_KEY=pk_test_YOUR_KEY_HERE
+   
+   (Replace pk_test_YOUR_KEY_HERE with your Stripe publishable key)
+
+2. START BACKEND
+   In the root folder (not here):
+   npm run start:dev
+
+3. START FRONTEND
+   npm start
+
+4. OPEN BROWSER
+   http://localhost:3001
+
+5. LOGIN
+   Use your host account credentials
+
+6. TEST SUBSCRIPTION
+   Card: 4242 4242 4242 4242
+   Expiry: 12/25
+   CVC: 123
+   ZIP: 12345
+
+That's it! 🎉
+
+For more details, see SETUP_INSTRUCTIONS.md
+

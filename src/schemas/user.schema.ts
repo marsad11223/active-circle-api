@@ -34,6 +34,12 @@ export class User {
 
   @Prop({ default: null })
   deleted_at: Date;
+
+  @Prop()
+  stripeCustomerId: string;
+
+  @Prop({ default: false })
+  hasActiveSubscription: boolean;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

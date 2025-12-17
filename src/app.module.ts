@@ -6,6 +6,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { SubscriptionModule } from './subscription/subscription.module';
 
 import { MailerModule } from '@nestjs-modules/mailer';
 import { APP_PIPE } from '@nestjs/core';
@@ -14,6 +15,7 @@ import { APP_PIPE } from '@nestjs/core';
   imports: [
     AuthModule,
     UsersModule,
+    SubscriptionModule,
 
     ConfigModule.forRoot({ isGlobal: true }),
     MailerModule.forRoot({

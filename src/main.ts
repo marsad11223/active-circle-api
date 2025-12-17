@@ -4,7 +4,10 @@ import { ValidationPipe } from '@nestjs/common';
 import * as bodyParser from 'body-parser';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { cors: true });
+  const app = await NestFactory.create(AppModule, {
+    cors: true,
+    rawBody: true, // Enable raw body for webhooks
+  });
 
   // ✅ Global validation
   app.useGlobalPipes(new ValidationPipe());
