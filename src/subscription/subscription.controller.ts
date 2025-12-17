@@ -25,7 +25,9 @@ export class SubscriptionController {
   ) {
     const stripeSecretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!stripeSecretKey) {
-      throw new Error('STRIPE_SECRET_KEY is not defined in environment variables');
+      throw new Error(
+        'STRIPE_SECRET_KEY is not defined in environment variables',
+      );
     }
     this.stripe = new Stripe(stripeSecretKey);
   }
@@ -86,4 +88,3 @@ export class SubscriptionController {
     return { received: true };
   }
 }
-
