@@ -86,30 +86,89 @@ export class SubscriptionService {
       expand: ['latest_invoice.payment_intent'],
     });
 
+    console.log('Stripe subscription created:', {
+      id: stripeSubscription.id,
+      status: stripeSubscription.status,
+      current_period_start: (stripeSubscription as any).current_period_start,
+      current_period_end: (stripeSubscription as any).current_period_end,
+    });
+
     // Save subscription to database
+    // Extract dates safely from Stripe subscription
+    const subscriptionData: any = stripeSubscription;
+    const periodStart = subscriptionData.current_period_start;
+    const periodEnd = subscriptionData.current_period_end;
+
     const newSubscription = new this.subscriptionModel({
       userId,
       stripeCustomerId,
       stripeSubscriptionId: stripeSubscription.id,
       stripePriceId: priceId,
       status: stripeSubscription.status,
-      currentPeriodStart: new Date(
-        (stripeSubscription as any).current_period_start * 1000,
-      ),
-      currentPeriodEnd: new Date(
-        (stripeSubscription as any).current_period_end * 1000,
-      ),
+      currentPeriodStart: periodStart
+        ? new Date(periodStart * 1000)
+        : new Date(),
+      currentPeriodEnd: periodEnd
+        ? new Date(periodEnd * 1000)
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Default to 30 days from now
     });
 
     await newSubscription.save();
 
     // Get client secret from the subscription
+    let clientSecret: string | null = null;
     const invoice = stripeSubscription.latest_invoice as any;
-    const paymentIntent = invoice?.payment_intent;
+
+    console.log('Invoice details:', {
+      invoice_exists: !!invoice,
+      invoice_type: typeof invoice,
+      invoice_id: typeof invoice === 'object' ? invoice?.id : invoice,
+    });
+
+    if (invoice) {
+      // Try to get payment intent from expanded invoice
+      const paymentIntent = invoice.payment_intent;
+
+      console.log('Payment Intent details:', {
+        pi_exists: !!paymentIntent,
+        pi_type: typeof paymentIntent,
+        pi_value:
+          typeof paymentIntent === 'string' ? paymentIntent : paymentIntent?.id,
+        has_client_secret: !!paymentIntent?.client_secret,
+      });
+
+      // If payment_intent is just an ID string, fetch it manually
+      if (typeof paymentIntent === 'string') {
+        console.log(
+          'Payment intent not expanded, fetching manually:',
+          paymentIntent,
+        );
+        const fetchedPaymentIntent =
+          await this.stripe.paymentIntents.retrieve(paymentIntent);
+        clientSecret = fetchedPaymentIntent.client_secret || null;
+      } else if (paymentIntent?.client_secret) {
+        // Payment intent was properly expanded
+        clientSecret = paymentIntent.client_secret || null;
+      } else if (typeof invoice === 'string') {
+        // Invoice is just an ID, fetch it manually
+        console.log('Invoice not expanded, fetching manually:', invoice);
+        const fetchedInvoice: any =
+          await this.stripe.invoices.retrieve(invoice);
+        if (fetchedInvoice.payment_intent) {
+          const fetchedPaymentIntent =
+            await this.stripe.paymentIntents.retrieve(
+              fetchedInvoice.payment_intent as string,
+            );
+          clientSecret = fetchedPaymentIntent.client_secret || null;
+        }
+      }
+    }
+
+    console.log('Final client secret:', clientSecret ? 'Found' : 'Not found');
 
     return {
       subscriptionId: stripeSubscription.id,
-      clientSecret: paymentIntent?.client_secret || null,
+      clientSecret,
       status: stripeSubscription.status,
     };
   }
