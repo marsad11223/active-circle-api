@@ -21,12 +21,22 @@ function Login({ onLogin }) {
         password,
       });
 
-      if (response.data.access_token) {
-        onLogin(response.data.access_token);
+      // Handle the response structure: response.data.accessToken and response.data.data (user info)
+      const token = response.data?.accessToken;
+      const userData = response.data?.data;
+
+      console.log('Token:', token);
+      console.log('User Data:', userData);
+
+      if (token && userData) {
+        onLogin(token, userData);
+      } else {
+        setError('Login successful but incomplete data received');
       }
     } catch (err) {
       setError(
-        err.response?.data?.message || 'Login failed. Please check your credentials.'
+        err.response?.data?.message ||
+          'Login failed. Please check your credentials.',
       );
     } finally {
       setLoading(false);
@@ -82,4 +92,3 @@ function Login({ onLogin }) {
 }
 
 export default Login;
-

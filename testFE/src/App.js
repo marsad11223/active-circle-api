@@ -13,24 +13,29 @@ function App() {
 
   useEffect(() => {
     if (token) {
-      // Decode JWT to get user info (simple decode, not validation)
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        setUser(payload);
-      } catch (e) {
-        console.error('Invalid token');
-        handleLogout();
+      // Try to get user from localStorage first
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        try {
+          setUser(JSON.parse(storedUser));
+        } catch (e) {
+          console.error('Invalid user data');
+          handleLogout();
+        }
       }
     }
   }, [token]);
 
-  const handleLogin = (newToken) => {
+  const handleLogin = (newToken, userData) => {
     localStorage.setItem('token', newToken);
+    localStorage.setItem('user', JSON.stringify(userData));
     setToken(newToken);
+    setUser(userData);
   };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
     setToken('');
     setUser(null);
   };
@@ -42,7 +47,9 @@ function App() {
           <h1>🔥 Active Circle - Stripe Subscription Test</h1>
           {user && (
             <div className="user-info">
-              <span>👤 {user.email} ({user.role})</span>
+              <span>
+                👤 {user.email} ({user.role})
+              </span>
               <button onClick={handleLogout} className="btn-logout">
                 Logout
               </button>
@@ -63,4 +70,3 @@ function App() {
 }
 
 export default App;
-

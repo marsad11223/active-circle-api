@@ -146,10 +146,16 @@ export class SubscriptionService {
         if (paymentIntent && typeof paymentIntent === 'object') {
           // Payment intent exists and is expanded
           clientSecret = paymentIntent.client_secret || null;
-          console.log('Client secret extracted from expanded payment intent:', !!clientSecret);
+          console.log(
+            'Client secret extracted from expanded payment intent:',
+            !!clientSecret,
+          );
         } else if (typeof paymentIntent === 'string') {
           // Payment intent is just an ID, fetch it manually
-          console.log('Payment intent is a string ID, fetching:', paymentIntent);
+          console.log(
+            'Payment intent is a string ID, fetching:',
+            paymentIntent,
+          );
           const fetchedPI =
             await this.stripe.paymentIntents.retrieve(paymentIntent);
           clientSecret = fetchedPI.client_secret || null;
@@ -161,7 +167,7 @@ export class SubscriptionService {
             currency: invoice.currency,
             customer: invoice.customer,
           });
-          
+
           try {
             const newPaymentIntent = await this.stripe.paymentIntents.create({
               amount: invoice.amount_due,
@@ -176,7 +182,10 @@ export class SubscriptionService {
             });
 
             clientSecret = newPaymentIntent.client_secret;
-            console.log('Payment intent created successfully, client secret:', !!clientSecret);
+            console.log(
+              'Payment intent created successfully, client secret:',
+              !!clientSecret,
+            );
           } catch (piError: any) {
             console.error('Error creating payment intent:', piError.message);
           }
@@ -264,6 +273,10 @@ export class SubscriptionService {
 
       case 'invoice.payment_failed':
         await this.handleInvoicePaymentFailed(event.data.object);
+        break;
+
+      case 'payment_intent.succeeded':
+        await this.handlePaymentIntentSucceeded(event.data.object);
         break;
 
       default:
@@ -371,5 +384,53 @@ export class SubscriptionService {
     await this.userModel.findByIdAndUpdate(subscription.userId, {
       hasActiveSubscription: false,
     });
+  }
+
+  private async handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {
+    const piAny = paymentIntent as any;
+    const invoiceId = piAny.metadata?.invoice_id;
+    const subscriptionId = piAny.metadata?.subscription_id;
+
+    console.log('Payment intent succeeded:', {
+      payment_intent_id: paymentIntent.id,
+      invoice_id: invoiceId,
+      subscription_id: subscriptionId,
+    });
+
+    if (invoiceId) {
+      try {
+        // Pay the invoice with this payment intent
+        const invoice = await this.stripe.invoices.pay(invoiceId, {
+          payment_method: piAny.payment_method,
+        });
+
+        console.log('Invoice paid successfully:', {
+          invoice_id: invoice.id,
+          status: invoice.status,
+        });
+
+        // This will trigger invoice.payment_succeeded webhook
+        // which will activate the subscription
+      } catch (error: any) {
+        console.error('Error paying invoice:', error.message);
+      }
+    } else if (subscriptionId) {
+      // If no invoice ID, try to update subscription directly
+      const subscription = await this.subscriptionModel.findOne({
+        stripeSubscriptionId: subscriptionId,
+      });
+
+      if (subscription) {
+        subscription.status = SubscriptionStatus.ACTIVE;
+        subscription.updated_at = new Date();
+        await subscription.save();
+
+        await this.userModel.findByIdAndUpdate(subscription.userId, {
+          hasActiveSubscription: true,
+        });
+
+        console.log('Subscription activated directly from payment intent');
+      }
+    }
   }
 }
