@@ -386,7 +386,9 @@ export class SubscriptionService {
     });
   }
 
-  private async handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {
+  private async handlePaymentIntentSucceeded(
+    paymentIntent: Stripe.PaymentIntent,
+  ) {
     const piAny = paymentIntent as any;
     const invoiceId = piAny.metadata?.invoice_id;
     const subscriptionId = piAny.metadata?.subscription_id;
