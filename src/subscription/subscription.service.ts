@@ -144,19 +144,42 @@ export class SubscriptionService {
         const paymentIntent = invoice.payment_intent;
 
         if (paymentIntent && typeof paymentIntent === 'object') {
+          // Payment intent exists and is expanded
           clientSecret = paymentIntent.client_secret || null;
-          console.log('Client secret extracted:', !!clientSecret);
+          console.log('Client secret extracted from expanded payment intent:', !!clientSecret);
         } else if (typeof paymentIntent === 'string') {
-          // If still a string ID, fetch it manually
-          console.log(
-            'Payment intent is still a string, fetching:',
-            paymentIntent,
-          );
+          // Payment intent is just an ID, fetch it manually
+          console.log('Payment intent is a string ID, fetching:', paymentIntent);
           const fetchedPI =
             await this.stripe.paymentIntents.retrieve(paymentIntent);
           clientSecret = fetchedPI.client_secret || null;
         } else {
-          console.log('No payment intent found on invoice');
+          // No payment intent exists - create one for the invoice amount
+          console.log('No payment intent found on invoice, creating one...');
+          console.log('Invoice details:', {
+            amount_due: invoice.amount_due,
+            currency: invoice.currency,
+            customer: invoice.customer,
+          });
+          
+          try {
+            const newPaymentIntent = await this.stripe.paymentIntents.create({
+              amount: invoice.amount_due,
+              currency: invoice.currency || 'gbp',
+              customer: invoice.customer,
+              payment_method_types: ['card'],
+              metadata: {
+                invoice_id: invoice.id,
+                subscription_id: stripeSubscription.id,
+                userId: userId.toString(),
+              },
+            });
+
+            clientSecret = newPaymentIntent.client_secret;
+            console.log('Payment intent created successfully, client secret:', !!clientSecret);
+          } catch (piError: any) {
+            console.error('Error creating payment intent:', piError.message);
+          }
         }
       } catch (error) {
         console.error('Error fetching invoice:', error.message);
