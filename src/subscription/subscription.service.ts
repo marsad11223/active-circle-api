@@ -116,52 +116,53 @@ export class SubscriptionService {
     await newSubscription.save();
 
     // Get client secret from the subscription
+    // The expand parameter doesn't always work, so we fetch the invoice explicitly
     let clientSecret: string | null = null;
-    const invoice = stripeSubscription.latest_invoice as any;
+    const invoiceRef = stripeSubscription.latest_invoice as any;
+    const invoiceId =
+      typeof invoiceRef === 'string' ? invoiceRef : invoiceRef?.id;
 
-    console.log('Invoice details:', {
-      invoice_exists: !!invoice,
-      invoice_type: typeof invoice,
-      invoice_id: typeof invoice === 'object' ? invoice?.id : invoice,
-    });
+    console.log('Invoice ID from subscription:', invoiceId);
 
-    if (invoice) {
-      // Try to get payment intent from expanded invoice
-      const paymentIntent = invoice.payment_intent;
-
-      console.log('Payment Intent details:', {
-        pi_exists: !!paymentIntent,
-        pi_type: typeof paymentIntent,
-        pi_value:
-          typeof paymentIntent === 'string' ? paymentIntent : paymentIntent?.id,
-        has_client_secret: !!paymentIntent?.client_secret,
-      });
-
-      // If payment_intent is just an ID string, fetch it manually
-      if (typeof paymentIntent === 'string') {
+    if (invoiceId) {
+      try {
+        // Explicitly retrieve the invoice with payment_intent expanded
         console.log(
-          'Payment intent not expanded, fetching manually:',
-          paymentIntent,
+          'Fetching invoice explicitly with payment_intent expanded...',
         );
-        const fetchedPaymentIntent =
-          await this.stripe.paymentIntents.retrieve(paymentIntent);
-        clientSecret = fetchedPaymentIntent.client_secret || null;
-      } else if (paymentIntent?.client_secret) {
-        // Payment intent was properly expanded
-        clientSecret = paymentIntent.client_secret || null;
-      } else if (typeof invoice === 'string') {
-        // Invoice is just an ID, fetch it manually
-        console.log('Invoice not expanded, fetching manually:', invoice);
-        const fetchedInvoice: any =
-          await this.stripe.invoices.retrieve(invoice);
-        if (fetchedInvoice.payment_intent) {
-          const fetchedPaymentIntent =
-            await this.stripe.paymentIntents.retrieve(
-              fetchedInvoice.payment_intent as string,
-            );
-          clientSecret = fetchedPaymentIntent.client_secret || null;
+        const invoice: any = await this.stripe.invoices.retrieve(invoiceId, {
+          expand: ['payment_intent'],
+        });
+
+        console.log('Invoice retrieved:', {
+          id: invoice.id,
+          status: invoice.status,
+          has_payment_intent: !!invoice.payment_intent,
+          payment_intent_type: typeof invoice.payment_intent,
+        });
+
+        const paymentIntent = invoice.payment_intent;
+
+        if (paymentIntent && typeof paymentIntent === 'object') {
+          clientSecret = paymentIntent.client_secret || null;
+          console.log('Client secret extracted:', !!clientSecret);
+        } else if (typeof paymentIntent === 'string') {
+          // If still a string ID, fetch it manually
+          console.log(
+            'Payment intent is still a string, fetching:',
+            paymentIntent,
+          );
+          const fetchedPI =
+            await this.stripe.paymentIntents.retrieve(paymentIntent);
+          clientSecret = fetchedPI.client_secret || null;
+        } else {
+          console.log('No payment intent found on invoice');
         }
+      } catch (error) {
+        console.error('Error fetching invoice:', error.message);
       }
+    } else {
+      console.log('No invoice ID found on subscription');
     }
 
     console.log('Final client secret:', clientSecret ? 'Found' : 'Not found');
