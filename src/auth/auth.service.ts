@@ -160,8 +160,9 @@ export class AuthService {
           'Subject: Forgot Password Request',
         );
 
-        this.mailerService
-          .sendMail({
+        // Retry email sending with exponential backoff
+        this.sendEmailWithRetry(
+          {
             to: user.email,
             subject: 'Forgot Password Request',
             html: `
@@ -179,48 +180,9 @@ export class AuthService {
           </p>
         </div>
       `,
-          })
-          .then((result: any) => {
-            const emailDuration = Date.now() - emailStartTime;
-            console.log(
-              '[FORGOT_PASSWORD] SUCCESS: Password reset email sent successfully',
-            );
-            console.log('[FORGOT_PASSWORD] Email sent to:', user.email);
-            console.log(
-              '[FORGOT_PASSWORD] Email send duration:',
-              emailDuration,
-              'ms',
-            );
-            console.log(
-              '[FORGOT_PASSWORD] Email result:',
-              JSON.stringify(result),
-            );
-          })
-          .catch((error: any) => {
-            const emailDuration = Date.now() - emailStartTime;
-            console.error('[FORGOT_PASSWORD] ERROR: Failed to send email');
-            console.error(
-              '[FORGOT_PASSWORD] Error after:',
-              emailDuration,
-              'ms',
-            );
-            console.error(
-              '[FORGOT_PASSWORD] Error type:',
-              error?.constructor?.name || typeof error,
-            );
-            console.error(
-              '[FORGOT_PASSWORD] Error message:',
-              error?.message || 'No error message',
-            );
-            console.error(
-              '[FORGOT_PASSWORD] Error stack:',
-              error?.stack || 'No stack trace',
-            );
-            console.error(
-              '[FORGOT_PASSWORD] Full error object:',
-              JSON.stringify(error, Object.getOwnPropertyNames(error)),
-            );
-          });
+          },
+          emailStartTime,
+        );
       });
 
       // 6. Return confirmation immediately
@@ -255,6 +217,117 @@ export class AuthService {
         error?.stack || 'No stack trace',
       );
       throw error;
+    }
+  }
+
+  /**
+   * Send email with retry logic and exponential backoff
+   * Retries up to 3 times if connection timeout occurs
+   */
+  private async sendEmailWithRetry(
+    emailOptions: {
+      to: string;
+      subject: string;
+      html: string;
+    },
+    startTime: number,
+    attempt: number = 1,
+    maxAttempts: number = 3,
+  ): Promise<void> {
+    const attemptStartTime = Date.now();
+    console.log(
+      `[FORGOT_PASSWORD] Email send attempt ${attempt}/${maxAttempts}...`,
+    );
+
+    try {
+      const result: any = await this.mailerService.sendMail(emailOptions);
+      const emailDuration = Date.now() - startTime;
+      const attemptDuration = Date.now() - attemptStartTime;
+
+      console.log(
+        '[FORGOT_PASSWORD] SUCCESS: Password reset email sent successfully',
+      );
+      console.log('[FORGOT_PASSWORD] Email sent to:', emailOptions.to);
+      console.log(
+        '[FORGOT_PASSWORD] Total email send duration:',
+        emailDuration,
+        'ms',
+      );
+      console.log(
+        '[FORGOT_PASSWORD] This attempt duration:',
+        attemptDuration,
+        'ms',
+      );
+      console.log('[FORGOT_PASSWORD] Email result:', JSON.stringify(result));
+    } catch (error: any) {
+      const attemptDuration = Date.now() - attemptStartTime;
+      const totalDuration = Date.now() - startTime;
+
+      console.error(
+        `[FORGOT_PASSWORD] ERROR: Email send attempt ${attempt} failed`,
+      );
+      console.error(
+        '[FORGOT_PASSWORD] Attempt duration:',
+        attemptDuration,
+        'ms',
+      );
+      console.error(
+        '[FORGOT_PASSWORD] Total time elapsed:',
+        totalDuration,
+        'ms',
+      );
+      console.error(
+        '[FORGOT_PASSWORD] Error type:',
+        error?.constructor?.name || typeof error,
+      );
+      console.error(
+        '[FORGOT_PASSWORD] Error message:',
+        error?.message || 'No error message',
+      );
+      console.error(
+        '[FORGOT_PASSWORD] Error code:',
+        error?.code || 'No error code',
+      );
+
+      // Check if it's a connection timeout and we have retries left
+      const isConnectionError =
+        error?.code === 'ETIMEDOUT' ||
+        error?.code === 'ECONNREFUSED' ||
+        error?.code === 'ETIMEDOUT' ||
+        error?.message?.includes('timeout') ||
+        error?.message?.includes('Connection timeout');
+
+      if (isConnectionError && attempt < maxAttempts) {
+        // Exponential backoff: 5s, 10s, 20s
+        const delay = Math.pow(2, attempt) * 5000;
+        console.log(
+          `[FORGOT_PASSWORD] Retrying in ${delay}ms (attempt ${attempt + 1}/${maxAttempts})...`,
+        );
+
+        await new Promise((resolve) => setTimeout(resolve, delay));
+
+        // Retry
+        return this.sendEmailWithRetry(
+          emailOptions,
+          startTime,
+          attempt + 1,
+          maxAttempts,
+        );
+      } else {
+        // Final failure - log all details
+        console.error(
+          '[FORGOT_PASSWORD] FATAL: All email send attempts failed',
+        );
+        console.error(
+          '[FORGOT_PASSWORD] Error stack:',
+          error?.stack || 'No stack trace',
+        );
+        console.error(
+          '[FORGOT_PASSWORD] Full error object:',
+          JSON.stringify(error, Object.getOwnPropertyNames(error)),
+        );
+        // Don't throw - email is sent async, we don't want to crash the app
+      }
     }
   }
 

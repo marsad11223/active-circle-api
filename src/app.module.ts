@@ -22,23 +22,23 @@ import { APP_PIPE } from '@nestjs/core';
       transport: {
         host: 'smtp.gmail.com',
         port: 587,
-        secure: false,
+        secure: false, // true for 465, false for other ports
         auth: {
           user: process.env.EMAIL_USERNAME,
           pass: process.env.EMAIL_PASSWORD,
         },
-        // Increased timeouts for production (Gmail SMTP can be slow)
-        connectionTimeout: 30000, // 30 seconds
-        greetingTimeout: 10000, // 10 seconds
-        socketTimeout: 30000, // 30 seconds
-        pool: true, // Use connection pooling for better performance
-        maxConnections: 5,
-        maxMessages: 100,
-        // Retry configuration
-        retry: {
-          attempts: 3,
-          delay: 2000,
+        // Significantly increased timeouts for production (Gmail SMTP can be very slow)
+        connectionTimeout: 60000, // 60 seconds (increased from 30)
+        greetingTimeout: 30000, // 30 seconds (increased from 10)
+        socketTimeout: 60000, // 60 seconds (increased from 30)
+        // Disable pool in production to avoid connection issues
+        pool: false, // Set to false to avoid connection pool issues
+        // Additional options for better reliability
+        tls: {
+          rejectUnauthorized: false, // Accept self-signed certificates if needed
         },
+        debug: process.env.NODE_ENV === 'development', // Enable debug in dev
+        logger: process.env.NODE_ENV === 'development', // Enable logger in dev
       },
       defaults: {
         from: `"Active Circle" <${process.env.EMAIL_USERNAME}>`,
