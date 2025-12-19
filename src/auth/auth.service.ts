@@ -92,13 +92,13 @@ export class AuthService {
 
     // 4. Create reset link using environment variable or default to localhost
     const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') ||
-      'http://localhost:3000';
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
     const resetLink = `${frontendUrl}/reset-password?token=${encodedData}`;
 
-    try {
-      // 5. Send email
-      await this.mailerService.sendMail({
+    // 5. Send email asynchronously (non-blocking) with timeout
+    // Return response immediately, don't wait for email to complete
+    this.sendEmailWithTimeout(
+      {
         to: user.email,
         subject: 'Forgot Password Request',
         html: `
@@ -116,18 +116,20 @@ export class AuthService {
           </p>
         </div>
       `,
-      });
-
-      // 6. Return confirmation
-      return {
-        message: `Password reset link has been sent to ${user.email}`,
-      };
-    } catch (error: any) {
-      console.error('Error sending forgot password email:', error);
-      throw new BadRequestException(
-        `Error while sending reset email: ${error.message || 'Email service error'}`,
+      },
+      10000, // 10 second timeout
+    ).catch((error: any) => {
+      // Log error but don't block response
+      console.error(
+        'Error sending forgot password email (async):',
+        error.message,
       );
-    }
+    });
+
+    // 6. Return confirmation immediately
+    return {
+      message: `Password reset link has been sent to ${user.email}`,
+    };
   }
 
   async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<any> {
@@ -181,5 +183,29 @@ export class AuthService {
     } catch (error) {
       throw new BadRequestException('Error while resetting password', error);
     }
+  }
+
+  /**
+   * Send email with timeout to prevent blocking API response
+   * @param emailOptions Email options
+   * @param timeoutMs Timeout in milliseconds (default: 10000 = 10 seconds)
+   */
+  private async sendEmailWithTimeout(
+    emailOptions: {
+      to: string;
+      subject: string;
+      html: string;
+    },
+    timeoutMs: number = 10000,
+  ): Promise<void> {
+    return Promise.race([
+      this.mailerService.sendMail(emailOptions),
+      new Promise<void>((_, reject) =>
+        setTimeout(
+          () => reject(new Error(`Email sending timeout after ${timeoutMs}ms`)),
+          timeoutMs,
+        ),
+      ),
+    ]);
   }
 }

@@ -27,6 +27,16 @@ import { APP_PIPE } from '@nestjs/core';
           user: process.env.EMAIL_USERNAME,
           pass: process.env.EMAIL_PASSWORD,
         },
+        // Add timeout and connection pool settings for production
+        connectionTimeout: 10000, // 10 seconds
+        greetingTimeout: 5000, // 5 seconds
+        socketTimeout: 10000, // 10 seconds
+        pool: true, // Use connection pooling
+        maxConnections: 5,
+        maxMessages: 100,
+      },
+      defaults: {
+        from: `"Active Circle" <${process.env.EMAIL_USERNAME}>`,
       },
     }),
     MongooseModule.forRootAsync({
