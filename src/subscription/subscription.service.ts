@@ -306,10 +306,12 @@ export class SubscriptionService {
   ) {
     try {
       // Retrieve the payment intent with charges expanded
-      const paymentIntent: any =
-        await this.stripe.paymentIntents.retrieve(paymentIntentId, {
+      const paymentIntent: any = await this.stripe.paymentIntents.retrieve(
+        paymentIntentId,
+        {
           expand: ['charges'],
-        });
+        },
+      );
 
       console.log('Payment intent retrieved:', {
         id: paymentIntent.id,
@@ -340,7 +342,7 @@ export class SubscriptionService {
 
       // Check invoice status first - it might already be paid from the payment intent
       const invoiceCheck: any = await this.stripe.invoices.retrieve(invoiceId);
-      
+
       console.log('Invoice status check:', {
         id: invoiceCheck.id,
         status: invoiceCheck.status,
@@ -366,11 +368,13 @@ export class SubscriptionService {
           });
         } catch (payError: any) {
           console.error('Error paying invoice:', payError.message);
-          
+
           // Payment intent succeeded, so payment was made
           // If invoice payment fails, it might be because payment intent wasn't linked to invoice
           // In this case, we'll manually mark subscription as active since payment succeeded
-          console.log('Invoice payment failed, but payment intent succeeded. Payment was successful.');
+          console.log(
+            'Invoice payment failed, but payment intent succeeded. Payment was successful.',
+          );
           console.log('Will update subscription status manually.');
         }
       } else {
@@ -421,8 +425,8 @@ export class SubscriptionService {
           // Since payment intent succeeded, payment was successful
           // Activate subscription even if invoice payment had issues
           const finalStatus =
-            stripeSub.status === 'active' || 
-            invoice.paid || 
+            stripeSub.status === 'active' ||
+            invoice.paid ||
             paymentIntent.status === 'succeeded'
               ? SubscriptionStatus.ACTIVE
               : SubscriptionStatus.INCOMPLETE;
