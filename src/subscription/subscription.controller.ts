@@ -52,10 +52,7 @@ export class SubscriptionController {
 
   @Post('confirm-payment')
   @UseGuards(JwtAuthGuard)
-  async confirmPayment(
-    @GetUser() user: any,
-    @Req() request: any,
-  ) {
+  async confirmPayment(@GetUser() user: any, @Req() request: any) {
     const { paymentIntentId } = request.body;
     if (!paymentIntentId) {
       throw new BadRequestException('paymentIntentId is required');

@@ -42,14 +42,12 @@ function CheckoutForm({ clientSecret, onSuccess, onError }) {
     const cardElement = elements.getElement(CardNumberElement);
 
     try {
-      const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
-        clientSecret,
-        {
+      const { error: stripeError, paymentIntent } =
+        await stripe.confirmCardPayment(clientSecret, {
           payment_method: {
             card: cardElement,
           },
-        }
-      );
+        });
 
       if (stripeError) {
         setError(stripeError.message);
@@ -109,4 +107,3 @@ function CheckoutForm({ clientSecret, onSuccess, onError }) {
 }
 
 export default CheckoutForm;
-

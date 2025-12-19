@@ -47,16 +47,14 @@ function SubscriptionManager({ token, user }) {
         {},
         {
           headers: { Authorization: `Bearer ${token}` },
-        }
+        },
       );
 
       setClientSecret(response.data.clientSecret);
       setShowCheckout(true);
       setSuccess('Subscription created! Please complete payment.');
     } catch (err) {
-      setError(
-        err.response?.data?.message || 'Failed to create subscription'
-      );
+      setError(err.response?.data?.message || 'Failed to create subscription');
     } finally {
       setLoading(false);
     }
@@ -79,9 +77,7 @@ function SubscriptionManager({ token, user }) {
       setSuccess(response.data.message);
       await fetchSubscriptionStatus();
     } catch (err) {
-      setError(
-        err.response?.data?.message || 'Failed to cancel subscription'
-      );
+      setError(err.response?.data?.message || 'Failed to cancel subscription');
     } finally {
       setLoading(false);
     }
@@ -91,7 +87,7 @@ function SubscriptionManager({ token, user }) {
     setLoading(true);
     setError('');
     setSuccess('Payment successful! Activating subscription...');
-    
+
     try {
       // Call the confirm-payment endpoint to pay invoice and activate subscription
       const response = await axios.post(
@@ -99,20 +95,21 @@ function SubscriptionManager({ token, user }) {
         { paymentIntentId },
         {
           headers: { Authorization: `Bearer ${token}` },
-        }
+        },
       );
 
       setSuccess('🎉 Payment successful! Your subscription is now active.');
       setShowCheckout(false);
       setClientSecret('');
-      
+
       // Refresh subscription status
       setTimeout(() => {
         fetchSubscriptionStatus();
       }, 1000);
     } catch (err) {
       setError(
-        err.response?.data?.message || 'Payment succeeded but failed to activate subscription. Please refresh the page.'
+        err.response?.data?.message ||
+          'Payment succeeded but failed to activate subscription. Please refresh the page.',
       );
       // Still close checkout and refresh status
       setShowCheckout(false);
@@ -125,7 +122,9 @@ function SubscriptionManager({ token, user }) {
   };
 
   if (loading && !subscription) {
-    return <div className="content loading">Loading subscription status...</div>;
+    return (
+      <div className="content loading">Loading subscription status...</div>
+    );
   }
 
   return (
@@ -137,8 +136,8 @@ function SubscriptionManager({ token, user }) {
         <h2>Subscription Management</h2>
         {user.role !== 'host' && (
           <div className="warning-box">
-            ⚠️ You are logged in as a <strong>{user.role}</strong>. Only hosts can
-            manage subscriptions.
+            ⚠️ You are logged in as a <strong>{user.role}</strong>. Only hosts
+            can manage subscriptions.
           </div>
         )}
       </div>
@@ -174,21 +173,22 @@ function SubscriptionManager({ token, user }) {
                 {subscription.cancelAtPeriodEnd
                   ? '❌ Canceled (active until period end)'
                   : `£5.00 on ${new Date(
-                      subscription.currentPeriodEnd
+                      subscription.currentPeriodEnd,
                     ).toLocaleDateString()}`}
               </span>
             </div>
           </div>
 
-          {subscription.status === 'active' && !subscription.cancelAtPeriodEnd && (
-            <button
-              onClick={handleCancelSubscription}
-              className="btn-danger"
-              disabled={loading}
-            >
-              Cancel Subscription
-            </button>
-          )}
+          {subscription.status === 'active' &&
+            !subscription.cancelAtPeriodEnd && (
+              <button
+                onClick={handleCancelSubscription}
+                className="btn-danger"
+                disabled={loading}
+              >
+                Cancel Subscription
+              </button>
+            )}
         </div>
       ) : (
         <div className="no-subscription">
@@ -270,4 +270,3 @@ function SubscriptionManager({ token, user }) {
 }
 
 export default SubscriptionManager;
-

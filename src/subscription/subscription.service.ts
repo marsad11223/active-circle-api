@@ -262,9 +262,8 @@ export class SubscriptionService {
   ) {
     try {
       // Retrieve the payment intent
-      const paymentIntent = await this.stripe.paymentIntents.retrieve(
-        paymentIntentId,
-      );
+      const paymentIntent =
+        await this.stripe.paymentIntents.retrieve(paymentIntentId);
 
       console.log('Payment intent retrieved:', {
         id: paymentIntent.id,
@@ -273,9 +272,7 @@ export class SubscriptionService {
       });
 
       if (paymentIntent.status !== 'succeeded') {
-        throw new BadRequestException(
-          'Payment intent is not succeeded yet',
-        );
+        throw new BadRequestException('Payment intent is not succeeded yet');
       }
 
       const invoiceId = paymentIntent.metadata?.invoice_id;
