@@ -288,7 +288,7 @@ export class SubscriptionService {
         invoiceId,
         paymentMethodId,
       });
-      
+
       const invoice: any = await this.stripe.invoices.pay(invoiceId, {
         payment_method: paymentMethodId,
       });
