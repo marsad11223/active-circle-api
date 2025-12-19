@@ -14,6 +14,7 @@ import * as bcrypt from 'bcrypt';
 import { LoginUserDto } from './dto/login-user.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { MailerService } from '@nestjs-modules/mailer';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
@@ -22,6 +23,7 @@ export class AuthService {
     private userModel: mongoose.Model<User>,
     private jwtService: JwtService,
     private readonly mailerService: MailerService,
+    private configService: ConfigService,
   ) {}
 
   async register(createUserDto: CreateUserDto) {
@@ -88,8 +90,11 @@ export class AuthService {
     // 3. Encode payload to Base64
     const encodedData = Buffer.from(JSON.stringify(payload)).toString('base64');
 
-    // 4. Create reset link (for now using localhost:3000)
-    const resetLink = `http://localhost:3000/reset-password?token=${encodedData}`;
+    // 4. Create reset link using environment variable or default to localhost
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ||
+      'http://localhost:3000';
+    const resetLink = `${frontendUrl}/reset-password?token=${encodedData}`;
 
     try {
       // 5. Send email
@@ -97,10 +102,19 @@ export class AuthService {
         to: user.email,
         subject: 'Forgot Password Request',
         html: `
-        <p>Hello ${user.email},</p>
-        <p>You requested to reset your password. Please click the link below to reset:</p>
-        <a href="${resetLink}">Reset Password</a>
-        <p>If you did not request this, please ignore this email.</p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>Password Reset Request</h2>
+          <p>Hello ${user.name || user.email},</p>
+          <p>You requested to reset your password. Please click the link below to reset your password:</p>
+          <p style="margin: 20px 0;">
+            <a href="${resetLink}" style="background-color: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Reset Password</a>
+          </p>
+          <p>Or copy and paste this link in your browser:</p>
+          <p style="word-break: break-all; color: #666;">${resetLink}</p>
+          <p style="color: #999; font-size: 12px; margin-top: 30px;">
+            If you did not request this password reset, please ignore this email. This link will expire in 24 hours.
+          </p>
+        </div>
       `,
       });
 
@@ -108,8 +122,11 @@ export class AuthService {
       return {
         message: `Password reset link has been sent to ${user.email}`,
       };
-    } catch (error) {
-      throw new BadRequestException('Error while sending reset email', error);
+    } catch (error: any) {
+      console.error('Error sending forgot password email:', error);
+      throw new BadRequestException(
+        `Error while sending reset email: ${error.message || 'Email service error'}`,
+      );
     }
   }
 
@@ -140,11 +157,23 @@ export class AuthService {
       );
 
       // 5. Send confirmation email
-      await this.mailerService.sendMail({
-        to: user.email,
-        subject: 'Password Reset Successful',
-        text: `Your password for WieFührerschein has been successfully reset.`,
-      });
+      try {
+        await this.mailerService.sendMail({
+          to: user.email,
+          subject: 'Password Reset Successful',
+          html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2>Password Reset Successful</h2>
+            <p>Hello ${user.name || user.email},</p>
+            <p>Your password has been successfully reset.</p>
+            <p>If you did not make this change, please contact support immediately.</p>
+          </div>
+        `,
+        });
+      } catch (emailError: any) {
+        console.error('Error sending reset confirmation email:', emailError);
+        // Don't throw error, password was reset successfully
+      }
 
       return {
         message: 'Your password has been reset successfully.',
