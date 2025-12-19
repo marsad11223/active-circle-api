@@ -75,33 +75,96 @@ export class AuthService {
 
   // forgot password
   async forgotPassword(email: string): Promise<{ message: string }> {
-    // 1. Check if user exists
-    const user = await this.userModel.findOne({ email });
-    if (!user) {
-      throw new NotFoundException('User with this email not found');
-    }
+    console.log(
+      '[FORGOT_PASSWORD] Starting forgot password request for:',
+      email,
+    );
+    const startTime = Date.now();
 
-    // 2. Prepare payload
-    const payload = {
-      email: user.email,
-      authenticated: true,
-    };
+    try {
+      // 1. Check if user exists
+      console.log('[FORGOT_PASSWORD] Step 1: Looking up user in database...');
+      const user = await this.userModel.findOne({ email });
+      if (!user) {
+        console.log(
+          '[FORGOT_PASSWORD] ERROR: User not found for email:',
+          email,
+        );
+        throw new NotFoundException('User with this email not found');
+      }
+      console.log(
+        '[FORGOT_PASSWORD] Step 1: User found - ID:',
+        user._id,
+        'Email:',
+        user.email,
+      );
 
-    // 3. Encode payload to Base64
-    const encodedData = Buffer.from(JSON.stringify(payload)).toString('base64');
+      // 2. Prepare payload
+      console.log('[FORGOT_PASSWORD] Step 2: Preparing reset token payload...');
+      const payload = {
+        email: user.email,
+        authenticated: true,
+      };
+      console.log(
+        '[FORGOT_PASSWORD] Step 2: Payload created:',
+        JSON.stringify(payload),
+      );
 
-    // 4. Create reset link using environment variable or default to localhost
-    const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
-    const resetLink = `${frontendUrl}/reset-password?token=${encodedData}`;
+      // 3. Encode payload to Base64
+      console.log('[FORGOT_PASSWORD] Step 3: Encoding payload to Base64...');
+      const encodedData = Buffer.from(JSON.stringify(payload)).toString(
+        'base64',
+      );
+      console.log(
+        '[FORGOT_PASSWORD] Step 3: Encoded data length:',
+        encodedData.length,
+        'chars',
+      );
 
-    // 5. Send email asynchronously (non-blocking) with timeout
-    // Return response immediately, don't wait for email to complete
-    this.sendEmailWithTimeout(
-      {
-        to: user.email,
-        subject: 'Forgot Password Request',
-        html: `
+      // 4. Create reset link using environment variable or default to localhost
+      console.log('[FORGOT_PASSWORD] Step 4: Building reset link...');
+      const frontendUrlEnv = this.configService.get<string>('FRONTEND_URL');
+      console.log(
+        '[FORGOT_PASSWORD] Step 4: FRONTEND_URL from env:',
+        frontendUrlEnv || 'NOT SET',
+      );
+      const frontendUrl = frontendUrlEnv || 'http://localhost:3000';
+      console.log('[FORGOT_PASSWORD] Step 4: Using frontend URL:', frontendUrl);
+
+      const resetLink = `${frontendUrl}/reset-password?token=${encodedData}`;
+      console.log(
+        '[FORGOT_PASSWORD] Step 4: Reset link created (length:',
+        resetLink.length,
+        'chars)',
+      );
+      console.log(
+        '[FORGOT_PASSWORD] Step 4: Reset link preview:',
+        resetLink.substring(0, 100) + '...',
+      );
+
+      // 5. Send email asynchronously (fire-and-forget, no timeout blocking)
+      // Return response immediately, don't wait for email to complete
+      // This prevents API timeout in production where SMTP might be slower
+      console.log(
+        '[FORGOT_PASSWORD] Step 5: Scheduling email send (async, non-blocking)...',
+      );
+      const emailStartTime = Date.now();
+
+      setImmediate(() => {
+        console.log(
+          '[FORGOT_PASSWORD] Step 5: Executing email send in background...',
+        );
+        console.log(
+          '[FORGOT_PASSWORD] Email config - To:',
+          user.email,
+          'Subject: Forgot Password Request',
+        );
+
+        this.mailerService
+          .sendMail({
+            to: user.email,
+            subject: 'Forgot Password Request',
+            html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2>Password Reset Request</h2>
           <p>Hello ${user.name || user.email},</p>
@@ -116,20 +179,83 @@ export class AuthService {
           </p>
         </div>
       `,
-      },
-      10000, // 10 second timeout
-    ).catch((error: any) => {
-      // Log error but don't block response
-      console.error(
-        'Error sending forgot password email (async):',
-        error.message,
-      );
-    });
+          })
+          .then((result: any) => {
+            const emailDuration = Date.now() - emailStartTime;
+            console.log(
+              '[FORGOT_PASSWORD] SUCCESS: Password reset email sent successfully',
+            );
+            console.log('[FORGOT_PASSWORD] Email sent to:', user.email);
+            console.log(
+              '[FORGOT_PASSWORD] Email send duration:',
+              emailDuration,
+              'ms',
+            );
+            console.log(
+              '[FORGOT_PASSWORD] Email result:',
+              JSON.stringify(result),
+            );
+          })
+          .catch((error: any) => {
+            const emailDuration = Date.now() - emailStartTime;
+            console.error('[FORGOT_PASSWORD] ERROR: Failed to send email');
+            console.error(
+              '[FORGOT_PASSWORD] Error after:',
+              emailDuration,
+              'ms',
+            );
+            console.error(
+              '[FORGOT_PASSWORD] Error type:',
+              error?.constructor?.name || typeof error,
+            );
+            console.error(
+              '[FORGOT_PASSWORD] Error message:',
+              error?.message || 'No error message',
+            );
+            console.error(
+              '[FORGOT_PASSWORD] Error stack:',
+              error?.stack || 'No stack trace',
+            );
+            console.error(
+              '[FORGOT_PASSWORD] Full error object:',
+              JSON.stringify(error, Object.getOwnPropertyNames(error)),
+            );
+          });
+      });
 
-    // 6. Return confirmation immediately
-    return {
-      message: `Password reset link has been sent to ${user.email}`,
-    };
+      // 6. Return confirmation immediately
+      const totalDuration = Date.now() - startTime;
+      console.log('[FORGOT_PASSWORD] Step 6: Returning response immediately');
+      console.log(
+        '[FORGOT_PASSWORD] Total API response time:',
+        totalDuration,
+        'ms',
+      );
+      console.log(
+        '[FORGOT_PASSWORD] Request completed successfully (email sent async)',
+      );
+
+      return {
+        message: `Password reset link has been sent to ${user.email}`,
+      };
+    } catch (error: any) {
+      const totalDuration = Date.now() - startTime;
+      console.error('[FORGOT_PASSWORD] FATAL ERROR in forgot password flow');
+      console.error('[FORGOT_PASSWORD] Error after:', totalDuration, 'ms');
+      console.error(
+        '[FORGOT_PASSWORD] Error type:',
+        error?.constructor?.name || typeof error,
+      );
+      console.error(
+        '[FORGOT_PASSWORD] Error message:',
+        error?.message || 'No error message',
+      );
+      console.error(
+        '[FORGOT_PASSWORD] Error stack:',
+        error?.stack || 'No stack trace',
+      );
+      throw error;
+    }
   }
 
   async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<any> {
@@ -183,29 +309,5 @@ export class AuthService {
     } catch (error) {
       throw new BadRequestException('Error while resetting password', error);
     }
-  }
-
-  /**
-   * Send email with timeout to prevent blocking API response
-   * @param emailOptions Email options
-   * @param timeoutMs Timeout in milliseconds (default: 10000 = 10 seconds)
-   */
-  private async sendEmailWithTimeout(
-    emailOptions: {
-      to: string;
-      subject: string;
-      html: string;
-    },
-    timeoutMs: number = 10000,
-  ): Promise<void> {
-    return Promise.race([
-      this.mailerService.sendMail(emailOptions),
-      new Promise<void>((_, reject) =>
-        setTimeout(
-          () => reject(new Error(`Email sending timeout after ${timeoutMs}ms`)),
-          timeoutMs,
-        ),
-      ),
-    ]);
   }
 }

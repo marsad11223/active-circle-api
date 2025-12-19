@@ -27,13 +27,18 @@ import { APP_PIPE } from '@nestjs/core';
           user: process.env.EMAIL_USERNAME,
           pass: process.env.EMAIL_PASSWORD,
         },
-        // Add timeout and connection pool settings for production
-        connectionTimeout: 10000, // 10 seconds
-        greetingTimeout: 5000, // 5 seconds
-        socketTimeout: 10000, // 10 seconds
-        pool: true, // Use connection pooling
+        // Increased timeouts for production (Gmail SMTP can be slow)
+        connectionTimeout: 30000, // 30 seconds
+        greetingTimeout: 10000, // 10 seconds
+        socketTimeout: 30000, // 30 seconds
+        pool: true, // Use connection pooling for better performance
         maxConnections: 5,
         maxMessages: 100,
+        // Retry configuration
+        retry: {
+          attempts: 3,
+          delay: 2000,
+        },
       },
       defaults: {
         from: `"Active Circle" <${process.env.EMAIL_USERNAME}>`,
