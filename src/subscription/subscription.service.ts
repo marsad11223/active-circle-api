@@ -407,36 +407,76 @@ export class SubscriptionService {
           : false,
       });
 
-      const invoice: any = invoiceCheck;
+      let invoice: any = invoiceCheck;
 
-      // If invoice is not paid yet, the payment intent might not be linked
+      // If invoice is not paid yet, we need to pay it manually
       if (!invoiceCheck.paid) {
         console.log(
-          'Invoice not automatically paid. Payment intent may not be linked to invoice.',
+          'Invoice not automatically paid. Payment intent succeeded but invoice not linked.',
         );
-        console.log('Checking if we need to manually link them...');
+        console.log('Paying invoice manually using payment intent...');
 
-        // Check if payment intent is linked to this invoice
-        const piInvoiceId = paymentIntent.invoice as string;
-        if (piInvoiceId && piInvoiceId === invoiceId) {
-          console.log(
-            'Payment intent is linked to invoice, waiting longer for Stripe...',
-          );
-          await new Promise((resolve) => setTimeout(resolve, 3000));
+        try {
+          // Get the charge from payment intent
+          const charges: any = paymentIntent.charges?.data || [];
+          if (charges.length > 0) {
+            const charge = charges[0];
+            console.log('Using charge from payment intent:', charge.id);
 
-          // Check again
-          const retryInvoice: any =
-            await this.stripe.invoices.retrieve(invoiceId);
-          if (retryInvoice.paid) {
-            console.log('Invoice now paid after waiting');
-            invoice.paid = true;
+            // Pay invoice using the charge
+            const paidInvoice: any = await this.stripe.invoices.pay(invoiceId, {
+              paid_out_of_band: true,
+            });
+
+            console.log('Invoice paid manually:', {
+              id: paidInvoice.id,
+              paid: paidInvoice.paid,
+              status: paidInvoice.status,
+            });
+
+            invoice = paidInvoice;
+          } else {
+            // If no charge, try to pay with payment method
+            if (paymentMethodId) {
+              console.log(
+                'Paying invoice with payment method:',
+                paymentMethodId,
+              );
+
+              // First attach payment method to customer if needed
+              try {
+                const pm: any =
+                  await this.stripe.paymentMethods.retrieve(paymentMethodId);
+                if (!pm.customer || pm.customer !== customerId) {
+                  await this.stripe.paymentMethods.attach(paymentMethodId, {
+                    customer: customerId,
+                  });
+                }
+              } catch (attachError: any) {
+                if (!attachError.message.includes('already been attached')) {
+                  console.log(
+                    'Payment method attachment note:',
+                    attachError.message,
+                  );
+                }
+              }
+
+              // Pay invoice
+              const paidInvoice: any =
+                await this.stripe.invoices.pay(invoiceId);
+              invoice = paidInvoice;
+              console.log('Invoice paid with payment method:', invoice.paid);
+            } else {
+              throw new Error(
+                'No charge or payment method available to pay invoice',
+              );
+            }
           }
-        } else {
+        } catch (payError: any) {
+          console.error('Error paying invoice manually:', payError.message);
+          // Payment succeeded, so we'll mark subscription as active anyway
           console.log(
-            'Warning: Payment intent not linked to invoice. Invoice ID in payment intent:',
-            piInvoiceId,
-            'Expected:',
-            invoiceId,
+            'Payment succeeded, will activate subscription despite invoice payment issue',
           );
         }
       } else {
