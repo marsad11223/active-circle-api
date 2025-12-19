@@ -398,21 +398,41 @@ export class SubscriptionService {
           status: stripeSub.status,
         });
 
-        // If subscription is still incomplete, try to update it
+        // If subscription is still incomplete, we need to properly activate it in Stripe
         if (stripeSub.status === 'incomplete') {
-          console.log('Subscription still incomplete, attempting to update...');
+          console.log('Subscription still incomplete in Stripe, attempting to activate...');
 
-          // Try to update subscription to active (if invoice is paid, this should work)
           try {
-            const updatedSub = await this.stripe.subscriptions.update(
-              subscriptionId,
-              {
-                default_payment_method: paymentMethodId,
-              },
-            );
-            console.log('Subscription updated in Stripe:', updatedSub.status);
+            // If invoice is paid, wait a moment and refresh subscription
+            // Stripe should automatically activate it
+            if (invoice.paid) {
+              console.log('Invoice is paid, waiting for Stripe to activate subscription...');
+              
+              // Wait 1 second for Stripe to process
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              
+              // Refresh subscription to get updated status
+              const refreshedSub: any = await this.stripe.subscriptions.retrieve(
+                subscriptionId,
+              );
+              
+              console.log('Refreshed subscription status:', refreshedSub.status);
+              
+              if (refreshedSub.status === 'active') {
+                stripeSub.status = 'active';
+                console.log('Subscription automatically activated by Stripe');
+              } else {
+                // If still incomplete, the payment intent might not be linked to invoice
+                // In this case, we'll mark it as active in our DB but note Stripe status
+                console.log('Warning: Invoice paid but Stripe subscription still incomplete');
+                console.log('This may be because payment intent was created separately from invoice');
+                console.log('Subscription will be marked active in database, but Stripe shows incomplete');
+              }
+            } else {
+              console.log('Invoice not paid, cannot activate subscription in Stripe');
+            }
           } catch (updateError: any) {
-            console.log('Note updating subscription:', updateError.message);
+            console.log('Error checking subscription status in Stripe:', updateError.message);
           }
         }
 
