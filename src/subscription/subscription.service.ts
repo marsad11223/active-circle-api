@@ -167,10 +167,9 @@ export class SubscriptionService {
 
           try {
             // Finalize the invoice - this should create a payment intent
+            // Don't use auto_advance: false, let Stripe handle it properly
             const finalizedInvoice: any =
-              await this.stripe.invoices.finalizeInvoice(invoiceId, {
-                auto_advance: false,
-              });
+              await this.stripe.invoices.finalizeInvoice(invoiceId);
 
             console.log('Invoice finalized:', {
               id: finalizedInvoice.id,
@@ -192,46 +191,39 @@ export class SubscriptionService {
                 !!clientSecret,
               );
             } else {
-              // If still no payment intent, create one manually
-              console.log('Still no payment intent, creating manually...');
-              const newPaymentIntent = await this.stripe.paymentIntents.create({
-                amount: invoice.amount_due,
-                currency: invoice.currency || 'gbp',
-                customer: invoice.customer,
-                payment_method_types: ['card'],
-                metadata: {
-                  invoice_id: invoice.id,
-                  subscription_id: stripeSubscription.id,
-                  userId: userId.toString(),
-                },
-              });
+              // If still no payment intent after finalization, wait and retry
+              console.log('No payment intent immediately after finalization, waiting...');
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+              
+              // Retrieve invoice again to check for payment intent
+              const retryInvoice: any = await this.stripe.invoices.retrieve(
+                invoiceId,
+                { expand: ['payment_intent'] },
+              );
+              
+              if (retryInvoice.payment_intent) {
+                const piId =
+                  typeof retryInvoice.payment_intent === 'string'
+                    ? retryInvoice.payment_intent
+                    : retryInvoice.payment_intent.id;
 
-              clientSecret = newPaymentIntent.client_secret;
-              console.log('Manual payment intent created:', !!clientSecret);
+                const fetchedPI = await this.stripe.paymentIntents.retrieve(piId);
+                clientSecret = fetchedPI.client_secret || null;
+                console.log(
+                  'Payment intent found on retry:',
+                  !!clientSecret,
+                );
+              } else {
+                throw new Error(
+                  'Payment intent not created after invoice finalization',
+                );
+              }
             }
           } catch (finalizeError: any) {
-            console.error('Error finalizing invoice:', finalizeError.message);
-            // Fallback to manual payment intent creation
-            try {
-              const newPaymentIntent = await this.stripe.paymentIntents.create({
-                amount: invoice.amount_due,
-                currency: invoice.currency || 'gbp',
-                customer: invoice.customer,
-                payment_method_types: ['card'],
-                metadata: {
-                  invoice_id: invoice.id,
-                  subscription_id: stripeSubscription.id,
-                  userId: userId.toString(),
-                },
-              });
-              clientSecret = newPaymentIntent.client_secret;
-              console.log(
-                'Fallback: Manual payment intent created:',
-                !!clientSecret,
-              );
-            } catch (piError: any) {
-              console.error('Error creating payment intent:', piError.message);
-            }
+            console.error('Error finalizing invoice or getting payment intent:', finalizeError.message);
+            throw new BadRequestException(
+              `Failed to create payment intent: ${finalizeError.message}. Please try again.`,
+            );
           }
         }
       } catch (error) {
@@ -340,52 +332,64 @@ export class SubscriptionService {
         );
       }
 
-      // Check invoice status first - it might already be paid from the payment intent
-      const invoiceCheck: any = await this.stripe.invoices.retrieve(invoiceId);
+      // When payment intent succeeds, Stripe automatically pays the invoice
+      // Wait a moment for Stripe to process, then check invoice status
+      console.log('Payment intent succeeded, waiting for Stripe to process invoice...');
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      console.log('Invoice status check:', {
+      // Check invoice status - it should be paid automatically by Stripe
+      const invoiceCheck: any = await this.stripe.invoices.retrieve(invoiceId, {
+        expand: ['payment_intent'],
+      });
+
+      console.log('Invoice status after payment intent success:', {
         id: invoiceCheck.id,
         status: invoiceCheck.status,
         paid: invoiceCheck.paid,
-        payment_intent: invoiceCheck.payment_intent,
+        payment_intent_id: invoiceCheck.payment_intent
+          ? (typeof invoiceCheck.payment_intent === 'string'
+              ? invoiceCheck.payment_intent
+              : invoiceCheck.payment_intent.id)
+          : null,
+        payment_intent_matches: invoiceCheck.payment_intent
+          ? (typeof invoiceCheck.payment_intent === 'string'
+              ? invoiceCheck.payment_intent === paymentIntentId
+              : invoiceCheck.payment_intent.id === paymentIntentId)
+          : false,
       });
 
-      let invoice: any = invoiceCheck;
+      const invoice: any = invoiceCheck;
 
-      // If invoice is not paid yet, pay it
+      // If invoice is not paid yet, the payment intent might not be linked
       if (!invoiceCheck.paid) {
-        // Payment method is already used in payment intent, so we can't attach it
-        // Instead, we'll pay the invoice using the payment intent's charge
-        console.log('Invoice not paid yet, attempting to pay...');
+        console.log(
+          'Invoice not automatically paid. Payment intent may not be linked to invoice.',
+        );
+        console.log('Checking if we need to manually link them...');
 
-        try {
-          // Try to pay invoice - Stripe should use the payment intent's charge
-          invoice = await this.stripe.invoices.pay(invoiceId);
-          console.log('Invoice paid successfully:', {
-            id: invoice.id,
-            status: invoice.status,
-            paid: invoice.paid,
-          });
-        } catch (payError: any) {
-          console.error('Error paying invoice:', payError.message);
-
-          // Payment intent succeeded, so payment was made
-          // If invoice payment fails, it might be because payment intent wasn't linked to invoice
-          // In this case, we'll manually mark subscription as active since payment succeeded
+        // Check if payment intent is linked to this invoice
+        const piInvoiceId = paymentIntent.invoice as string;
+        if (piInvoiceId && piInvoiceId === invoiceId) {
+          console.log('Payment intent is linked to invoice, waiting longer for Stripe...');
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+          
+          // Check again
+          const retryInvoice: any = await this.stripe.invoices.retrieve(invoiceId);
+          if (retryInvoice.paid) {
+            console.log('Invoice now paid after waiting');
+            invoice.paid = true;
+          }
+        } else {
           console.log(
-            'Invoice payment failed, but payment intent succeeded. Payment was successful.',
+            'Warning: Payment intent not linked to invoice. Invoice ID in payment intent:',
+            piInvoiceId,
+            'Expected:',
+            invoiceId,
           );
-          console.log('Will update subscription status manually.');
         }
       } else {
-        console.log('Invoice already paid');
+        console.log('Invoice automatically paid by Stripe (as expected)');
       }
-
-      console.log('Invoice paid:', {
-        id: invoice.id,
-        status: invoice.status,
-        paid: invoice.paid,
-      });
 
       // Find and update subscription
       if (subscriptionId) {
@@ -400,39 +404,56 @@ export class SubscriptionService {
 
         // If subscription is still incomplete, we need to properly activate it in Stripe
         if (stripeSub.status === 'incomplete') {
-          console.log('Subscription still incomplete in Stripe, attempting to activate...');
+          console.log(
+            'Subscription still incomplete in Stripe, attempting to activate...',
+          );
 
           try {
             // If invoice is paid, wait a moment and refresh subscription
             // Stripe should automatically activate it
             if (invoice.paid) {
-              console.log('Invoice is paid, waiting for Stripe to activate subscription...');
-              
-              // Wait 1 second for Stripe to process
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              
-              // Refresh subscription to get updated status
-              const refreshedSub: any = await this.stripe.subscriptions.retrieve(
-                subscriptionId,
+              console.log(
+                'Invoice is paid, waiting for Stripe to activate subscription...',
               );
-              
-              console.log('Refreshed subscription status:', refreshedSub.status);
-              
+
+              // Wait 1 second for Stripe to process
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+
+              // Refresh subscription to get updated status
+              const refreshedSub: any =
+                await this.stripe.subscriptions.retrieve(subscriptionId);
+
+              console.log(
+                'Refreshed subscription status:',
+                refreshedSub.status,
+              );
+
               if (refreshedSub.status === 'active') {
                 stripeSub.status = 'active';
                 console.log('Subscription automatically activated by Stripe');
               } else {
                 // If still incomplete, the payment intent might not be linked to invoice
                 // In this case, we'll mark it as active in our DB but note Stripe status
-                console.log('Warning: Invoice paid but Stripe subscription still incomplete');
-                console.log('This may be because payment intent was created separately from invoice');
-                console.log('Subscription will be marked active in database, but Stripe shows incomplete');
+                console.log(
+                  'Warning: Invoice paid but Stripe subscription still incomplete',
+                );
+                console.log(
+                  'This may be because payment intent was created separately from invoice',
+                );
+                console.log(
+                  'Subscription will be marked active in database, but Stripe shows incomplete',
+                );
               }
             } else {
-              console.log('Invoice not paid, cannot activate subscription in Stripe');
+              console.log(
+                'Invoice not paid, cannot activate subscription in Stripe',
+              );
             }
           } catch (updateError: any) {
-            console.log('Error checking subscription status in Stripe:', updateError.message);
+            console.log(
+              'Error checking subscription status in Stripe:',
+              updateError.message,
+            );
           }
         }
 
