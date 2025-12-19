@@ -87,13 +87,41 @@ function SubscriptionManager({ token, user }) {
     }
   };
 
-  const handlePaymentSuccess = () => {
-    setSuccess('🎉 Payment successful! Your subscription is now active.');
-    setShowCheckout(false);
-    setClientSecret('');
-    setTimeout(() => {
-      fetchSubscriptionStatus();
-    }, 2000);
+  const handlePaymentSuccess = async (paymentIntentId) => {
+    setLoading(true);
+    setError('');
+    setSuccess('Payment successful! Activating subscription...');
+    
+    try {
+      // Call the confirm-payment endpoint to pay invoice and activate subscription
+      const response = await axios.post(
+        `${API_URL}/subscription/confirm-payment`,
+        { paymentIntentId },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      setSuccess('🎉 Payment successful! Your subscription is now active.');
+      setShowCheckout(false);
+      setClientSecret('');
+      
+      // Refresh subscription status
+      setTimeout(() => {
+        fetchSubscriptionStatus();
+      }, 1000);
+    } catch (err) {
+      setError(
+        err.response?.data?.message || 'Payment succeeded but failed to activate subscription. Please refresh the page.'
+      );
+      // Still close checkout and refresh status
+      setShowCheckout(false);
+      setTimeout(() => {
+        fetchSubscriptionStatus();
+      }, 2000);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading && !subscription) {

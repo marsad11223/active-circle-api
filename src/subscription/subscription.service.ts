@@ -256,6 +256,79 @@ export class SubscriptionService {
     };
   }
 
+  async confirmPaymentAndActivateSubscription(
+    userId: string,
+    paymentIntentId: string,
+  ) {
+    try {
+      // Retrieve the payment intent
+      const paymentIntent = await this.stripe.paymentIntents.retrieve(
+        paymentIntentId,
+      );
+
+      console.log('Payment intent retrieved:', {
+        id: paymentIntent.id,
+        status: paymentIntent.status,
+        metadata: paymentIntent.metadata,
+      });
+
+      if (paymentIntent.status !== 'succeeded') {
+        throw new BadRequestException(
+          'Payment intent is not succeeded yet',
+        );
+      }
+
+      const invoiceId = paymentIntent.metadata?.invoice_id;
+      const subscriptionId = paymentIntent.metadata?.subscription_id;
+
+      if (!invoiceId) {
+        throw new BadRequestException('Invoice ID not found in payment intent');
+      }
+
+      // Pay the invoice
+      console.log('Paying invoice:', invoiceId);
+      const invoice: any = await this.stripe.invoices.pay(invoiceId);
+
+      console.log('Invoice paid:', {
+        id: invoice.id,
+        status: invoice.status,
+        paid: invoice.paid,
+      });
+
+      // Find and update subscription
+      if (subscriptionId) {
+        const subscription = await this.subscriptionModel.findOne({
+          stripeSubscriptionId: subscriptionId,
+        });
+
+        if (subscription) {
+          subscription.status = SubscriptionStatus.ACTIVE;
+          subscription.updated_at = new Date();
+          await subscription.save();
+
+          // Update user subscription status
+          await this.userModel.findByIdAndUpdate(userId, {
+            hasActiveSubscription: true,
+          });
+
+          console.log('Subscription activated:', subscriptionId);
+        }
+      }
+
+      return {
+        success: true,
+        message: 'Payment confirmed and subscription activated',
+        invoiceId: invoice.id,
+        subscriptionId,
+      };
+    } catch (error: any) {
+      console.error('Error confirming payment:', error.message);
+      throw new BadRequestException(
+        error.message || 'Failed to confirm payment',
+      );
+    }
+  }
+
   async handleWebhookEvent(event: Stripe.Event) {
     switch (event.type) {
       case 'customer.subscription.updated':

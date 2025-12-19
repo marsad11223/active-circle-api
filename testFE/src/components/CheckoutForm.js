@@ -55,7 +55,7 @@ function CheckoutForm({ clientSecret, onSuccess, onError }) {
         setError(stripeError.message);
         onError(stripeError.message);
       } else if (paymentIntent.status === 'succeeded') {
-        onSuccess();
+        onSuccess(paymentIntent.id);
       }
     } catch (err) {
       setError('Payment failed. Please try again.');

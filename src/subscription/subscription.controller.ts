@@ -50,6 +50,22 @@ export class SubscriptionController {
     return this.subscriptionService.cancelSubscription(user._id);
   }
 
+  @Post('confirm-payment')
+  @UseGuards(JwtAuthGuard)
+  async confirmPayment(
+    @GetUser() user: any,
+    @Req() request: any,
+  ) {
+    const { paymentIntentId } = request.body;
+    if (!paymentIntentId) {
+      throw new BadRequestException('paymentIntentId is required');
+    }
+    return this.subscriptionService.confirmPaymentAndActivateSubscription(
+      user._id,
+      paymentIntentId,
+    );
+  }
+
   @Post('webhook')
   async handleWebhook(
     @Headers('stripe-signature') signature: string,
