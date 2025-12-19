@@ -283,10 +283,46 @@ export class SubscriptionService {
         throw new BadRequestException('Invoice ID not found in payment intent');
       }
 
-      // Pay the invoice using the payment method from the payment intent
+      // Get customer ID from payment intent
+      const customerId = paymentIntent.customer as string;
+
+      if (!customerId) {
+        throw new BadRequestException('Customer ID not found in payment intent');
+      }
+
+      // Attach payment method to customer if not already attached
+      if (paymentMethodId) {
+        try {
+          console.log('Attaching payment method to customer:', {
+            paymentMethodId,
+            customerId,
+          });
+          
+          await this.stripe.paymentMethods.attach(paymentMethodId, {
+            customer: customerId,
+          });
+
+          // Set as default payment method for customer
+          await this.stripe.customers.update(customerId, {
+            invoice_settings: {
+              default_payment_method: paymentMethodId,
+            },
+          });
+
+          console.log('Payment method attached and set as default');
+        } catch (attachError: any) {
+          // If already attached, that's fine
+          if (!attachError.message.includes('already been attached')) {
+            console.log('Payment method attachment note:', attachError.message);
+          }
+        }
+      }
+
+      // Pay the invoice using the payment method
       console.log('Paying invoice:', {
         invoiceId,
         paymentMethodId,
+        customerId,
       });
 
       const invoice: any = await this.stripe.invoices.pay(invoiceId, {
