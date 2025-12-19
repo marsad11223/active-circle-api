@@ -277,14 +277,21 @@ export class SubscriptionService {
 
       const invoiceId = paymentIntent.metadata?.invoice_id;
       const subscriptionId = paymentIntent.metadata?.subscription_id;
+      const paymentMethodId = paymentIntent.payment_method as string;
 
       if (!invoiceId) {
         throw new BadRequestException('Invoice ID not found in payment intent');
       }
 
-      // Pay the invoice
-      console.log('Paying invoice:', invoiceId);
-      const invoice: any = await this.stripe.invoices.pay(invoiceId);
+      // Pay the invoice using the payment method from the payment intent
+      console.log('Paying invoice:', {
+        invoiceId,
+        paymentMethodId,
+      });
+      
+      const invoice: any = await this.stripe.invoices.pay(invoiceId, {
+        payment_method: paymentMethodId,
+      });
 
       console.log('Invoice paid:', {
         id: invoice.id,
