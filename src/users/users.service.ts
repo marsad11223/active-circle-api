@@ -94,25 +94,38 @@ export class UsersService {
     }
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<User | null> {
+  async update(
+    id: string,
+    updateUserDto: UpdateUserDto,
+    currentUser: User,
+  ): Promise<User | null> {
     try {
       const user = await this.findUser(id);
       if (!user) {
         throw new NotFoundException('User not found!');
-      } else {
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(updateUserDto.password, salt);
-        const user = await this.userModel.findByIdAndUpdate(
-          { _id: id },
-          {
-            ...updateUserDto,
-            password: hashedPassword,
-            updated_at: Date.now(),
-          },
-          { new: true },
-        );
-        return user;
       }
+
+      // Prepare update data
+      const updateData: any = {
+        ...updateUserDto,
+        updated_at: Date.now(),
+      };
+
+      // Only hash password if it's being updated
+      if (updateUserDto.password) {
+        const salt = await bcrypt.genSalt(10);
+        updateData.password = await bcrypt.hash(updateUserDto.password, salt);
+      }
+
+      // Remove password from updateData if not provided (to avoid undefined)
+      if (!updateUserDto.password) {
+        delete updateData.password;
+      }
+
+      const updatedUser = await this.userModel
+        .findByIdAndUpdate({ _id: id }, updateData, { new: true })
+        .select('-password');
+      return updatedUser;
     } catch (err) {
       throw new BadRequestException(err.message);
     }

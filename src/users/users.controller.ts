@@ -15,7 +15,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { User } from 'src/schemas/user.schema';
 import { GetUser } from 'src/auth/GetUser.Decorator';
 import { ContactUsDto } from './dto/contact-us.dto';
-import { IsAdmin } from 'src/utils/helper';
+import { IsAdmin, canAccessResource } from 'src/utils/helper';
 
 @Controller('users')
 export class UsersController {
@@ -54,14 +54,16 @@ export class UsersController {
     @Body() updateUserDto: UpdateUserDto,
     @GetUser() user: User,
   ) {
-    IsAdmin(user);
-    return this.usersService.update(id, updateUserDto);
+    // Check authorization: superAdmin can update anyone, users can only update themselves
+    canAccessResource(user, id);
+    return this.usersService.update(id, updateUserDto, user);
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Get(':id')
   findOne(@Param('id') id: string, @GetUser() user: User) {
-    IsAdmin(user);
+    // Check authorization: superAdmin can view anyone, users can only view themselves
+    canAccessResource(user, id);
     return this.usersService.findOne(id);
   }
 }
