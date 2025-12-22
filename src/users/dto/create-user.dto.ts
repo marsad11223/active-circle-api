@@ -31,6 +31,7 @@ export class CreateUserDto {
   @IsString()
   address: string;
 
+  @IsOptional()
   @IsString()
-  phoneNumber: string;
+  phoneNumber?: string;
 }

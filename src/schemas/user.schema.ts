@@ -11,6 +11,12 @@ export class User {
   @Prop()
   name: string;
 
+  @Prop({ required: false })
+  firstName?: string;
+
+  @Prop({ required: false })
+  lastName?: string;
+
   @Prop()
   email: string;
 
@@ -23,8 +29,27 @@ export class User {
   @Prop()
   address: string;
 
-  @Prop()
-  phoneNumber: string;
+  @Prop({ required: false })
+  phoneNumber?: string;
+
+  @Prop({ required: false })
+  profilePhoto?: string;
+
+  // Notification Preferences
+  @Prop({ default: true })
+  emailNotifications: boolean;
+
+  @Prop({ default: true })
+  marketingEmails: boolean;
+
+  @Prop({ default: true })
+  activityUpdates: boolean;
+
+  @Prop({ default: true })
+  bookingNotifications: boolean;
+
+  @Prop({ default: true })
+  paymentNotifications: boolean;
 
   @Prop({ default: Date.now })
   created_at: Date;
