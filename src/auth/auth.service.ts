@@ -8,7 +8,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
 import { InjectModel } from '@nestjs/mongoose';
-import { User } from 'src/schemas/user.schema';
+import { User, Role } from 'src/schemas/user.schema';
 import mongoose from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { LoginUserDto } from './dto/login-user.dto';
@@ -62,10 +62,38 @@ export class AuthService {
         throw new UnauthorizedException('Incorrect Email or Password');
       }
 
-      const payload = { id: user._id, email: user.email };
+      // Restore role from lastRole if available
+      // If user has active subscription and lastRole is 'host', restore to host
+      // Otherwise, restore to lastRole if it exists
+      let updatedUser = user;
+      if (user.lastRole) {
+        if (user.hasActiveSubscription && user.lastRole === Role.host) {
+          // User has active subscription and was last seen as host
+          const updated = await this.userModel.findByIdAndUpdate(
+            user._id,
+            { role: Role.host },
+            { new: true },
+          );
+          if (updated) {
+            updatedUser = updated;
+          }
+        } else if (user.lastRole === Role.member) {
+          // User was last seen as member
+          const updated = await this.userModel.findByIdAndUpdate(
+            user._id,
+            { role: Role.member },
+            { new: true },
+          );
+          if (updated) {
+            updatedUser = updated;
+          }
+        }
+      }
+
+      const payload = { id: updatedUser._id, email: updatedUser.email };
       const accessToken = this.jwtService.sign(payload);
       return {
-        data: user,
+        data: updatedUser,
         accessToken: accessToken,
       };
     } else {

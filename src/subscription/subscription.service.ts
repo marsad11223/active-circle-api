@@ -11,7 +11,7 @@ import {
   Subscription,
   SubscriptionStatus,
 } from '../schemas/subscription.schema';
-import { User } from '../schemas/user.schema';
+import { User, Role } from '../schemas/user.schema';
 
 @Injectable()
 export class SubscriptionService {
@@ -33,14 +33,26 @@ export class SubscriptionService {
   }
 
   async createSubscription(userId: string) {
-    // Check if user exists and is a host
+    // Check if user exists
     const user = await this.userModel.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    if (user.role !== 'host') {
-      throw new BadRequestException('Only hosts can subscribe');
+    // Allow both members and hosts to subscribe
+    // If user is a member, they will become a host after payment
+    // Store their last role before changing
+    if (user.role === Role.member) {
+      // Save current role as lastRole before switching to host
+      await this.userModel.findByIdAndUpdate(userId, {
+        lastRole: user.role,
+        role: Role.host,
+      });
+    } else if (user.role === Role.host && !user.lastRole) {
+      // If already host but no lastRole set, set it
+      await this.userModel.findByIdAndUpdate(userId, {
+        lastRole: Role.host,
+      });
     }
 
     // Check if user already has an active subscription
@@ -305,6 +317,28 @@ export class SubscriptionService {
       currentPeriodStart: subscription.currentPeriodStart,
       currentPeriodEnd: subscription.currentPeriodEnd,
       cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+    };
+  }
+
+  async switchToMember(userId: string) {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.role !== Role.host) {
+      throw new BadRequestException('User is not a host');
+    }
+
+    // Switch role to member and update lastRole
+    await this.userModel.findByIdAndUpdate(userId, {
+      role: Role.member,
+      lastRole: Role.member,
+    });
+
+    return {
+      message: 'Successfully switched to member profile',
+      role: Role.member,
     };
   }
 
@@ -706,10 +740,19 @@ export class SubscriptionService {
     subscription.updated_at = new Date();
     await subscription.save();
 
-    // Update user subscription status
-    await this.userModel.findByIdAndUpdate(subscription.userId, {
+    // Update user subscription status and ensure role is host
+    const user = await this.userModel.findById(subscription.userId);
+    const updateData: any = {
       hasActiveSubscription: true,
-    });
+      role: Role.host,
+    };
+
+    // Update lastRole if not already set
+    if (!user?.lastRole) {
+      updateData.lastRole = Role.host;
+    }
+
+    await this.userModel.findByIdAndUpdate(subscription.userId, updateData);
   }
 
   private async handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
@@ -780,6 +823,7 @@ export class SubscriptionService {
 
         await this.userModel.findByIdAndUpdate(subscription.userId, {
           hasActiveSubscription: true,
+          role: Role.host,
         });
 
         console.log('Subscription activated directly from payment intent');

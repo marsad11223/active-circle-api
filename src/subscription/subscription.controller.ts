@@ -44,6 +44,12 @@ export class SubscriptionController {
     return this.subscriptionService.getSubscriptionStatus(user._id);
   }
 
+  @Post('switch-to-member')
+  @UseGuards(JwtAuthGuard)
+  async switchToMember(@GetUser() user: any) {
+    return await this.subscriptionService.switchToMember(user._id);
+  }
+
   @Delete('cancel')
   @UseGuards(JwtAuthGuard)
   async cancelSubscription(@GetUser() user: any) {

@@ -26,6 +26,9 @@ export class User {
   @Prop({ default: Role.member })
   role: Role;
 
+  @Prop({ required: false })
+  lastRole?: Role; // Track last role used (member/host) for profile restoration
+
   @Prop()
   address: string;
 
