@@ -13,6 +13,7 @@ import mongoose from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { LoginUserDto } from './dto/login-user.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { MailerService } from '@nestjs-modules/mailer';
 import { ConfigService } from '@nestjs/config';
 
@@ -404,6 +405,81 @@ export class AuthService {
       };
     } catch (error) {
       throw new BadRequestException('Error while resetting password', error);
+    }
+  }
+
+  async changePassword(
+    userId: string,
+    changePasswordDto: ChangePasswordDto,
+  ): Promise<{ message: string }> {
+    const { oldPassword, newPassword, confirmPassword } = changePasswordDto;
+
+    // 1. Check if passwords match
+    if (newPassword !== confirmPassword) {
+      throw new BadRequestException(
+        'New password and confirm password do not match',
+      );
+    }
+
+    // 2. Find user by ID
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // 3. Verify old password
+    const isOldPasswordValid = await bcrypt.compare(oldPassword, user.password);
+    if (!isOldPasswordValid) {
+      throw new UnauthorizedException('Old password is incorrect');
+    }
+
+    // 4. Check if new password is different from old password
+    const isSamePassword = await bcrypt.compare(newPassword, user.password);
+    if (isSamePassword) {
+      throw new BadRequestException(
+        'New password must be different from old password',
+      );
+    }
+
+    try {
+      // 5. Hash new password
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+      // 6. Update user password
+      await this.userModel.findByIdAndUpdate(
+        userId,
+        { password: hashedPassword, updated_at: Date.now() },
+        { new: true },
+      );
+
+      // 7. Send confirmation email
+      try {
+        await this.mailerService.sendMail({
+          to: user.email,
+          subject: 'Password Changed Successfully',
+          html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2>Password Changed Successfully</h2>
+            <p>Hello ${user.name || user.email},</p>
+            <p>Your password has been successfully changed.</p>
+            <p>If you did not make this change, please contact support immediately.</p>
+          </div>
+        `,
+        });
+      } catch (emailError: any) {
+        console.error(
+          'Error sending password change confirmation email:',
+          emailError,
+        );
+        // Don't throw error, password was changed successfully
+      }
+
+      return {
+        message: 'Your password has been changed successfully.',
+      };
+    } catch (error) {
+      throw new BadRequestException('Error while changing password', error);
     }
   }
 }
