@@ -74,6 +74,13 @@ export class User {
 
   @Prop({ default: false })
   hasActiveSubscription: boolean;
+
+  // Member profile specific fields
+  @Prop({ type: [String], default: [] })
+  interests: string[]; // Array of activity interests (only for members)
+
+  @Prop({ default: 10 })
+  radius: number; // Search radius in km for activities (default 10km, only for members)
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

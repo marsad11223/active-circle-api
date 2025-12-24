@@ -4,8 +4,12 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsArray,
+  IsNumber,
   MaxLength,
   MinLength,
+  Min,
+  Max,
 } from 'class-validator';
 import { Role } from 'src/schemas/user.schema';
 
@@ -34,4 +38,16 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   phoneNumber?: string;
+
+  // Member profile specific fields
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  interests?: string[]; // Array of activity interests (only for members)
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(50)
+  radius?: number; // Search radius in km for activities (1-50km, only for members)
 }

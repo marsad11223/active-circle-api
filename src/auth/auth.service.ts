@@ -38,6 +38,10 @@ export class AuthService {
         const newUser = await this.userModel.create({
           ...createUserDto,
           password: hashedPassword,
+          // Set default radius to 10km if not provided (member profile specific)
+          radius: createUserDto.radius ?? 10,
+          // Set default empty interests array if not provided (member profile specific)
+          interests: createUserDto.interests ?? [],
         });
 
         const payload = { id: newUser._id, email: newUser.email };
