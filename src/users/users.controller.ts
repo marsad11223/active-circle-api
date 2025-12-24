@@ -66,4 +66,11 @@ export class UsersController {
     canAccessResource(user, id);
     return this.usersService.findOne(id);
   }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('toggle-role')
+  toggleRole(@GetUser() user: any) {
+    // Users can only toggle their own role
+    return this.usersService.toggleRole(user._id.toString());
+  }
 }

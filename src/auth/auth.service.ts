@@ -62,32 +62,27 @@ export class AuthService {
         throw new UnauthorizedException('Incorrect Email or Password');
       }
 
-      // Restore role from lastRole if available
-      // If user has active subscription and lastRole is 'host', restore to host
-      // Otherwise, restore to lastRole if it exists
+      // Set role to 'host' if user has active subscription (permanent role)
+      // Set grantRole (current selected role) based on lastRole or default
       let updatedUser = user;
-      if (user.lastRole) {
-        if (user.hasActiveSubscription && user.lastRole === Role.host) {
-          // User has active subscription and was last seen as host
-          const updated = await this.userModel.findByIdAndUpdate(
-            user._id,
-            { role: Role.host },
-            { new: true },
-          );
-          if (updated) {
-            updatedUser = updated;
-          }
-        } else if (user.lastRole === Role.member) {
-          // User was last seen as member
-          const updated = await this.userModel.findByIdAndUpdate(
-            user._id,
-            { role: Role.member },
-            { new: true },
-          );
-          if (updated) {
-            updatedUser = updated;
-          }
-        }
+      const updateData: any = {
+        lastLogin: new Date(),
+        updated_at: Date.now(),
+      };
+
+      // Set permanent role to 'host' if user has active subscription
+      if (user.hasActiveSubscription && user.role !== Role.host) {
+        updateData.role = Role.host;
+      }
+
+      // Update user with new grantRole and lastLogin
+      const updated = await this.userModel.findByIdAndUpdate(
+        user._id,
+        updateData,
+        { new: true },
+      );
+      if (updated) {
+        updatedUser = updated;
       }
 
       const payload = { id: updatedUser._id, email: updatedUser.email };

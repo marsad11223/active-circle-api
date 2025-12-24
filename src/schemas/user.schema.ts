@@ -24,10 +24,16 @@ export class User {
   password: string;
 
   @Prop({ default: Role.member })
-  role: Role;
+  role: Role; // Permanent role - set to 'host' if user has paid, cannot be changed directly
 
   @Prop({ required: false })
-  lastRole?: Role; // Track last role used (member/host) for profile restoration
+  lastRole?: Role; // DEPRECATED: Legacy field for backward compatibility. Use grantRole instead.
+
+  @Prop({ required: false })
+  grantRole?: Role; // Current selected role (member/host) - can be toggled. Also serves as "last role" for restoration.
+
+  @Prop({ required: false })
+  lastLogin?: Date; // Tracks when user last logged in with current grantRole
 
   @Prop()
   address: string;

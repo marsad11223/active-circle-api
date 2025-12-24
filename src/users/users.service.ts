@@ -8,17 +8,19 @@ import {
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectModel } from '@nestjs/mongoose';
-import { User } from 'src/schemas/user.schema';
+import { User, Role } from 'src/schemas/user.schema';
 import mongoose, { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { ContactUsDto } from './dto/contact-us.dto';
 import { MailerService } from '@nestjs-modules/mailer';
+import { JwtService } from '@nestjs/jwt';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<User>,
     private readonly mailerService: MailerService,
+    private readonly jwtService: JwtService,
   ) {}
 
   async validateUser(email: string) {
@@ -154,5 +156,64 @@ export class UsersService {
     }
     const user = await this.userModel.findById(id).select('-password');
     return user;
+  }
+
+  async toggleRole(
+    userId: string,
+  ): Promise<{ data: User; accessToken: string }> {
+    try {
+      const user = await this.findUser(userId);
+      if (!user) {
+        throw new NotFoundException('User not found!');
+      }
+
+      // Get current grantRole or default to member
+      const currentGrantRole = user.grantRole || Role.member;
+      let newGrantRole: Role;
+
+      // Toggle between member and host
+      // Users can freely toggle between member and host roles
+      if (currentGrantRole === Role.member) {
+        newGrantRole = Role.host;
+      } else {
+        // Switching from host to member
+        newGrantRole = Role.member;
+      }
+
+      // Update grantRole, lastLogin, and updated_at
+      // grantRole serves as both the current active role and the "last role" for restoration
+      const updatedUser = await this.userModel
+        .findByIdAndUpdate(
+          userId,
+          {
+            grantRole: newGrantRole,
+            lastLogin: new Date(),
+            updated_at: Date.now(),
+          },
+          { new: true },
+        )
+        .select('-password');
+
+      if (!updatedUser) {
+        throw new NotFoundException('User not found after update');
+      }
+
+      // Generate new JWT token with updated user data
+      const payload = { id: updatedUser._id, email: updatedUser.email };
+      const accessToken = this.jwtService.sign(payload);
+
+      return {
+        data: updatedUser as User,
+        accessToken: accessToken,
+      };
+    } catch (err) {
+      if (
+        err instanceof NotFoundException ||
+        err instanceof BadRequestException
+      ) {
+        throw err;
+      }
+      throw new BadRequestException(err.message);
+    }
   }
 }

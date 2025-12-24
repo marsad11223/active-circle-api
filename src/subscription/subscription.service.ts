@@ -43,15 +43,23 @@ export class SubscriptionService {
     // If user is a member, they will become a host after payment
     // Store their last role before changing
     if (user.role === Role.member) {
-      // Save current role as lastRole before switching to host
+      // Save current grantRole as lastRole before switching to host
+      const currentGrantRole = user.grantRole || Role.member;
       await this.userModel.findByIdAndUpdate(userId, {
-        lastRole: user.role,
-        role: Role.host,
+        lastRole: currentGrantRole,
+        role: Role.host, // Permanent role - user has paid
+        grantRole: Role.host, // Current selected role
       });
     } else if (user.role === Role.host && !user.lastRole) {
       // If already host but no lastRole set, set it
       await this.userModel.findByIdAndUpdate(userId, {
-        lastRole: Role.host,
+        lastRole: user.grantRole || Role.host,
+        grantRole: Role.host, // Ensure grantRole is set to host
+      });
+    } else if (user.role === Role.host) {
+      // User is already a host, just ensure grantRole is set
+      await this.userModel.findByIdAndUpdate(userId, {
+        grantRole: Role.host,
       });
     }
 
