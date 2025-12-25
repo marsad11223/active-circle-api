@@ -9,6 +9,7 @@ import { Activity } from 'src/schemas/activity.schema';
 import mongoose, { Model } from 'mongoose';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
+import { BrowseActivitiesDto, PriceFilter } from './dto/browse-activities.dto';
 import { User, Role } from 'src/schemas/user.schema';
 import { RecurringType } from 'src/schemas/activity.schema';
 
@@ -76,6 +77,101 @@ export class ActivityService {
         .populate('hostId', 'name email profilePhoto')
         .sort({ created_at: -1 });
       return activities;
+    } catch (err) {
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  async browseActivities(
+    filters: BrowseActivitiesDto,
+    memberId?: string,
+  ): Promise<{ activities: Activity[]; total: number }> {
+    try {
+      // Build query
+      const query: any = { deleted_at: null };
+
+      // Search filter (title or description)
+      if (filters.search) {
+        query.$or = [
+          { title: { $regex: filters.search, $options: 'i' } },
+          { description: { $regex: filters.search, $options: 'i' } },
+        ];
+      }
+
+      // Category filter (array of categories)
+      // Ensure category is always an array
+      let categoryArray: string[] = [];
+      if (filters.category) {
+        if (Array.isArray(filters.category)) {
+          categoryArray = filters.category;
+        } else {
+          // Convert single string to array
+          categoryArray = [filters.category];
+        }
+      }
+
+      if (categoryArray.length > 0) {
+        // Filter out 'All' if present
+        const categories = categoryArray.filter((cat) => cat !== 'All');
+        if (categories.length > 0) {
+          // Match activities that have any of the specified categories
+          query.category = { $in: categories };
+        }
+      }
+
+      // Date filter
+      if (filters.date) {
+        const filterDate = new Date(filters.date);
+        const startOfDay = new Date(filterDate);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(filterDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        query.date = {
+          $gte: startOfDay,
+          $lte: endOfDay,
+        };
+      }
+
+      // Price filter
+      if (filters.price) {
+        if (filters.price === PriceFilter.FREE) {
+          query.price = { $eq: 0 };
+        } else if (filters.price === PriceFilter.PAID) {
+          query.price = { $gt: 0 };
+        }
+        // If 'all', no price filter applied
+      }
+
+      // Get member's radius if memberId is provided
+      let maxDistance = filters.maxDistance;
+      if (memberId && !maxDistance) {
+        const member = await this.userModel.findById(memberId);
+        if (member && member.radius) {
+          maxDistance = member.radius;
+        }
+      }
+
+      // Note: Distance filtering would require geolocation data (lat/lng)
+      // For now, we'll return all activities and let frontend handle distance
+      // In future, you can add lat/lng to Activity schema and use $geoNear
+
+      // Execute query
+      const activities = await this.activityModel
+        .find(query)
+        .populate('hostId', 'name email profilePhoto')
+        .sort({ created_at: -1 });
+
+      // Get total count
+      const total = await this.activityModel.countDocuments(query);
+
+      // Note: Host rating filtering would require a rating system
+      // For now, we'll return all activities
+      // In future, you can add ratings to User schema and filter here
+
+      return {
+        activities,
+        total,
+      };
     } catch (err) {
       throw new BadRequestException(err.message);
     }

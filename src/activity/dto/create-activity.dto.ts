@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsEnum,
   IsDateString,
+  IsArray,
   Min,
   Max,
 } from 'class-validator';
@@ -20,8 +21,9 @@ export class CreateActivityDto {
   description: string;
 
   @IsNotEmpty()
-  @IsString()
-  category: string;
+  @IsArray()
+  @IsString({ each: true })
+  category: string[]; // Array of categories
 
   @IsNotEmpty()
   @IsString()

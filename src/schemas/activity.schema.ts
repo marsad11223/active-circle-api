@@ -20,8 +20,8 @@ export class Activity extends Document {
   @Prop({ required: true })
   description: string; // Activity description
 
-  @Prop({ required: true })
-  category: string; // Activity category
+  @Prop({ type: [String], required: true })
+  category: string[]; // Activity categories (array of strings)
 
   @Prop({ required: true })
   location: string; // Activity location

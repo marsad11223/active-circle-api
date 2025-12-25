@@ -1,0 +1,992 @@
+{
+	"info": {
+		"_postman_id": "dd5e2034-f568-4d46-a786-97a1d927976f",
+		"name": "active-circle",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "14798811",
+		"_collection_link": "https://www.postman.com/supply-astronomer-1330246/workspace/marsad-ghanvi-personal/collection/14798811-dd5e2034-f568-4d46-a786-97a1d927976f?action=share&source=collection_link&creator=14798811"
+	},
+	"item": [
+		{
+			"name": "auth",
+			"item": [
+				{
+					"name": "login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var res = pm.response.json();",
+									"pm.collectionVariables.set('token', res.accessToken) ",
+									"",
+									"pm.test(\"Response status code is 201\", function () {",
+									"    pm.expect(pm.response.code).to.equal(201);",
+									"});",
+									"",
+									"",
+									"pm.test(\"Email is in a valid format\", function () {",
+									"    const responseData = pm.response.json();",
+									"    ",
+									"    pm.expect(responseData).to.be.an('object');",
+									"    pm.expect(responseData.data.email).to.match(/^[\\w-]+(\\.[\\w-]+)*@[\\w-]+(\\.[\\w-]+)*(\\.[a-z]{2,})$/, \"Email should be in a valid format\");",
+									"});",
+									"",
+									"",
+									"pm.test(\"Password should not be empty\", function () {",
+									"    const responseData = pm.response.json();",
+									"",
+									"    pm.expect(responseData).to.be.an('object');",
+									"    pm.expect(responseData.data.password).to.exist.and.to.not.be.empty;",
+									"});",
+									"",
+									"",
+									"pm.test(\"Verify that the access token is being saved in the collection variables\", function () {",
+									"    const responseData = pm.response.json();",
+									"    ",
+									"    console.log(responseData, 'responseData')",
+									"    pm.expect(responseData).to.have.property('accessToken');",
+									"    pm.expect(pm.collectionVariables.has('token')).to.be.true;",
+									"});",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"marsad11223@gmail.com\",\n    \"password\": \"12345678\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "forgotPassword",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var res = pm.response.json();",
+									"pm.collectionVariables.set('token', res.accessToken) ",
+									"",
+									"pm.test(\"Response status code is 201\", function () {",
+									"    pm.expect(pm.response.code).to.equal(201);",
+									"});",
+									"",
+									"",
+									"pm.test(\"Email is in a valid format\", function () {",
+									"    const responseData = pm.response.json();",
+									"    ",
+									"    pm.expect(responseData).to.be.an('object');",
+									"    pm.expect(responseData.data.email).to.match(/^[\\w-]+(\\.[\\w-]+)*@[\\w-]+(\\.[\\w-]+)*(\\.[a-z]{2,})$/, \"Email should be in a valid format\");",
+									"});",
+									"",
+									"",
+									"pm.test(\"Password should not be empty\", function () {",
+									"    const responseData = pm.response.json();",
+									"",
+									"    pm.expect(responseData).to.be.an('object');",
+									"    pm.expect(responseData.data.password).to.exist.and.to.not.be.empty;",
+									"});",
+									"",
+									"",
+									"pm.test(\"Verify that the access token is being saved in the collection variables\", function () {",
+									"    const responseData = pm.response.json();",
+									"    ",
+									"    console.log(responseData, 'responseData')",
+									"    pm.expect(responseData).to.have.property('accessToken');",
+									"    pm.expect(pm.collectionVariables.has('token')).to.be.true;",
+									"});",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"marsad11223@gmail.com\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_prod}}/auth/forgotPassword",
+							"host": [
+								"{{base_prod}}"
+							],
+							"path": [
+								"auth",
+								"forgotPassword"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "reset password",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var res = pm.response.json();",
+									"pm.collectionVariables.set('token', res.accessToken) ",
+									"",
+									"pm.test(\"Response status code is 201\", function () {",
+									"    pm.expect(pm.response.code).to.equal(201);",
+									"});",
+									"",
+									"",
+									"pm.test(\"Email is in a valid format\", function () {",
+									"    const responseData = pm.response.json();",
+									"    ",
+									"    pm.expect(responseData).to.be.an('object');",
+									"    pm.expect(responseData.data.email).to.match(/^[\\w-]+(\\.[\\w-]+)*@[\\w-]+(\\.[\\w-]+)*(\\.[a-z]{2,})$/, \"Email should be in a valid format\");",
+									"});",
+									"",
+									"",
+									"pm.test(\"Password should not be empty\", function () {",
+									"    const responseData = pm.response.json();",
+									"",
+									"    pm.expect(responseData).to.be.an('object');",
+									"    pm.expect(responseData.data.password).to.exist.and.to.not.be.empty;",
+									"});",
+									"",
+									"",
+									"pm.test(\"Verify that the access token is being saved in the collection variables\", function () {",
+									"    const responseData = pm.response.json();",
+									"    ",
+									"    console.log(responseData, 'responseData')",
+									"    pm.expect(responseData).to.have.property('accessToken');",
+									"    pm.expect(pm.collectionVariables.has('token')).to.be.true;",
+									"});",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"marsad11223@gmail.com\",\n    \"password\": \".Hello1122\",\n    \"confirmPassword\": \".Hello1122\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/resetPassword",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"resetPassword"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "signup",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Marsad Ghanvi\",\n  \"email\": \"marsad11223@gmail.com\",\n  \"password\": \"12345678\",\n  \"role\": \"host\",\n  \"address\": \"123 Main Street, Cityville, Country\",\n  \"phoneNumber\": \"+1234567890\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/signup",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"signup"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "subscription",
+			"item": []
+		},
+		{
+			"name": "users",
+			"item": [
+				{
+					"name": "getAll",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/users",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "create",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Marsad Ghanvi\",\n  \"email\": \"test@gmail.com\",\n  \"password\": \"12345678\",\n  \"role\": \"member\",\n  \"address\": \"123 Main Street, Cityville, Country\",\n  \"phoneNumber\": \"+1234567890\"\n}\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/users/create",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"create"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "update",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Marsad\",\n  \"email\": \"marsad11223@gmail.com\",\n  \"password\": \"12345678\",\n  \"address\": \"123 Main Street, Cityville, Country\",\n  \"phoneNumber\": \"+1234567890\",\n  \"profilePhoto\": \"sdfsd\"\n}\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/users/69495113224cb841bb304665",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"69495113224cb841bb304665"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getOne",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/users/6942a60ac0b02150c0f246d0",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"6942a60ac0b02150c0f246d0"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "delete",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/users/68c9458cee015b4a82377fc3",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"68c9458cee015b4a82377fc3"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "contactus",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Marsad\",\n    \"email\": \"\",\n    \"subject\": \"\",\n    \"body\":\"\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/users/contactUs",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"contactUs"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "toggle-role",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var res = pm.response.json();",
+									"pm.collectionVariables.set('token', res.accessToken) ",
+									"",
+									"pm.test(\"Response status code is 201\", function () {",
+									"    pm.expect(pm.response.code).to.equal(201);",
+									"});",
+									"",
+									"",
+									"pm.test(\"Email is in a valid format\", function () {",
+									"    const responseData = pm.response.json();",
+									"    ",
+									"    pm.expect(responseData).to.be.an('object');",
+									"    pm.expect(responseData.data.email).to.match(/^[\\w-]+(\\.[\\w-]+)*@[\\w-]+(\\.[\\w-]+)*(\\.[a-z]{2,})$/, \"Email should be in a valid format\");",
+									"});",
+									"",
+									"",
+									"pm.test(\"Password should not be empty\", function () {",
+									"    const responseData = pm.response.json();",
+									"",
+									"    pm.expect(responseData).to.be.an('object');",
+									"    pm.expect(responseData.data.password).to.exist.and.to.not.be.empty;",
+									"});",
+									"",
+									"",
+									"pm.test(\"Verify that the access token is being saved in the collection variables\", function () {",
+									"    const responseData = pm.response.json();",
+									"    ",
+									"    console.log(responseData, 'responseData')",
+									"    pm.expect(responseData).to.have.property('accessToken');",
+									"    pm.expect(pm.collectionVariables.has('token')).to.be.true;",
+									"});",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/users/toggle-role",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"toggle-role"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "change-password",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var res = pm.response.json();",
+									"pm.collectionVariables.set('token', res.accessToken) ",
+									"",
+									"pm.test(\"Response status code is 201\", function () {",
+									"    pm.expect(pm.response.code).to.equal(201);",
+									"});",
+									"",
+									"",
+									"pm.test(\"Email is in a valid format\", function () {",
+									"    const responseData = pm.response.json();",
+									"    ",
+									"    pm.expect(responseData).to.be.an('object');",
+									"    pm.expect(responseData.data.email).to.match(/^[\\w-]+(\\.[\\w-]+)*@[\\w-]+(\\.[\\w-]+)*(\\.[a-z]{2,})$/, \"Email should be in a valid format\");",
+									"});",
+									"",
+									"",
+									"pm.test(\"Password should not be empty\", function () {",
+									"    const responseData = pm.response.json();",
+									"",
+									"    pm.expect(responseData).to.be.an('object');",
+									"    pm.expect(responseData.data.password).to.exist.and.to.not.be.empty;",
+									"});",
+									"",
+									"",
+									"pm.test(\"Verify that the access token is being saved in the collection variables\", function () {",
+									"    const responseData = pm.response.json();",
+									"    ",
+									"    console.log(responseData, 'responseData')",
+									"    pm.expect(responseData).to.have.property('accessToken');",
+									"    pm.expect(pm.collectionVariables.has('token')).to.be.true;",
+									"});",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"oldPassword\": \"12345678\",\n    \"newPassword\": \".Hello1122\",\n    \"confirmPassword\": \".Hello1122\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/changePassword",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"changePassword"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "upload file",
+			"item": [
+				{
+					"name": "upload",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "/Users/marsadghanvi/Desktop/Screenshot 2025-12-25 at 6.34.32 PM.png"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/cloudinary/upload",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"cloudinary",
+								"upload"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Activities",
+			"item": [
+				{
+					"name": "Create Activity",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Morning Yoga Session\",\n  \"description\": \"Join us for a rejuvenating morning yoga session in the park. All levels welcome!\",\n  \"category\": [\"Wellness & Mindfulness\", \"Sports & Fitness\"],\n  \"location\": \"Springfield Park\",\n  \"date\": \"2024-12-28T00:00:00.000Z\",\n  \"time\": \"08:00\",\n  \"maxParticipants\": 20,\n  \"price\": 15,\n  \"recurring\": \"one-time\",\n  \"additionalInformation\": \"Please bring your own yoga mat and water bottle. We will meet at the main entrance.\",\n  \"picture\": \"https://example.com/yoga-image.jpg\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/activities",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"activities"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Activities",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/activities",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"activities"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Browse Activities (Public)",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/activities/browse?search=yoga&category=Wellness & Mindfulness&category=Sports & Fitness&maxDistance=10&date=2024-01-20&price=free&minHostRating=4",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"activities",
+								"browse"
+							],
+							"query": [
+								{
+									"key": "search",
+									"value": "yoga",
+									"description": "Search in title and description"
+								},
+								{
+									"key": "category",
+									"value": "Wellness & Mindfulness",
+									"description": "Filter by category (can add multiple)"
+								},
+								{
+									"key": "category",
+									"value": "Sports & Fitness",
+									"description": "Filter by category (array - add multiple)"
+								},
+								{
+									"key": "maxDistance",
+									"value": "10",
+									"description": "Max distance in km"
+								},
+								{
+									"key": "date",
+									"value": "2024-01-20",
+									"description": "Filter by date (ISO format)"
+								},
+								{
+									"key": "price",
+									"value": "free",
+									"description": "Price filter: all, free, or paid"
+								},
+								{
+									"key": "minHostRating",
+									"value": "4",
+									"description": "Minimum host rating (0-5)"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Browse Activities (Member)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/activities/browse/member?category=Sports&category=Outdoor Adventures&date=2024-01-22&price=paid",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"activities",
+								"browse",
+								"member"
+							],
+							"query": [
+								{
+									"key": "search",
+									"value": "",
+									"description": "Search in title and description",
+									"disabled": true
+								},
+								{
+									"key": "category",
+									"value": "Sports",
+									"description": "Filter by category (array - add multiple)"
+								},
+								{
+									"key": "category",
+									"value": "Outdoor Adventures",
+									"description": "Filter by category (array - add multiple)"
+								},
+								{
+									"key": "maxDistance",
+									"value": "",
+									"description": "Max distance in km (uses member's radius if not provided)",
+									"disabled": true
+								},
+								{
+									"key": "date",
+									"value": "2024-01-22",
+									"description": "Filter by date (ISO format)"
+								},
+								{
+									"key": "price",
+									"value": "paid",
+									"description": "Price filter: all, free, or paid"
+								},
+								{
+									"key": "minHostRating",
+									"value": "",
+									"description": "Minimum host rating (0-5)",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Activity by ID",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/activities/694d36f6119028136c257858",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"activities",
+								"694d36f6119028136c257858"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Activities (Host)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/activities/host/my-activities",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"activities",
+								"host",
+								"my-activities"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Activity",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Updated Yoga Session\",\n  \"category\": [\"Wellness & Mindfulness\", \"Sports & Fitness\"],\n  \"maxParticipants\": 25,\n  \"price\": 20\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/activities/694d36f6119028136c257858",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"activities",
+								"694d36f6119028136c257858"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Activity",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/activities/694d36f6119028136c257858",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"activities",
+								"694d36f6119028136c257858"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"requests": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"requests": {},
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:4000"
+		},
+		{
+			"key": "token",
+			"value": ""
+		},
+		{
+			"key": "base_prod",
+			"value": ""
+		}
+	]
+}

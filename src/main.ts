@@ -9,8 +9,13 @@ async function bootstrap() {
     rawBody: true, // Enable raw body for webhooks
   });
 
-  // ✅ Global validation
-  app.useGlobalPipes(new ValidationPipe());
+  // ✅ Global validation with transformation enabled
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true, // Enable transformation for DTOs
+      whitelist: true, // Strip properties that don't have decorators
+    }),
+  );
 
   // ✅ Then normal JSON parsing
   app.use(bodyParser.json({ limit: '10mb' }));
