@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { SubscriptionModule } from './subscription/subscription.module';
 import { ActivityModule } from './activity/activity.module';
+import { CloudinaryModule } from './cloudinary/cloudinary.module';
 
 import { MailerModule } from '@nestjs-modules/mailer';
 import { APP_PIPE } from '@nestjs/core';
@@ -18,6 +19,7 @@ import { APP_PIPE } from '@nestjs/core';
     UsersModule,
     SubscriptionModule,
     ActivityModule,
+    CloudinaryModule,
 
     ConfigModule.forRoot({ isGlobal: true }),
     MailerModule.forRoot({

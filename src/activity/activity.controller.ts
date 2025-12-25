@@ -13,7 +13,6 @@ import { ActivityService } from './activity.service';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
 import { GetUser } from 'src/auth/GetUser.Decorator';
-import { User } from 'src/schemas/user.schema';
 
 @Controller('activities')
 export class ActivityController {
