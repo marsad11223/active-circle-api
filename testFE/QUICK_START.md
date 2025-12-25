@@ -105,3 +105,4 @@
 - **Payment errors**: Ensure member has `stripeCustomerId`
 - **Activities not loading**: Check browser console for errors
 
+

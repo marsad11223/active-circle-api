@@ -949,6 +949,215 @@
 					"response": []
 				}
 			]
+		},
+		{
+			"name": "booking",
+			"item": [
+				{
+					"name": "Create Booking",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"activityId\": \"{{activity_id}}\",\n  \"paymentMethodId\": \"pm_card_visa\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/bookings",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bookings"
+							]
+						},
+						"description": "Create a booking for an activity. For paid activities, paymentMethodId is required. Payment will be authorized and held in escrow until host approves."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Member Bookings",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/bookings/member/my-bookings",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bookings",
+								"member",
+								"my-bookings"
+							]
+						},
+						"description": "Get all bookings for the current member (authenticated user)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Host Pending Bookings",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/bookings/host/pending",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bookings",
+								"host",
+								"pending"
+							]
+						},
+						"description": "Get all pending bookings for the current host (authenticated user)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Booking by ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/bookings/{{booking_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bookings",
+								"{{booking_id}}"
+							]
+						},
+						"description": "Get booking details by ID. Member, host, or superAdmin can view their own/related bookings."
+					},
+					"response": []
+				},
+				{
+					"name": "Approve Booking",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{base_url}}/bookings/{{booking_id}}/approve",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bookings",
+								"{{booking_id}}",
+								"approve"
+							]
+						},
+						"description": "Host approves a pending booking. For paid activities, payment will be captured (released from escrow) and transferred to host."
+					},
+					"response": []
+				},
+				{
+					"name": "Decline Booking",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"declineReason\": \"Activity is fully booked\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/bookings/{{booking_id}}/decline",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bookings",
+								"{{booking_id}}",
+								"decline"
+							]
+						},
+						"description": "Host declines a pending booking. For paid activities, payment authorization will be cancelled (no charge to member)."
+					},
+					"response": []
+				}
+			]
 		}
 	],
 	"event": [
