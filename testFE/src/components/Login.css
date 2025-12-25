@@ -32,16 +32,21 @@
   font-size: 14px;
 }
 
-.form-group input {
+.form-group input,
+.form-group select,
+.form-group textarea {
   width: 100%;
   padding: 12px;
   border: 2px solid #e5e7eb;
   border-radius: 8px;
   font-size: 14px;
   transition: border-color 0.3s;
+  box-sizing: border-box;
 }
 
-.form-group input:focus {
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
   outline: none;
   border-color: #667eea;
 }
@@ -81,5 +86,30 @@
   color: #6b7280;
   font-size: 13px;
   margin: 5px 0;
+}
+
+.auth-switch {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.auth-switch p {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: #667eea;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 14px;
+  padding: 0;
+  margin-left: 5px;
+}
+
+.link-button:hover {
+  color: #764ba2;
 }
 

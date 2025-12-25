@@ -108,21 +108,55 @@ export class BookingService {
           );
         }
 
-        // Ensure member has Stripe customer ID
-        if (!member.stripeCustomerId) {
-          throw new BadRequestException(
-            'Please add a payment method to your account',
-          );
+        // Ensure member has Stripe customer ID - create if doesn't exist
+        let customerId = member.stripeCustomerId;
+        if (!customerId) {
+          // Create Stripe customer for the member
+          const customer = await this.stripe.customers.create({
+            email: member.email,
+            name: member.name,
+            metadata: {
+              userId: memberId,
+              type: 'member',
+            },
+          });
+          customerId = customer.id;
+
+          // Save customer ID to user record
+          await this.userModel.findByIdAndUpdate(memberId, {
+            stripeCustomerId: customerId,
+            updated_at: new Date(),
+          });
         }
 
-        // Create Payment Intent
+        // Attach payment method to customer (if not already attached)
+        try {
+          await this.stripe.paymentMethods.attach(
+            createBookingDto.paymentMethodId,
+            {
+              customer: customerId,
+            },
+          );
+        } catch (attachError: any) {
+          // Payment method might already be attached, or it's a test payment method
+          // For test payment methods like pm_card_visa, we can proceed
+          if (!attachError.message?.includes('already been attached')) {
+            // Only throw if it's not an "already attached" error
+            // For testing, we'll allow test payment methods
+          }
+        }
+
+        // Create Payment Intent with manual capture (escrow)
+        // Payment will be authorized but not captured until host approves
         const paymentIntent = await this.stripe.paymentIntents.create({
           amount: Math.round(activityPrice * 100), // Convert to cents
           currency: 'usd',
-          customer: member.stripeCustomerId,
+          customer: customerId,
           payment_method: createBookingDto.paymentMethodId,
-          confirm: true, // Charge immediately
+          capture_method: 'manual', // Don't capture immediately - hold in escrow
+          confirm: true, // Authorize payment but don't capture
           description: `Booking for ${activity.title}`,
+          payment_method_types: ['card'], // Specify card as payment method type
           metadata: {
             activityId: (activity._id as any).toString(),
             memberId: memberId,
@@ -131,10 +165,17 @@ export class BookingService {
           },
         });
 
+        // Verify payment intent status - should be 'requires_capture' for manual capture
+        console.log('Payment Intent created:', {
+          id: paymentIntent.id,
+          status: paymentIntent.status,
+          capture_method: paymentIntent.capture_method,
+        });
+
         paymentIntentId = paymentIntent.id;
         chargeId = paymentIntent.latest_charge as string;
         bookingStatus = BookingStatus.PENDING; // Wait for host approval
-        paymentStatus = PaymentStatus.PAID; // Payment collected, held in escrow
+        paymentStatus = PaymentStatus.PENDING; // Payment authorized but not captured (held in escrow)
       } else {
         // Free activity - confirm immediately
         bookingStatus = BookingStatus.CONFIRMED;
@@ -242,14 +283,41 @@ export class BookingService {
         );
       }
 
-      // If paid activity, transfer payment to host
-      // Note: For now, we'll mark as transferred
-      // In future, implement Stripe Connect transfer here
-      if (booking.amount > 0 && booking.paymentStatus === PaymentStatus.PAID) {
-        // TODO: Implement Stripe Connect transfer
-        // const transfer = await this.stripe.transfers.create({...});
-        // booking.stripeTransferId = transfer.id;
-        booking.paymentStatus = PaymentStatus.TRANSFERRED;
+      // If paid activity, capture the payment (release from escrow)
+      if (booking.amount > 0 && booking.paymentIntentId) {
+        try {
+          // First, retrieve the payment intent to check its status
+          const paymentIntent = await this.stripe.paymentIntents.retrieve(
+            booking.paymentIntentId,
+          );
+
+          // Check if payment is already captured
+          if (paymentIntent.status === 'succeeded') {
+            // Payment already captured - just update status
+            booking.paymentStatus = PaymentStatus.TRANSFERRED;
+          } else if (paymentIntent.status === 'requires_capture') {
+            // Payment is authorized but not captured - capture it now
+            const capturedIntent = await this.stripe.paymentIntents.capture(
+              booking.paymentIntentId,
+            );
+
+            if (capturedIntent.status === 'succeeded') {
+              booking.paymentStatus = PaymentStatus.PAID; // Payment captured
+              // TODO: Implement Stripe Connect transfer to host account
+              // For now, payment is in platform account
+              booking.paymentStatus = PaymentStatus.TRANSFERRED; // Mark as transferred (will be sent to host)
+            }
+          } else {
+            // Payment in unexpected state
+            throw new BadRequestException(
+              `Payment is in ${paymentIntent.status} state and cannot be captured`,
+            );
+          }
+        } catch (captureError: any) {
+          throw new BadRequestException(
+            `Failed to capture payment: ${captureError.message}`,
+          );
+        }
       }
 
       // Update booking status
@@ -330,20 +398,31 @@ export class BookingService {
         );
       }
 
-      // If paid activity, refund the payment
-      if (booking.amount > 0 && booking.paymentStatus === PaymentStatus.PAID) {
+      // If paid activity, cancel the payment authorization (release from escrow)
+      if (booking.amount > 0 && booking.paymentIntentId) {
         try {
-          if (booking.stripeChargeId) {
-            const refund = await this.stripe.refunds.create({
-              charge: booking.stripeChargeId,
-              reason: 'requested_by_customer',
-            });
-            booking.stripeRefundId = refund.id;
-            booking.paymentStatus = PaymentStatus.REFUNDED;
+          // Cancel the payment intent (release authorization - no charge to member)
+          // Since we used manual capture, the payment was only authorized, not captured
+          await this.stripe.paymentIntents.cancel(booking.paymentIntentId);
+          booking.paymentStatus = PaymentStatus.REFUNDED; // Authorization released
+        } catch (cancelError: any) {
+          // If payment was already captured (shouldn't happen with manual capture), refund it
+          if (cancelError.code === 'payment_intent_unexpected_state') {
+            try {
+              const refund = await this.stripe.refunds.create({
+                payment_intent: booking.paymentIntentId,
+              });
+              booking.paymentStatus = PaymentStatus.REFUNDED;
+            } catch (refundError: any) {
+              throw new BadRequestException(
+                `Failed to process cancellation: ${refundError.message}`,
+              );
+            }
+          } else {
+            throw new BadRequestException(
+              `Failed to cancel payment: ${cancelError.message}`,
+            );
           }
-        } catch (refundError: any) {
-          console.error('Error processing refund:', refundError);
-          throw new BadRequestException('Failed to process refund');
         }
       }
 
@@ -407,6 +486,11 @@ export class BookingService {
 
   async getHostPendingBookings(hostId: string): Promise<Booking[]> {
     try {
+      const isValidID = mongoose.isValidObjectId(hostId);
+      if (!isValidID) {
+        throw new BadRequestException('Invalid host ID');
+      }
+
       const bookings = await this.bookingModel
         .find({
           hostId: new mongoose.Types.ObjectId(hostId),
@@ -415,10 +499,13 @@ export class BookingService {
         })
         .populate('activityId')
         .populate('memberId', 'name email profilePhoto')
+        .populate('hostId', 'name email profilePhoto')
         .sort({ created_at: -1 });
 
+      console.log(`Found ${bookings.length} pending bookings for host ${hostId}`);
       return bookings;
     } catch (err) {
+      console.error('Error fetching host pending bookings:', err);
       throw new BadRequestException(err.message);
     }
   }

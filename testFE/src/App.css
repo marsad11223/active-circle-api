@@ -29,6 +29,41 @@
   gap: 15px;
   margin-top: 15px;
   font-size: 14px;
+  flex-wrap: wrap;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.view-switcher {
+  display: flex;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 4px;
+  border-radius: 6px;
+}
+
+.view-switcher button {
+  background: transparent;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.3s;
+}
+
+.view-switcher button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.view-switcher button.active {
+  background: rgba(255, 255, 255, 0.3);
+  font-weight: 600;
 }
 
 .btn-logout {
