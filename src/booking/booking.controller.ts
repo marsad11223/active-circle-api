@@ -6,11 +6,13 @@ import {
   Param,
   UseGuards,
   Put,
+  Query,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { BookingService } from './booking.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
+import { HostDashboardDto } from './dto/host-dashboard.dto';
 import { GetUser } from 'src/auth/GetUser.Decorator';
 
 @Controller('bookings')
@@ -42,6 +44,20 @@ export class BookingController {
   getHostPendingBookings(@GetUser() user: any) {
     // Get all pending bookings for the current host
     return this.bookingService.getHostPendingBookings(user._id.toString());
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('host/dashboard')
+  getHostDashboard(
+    @Query() query: HostDashboardDto,
+    @GetUser() user: any,
+  ) {
+    // Get dashboard data for host with filters
+    return this.bookingService.getHostDashboard(
+      user._id.toString(),
+      query.status,
+      query.activityId,
+    );
   }
 
   @UseGuards(AuthGuard('jwt'))

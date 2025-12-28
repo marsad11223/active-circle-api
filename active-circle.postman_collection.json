@@ -1156,6 +1156,48 @@
 						"description": "Host declines a pending booking. For paid activities, payment authorization will be cancelled (no charge to member)."
 					},
 					"response": []
+				},
+				{
+					"name": "Host Dashboard",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/bookings/host/dashboard?status=all&activityId=",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bookings",
+								"host",
+								"dashboard"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "all",
+									"description": "Filter by status: pending, confirmed, cancelled, or all"
+								},
+								{
+									"key": "activityId",
+									"value": "",
+									"description": "Optional: Filter by specific activity ID. Leave empty for all activities."
+								}
+							]
+						},
+						"description": "Get host dashboard data with booking counts and filtered results. Query params: status (pending/confirmed/cancelled/all) and activityId (optional)."
+					},
+					"response": []
 				}
 			]
 		}

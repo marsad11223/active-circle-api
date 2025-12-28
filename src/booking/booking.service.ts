@@ -590,4 +590,75 @@ export class BookingService {
       throw new BadRequestException(err.message);
     }
   }
+
+  async getHostDashboard(
+    hostId: string,
+    status?: BookingStatus | 'all',
+    activityId?: string,
+  ): Promise<{
+    confirmed: number;
+    pending: number;
+    cancelled: number;
+    results: Booking[];
+  }> {
+    try {
+      const isValidID = mongoose.isValidObjectId(hostId);
+      if (!isValidID) {
+        throw new BadRequestException('Invalid host ID');
+      }
+
+      // Build base query
+      const baseQuery: any = {
+        hostId: new mongoose.Types.ObjectId(hostId),
+        deleted_at: null,
+      };
+
+      // Add activity filter if provided
+      if (activityId && mongoose.isValidObjectId(activityId)) {
+        baseQuery.activityId = new mongoose.Types.ObjectId(activityId);
+      }
+
+      // Get counts for all statuses
+      const [confirmedCount, pendingCount, cancelledCount] = await Promise.all([
+        this.bookingModel.countDocuments({
+          ...baseQuery,
+          status: BookingStatus.CONFIRMED,
+        }),
+        this.bookingModel.countDocuments({
+          ...baseQuery,
+          status: BookingStatus.PENDING,
+        }),
+        this.bookingModel.countDocuments({
+          ...baseQuery,
+          status: BookingStatus.CANCELLED,
+        }),
+      ]);
+
+      // Build query for results
+      const resultsQuery: any = { ...baseQuery };
+
+      // Filter by status if provided (and not 'all')
+      if (status && status !== 'all') {
+        resultsQuery.status = status;
+      }
+
+      // Fetch bookings with filters
+      const bookings = await this.bookingModel
+        .find(resultsQuery)
+        .populate('activityId')
+        .populate('memberId', 'name email profilePhoto')
+        .populate('hostId', 'name email profilePhoto')
+        .sort({ created_at: -1 });
+
+      return {
+        confirmed: confirmedCount,
+        pending: pendingCount,
+        cancelled: cancelledCount,
+        results: bookings,
+      };
+    } catch (err) {
+      console.error('Error fetching host dashboard:', err);
+      throw new BadRequestException(err.message);
+    }
+  }
 }

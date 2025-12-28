@@ -10,6 +10,16 @@ function BookingTest({ token, user }) {
   const [activities, setActivities] = useState([]);
   const [myBookings, setMyBookings] = useState([]);
   const [pendingBookings, setPendingBookings] = useState([]);
+  const [dashboardData, setDashboardData] = useState({
+    confirmed: 0,
+    pending: 0,
+    cancelled: 0,
+    results: [],
+  });
+  const [dashboardFilters, setDashboardFilters] = useState({
+    status: 'all',
+    activityId: '',
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -39,6 +49,7 @@ function BookingTest({ token, user }) {
       }
       if (user?.role === 'host' || user?.grantRole === 'host') {
         loadPendingBookings();
+        loadHostDashboard();
       }
     }
   }, [token, user]);
@@ -56,6 +67,13 @@ function BookingTest({ token, user }) {
       loadActivities();
     }
   }, [activeTab, token, user]);
+
+  // Reload dashboard when switching to dashboard tab or filters change
+  useEffect(() => {
+    if (activeTab === 'host-dashboard' && token && (user?.role === 'host' || user?.grantRole === 'host')) {
+      loadHostDashboard();
+    }
+  }, [activeTab, token, user, dashboardFilters]);
 
   const loadActivities = async () => {
     try {
@@ -109,6 +127,37 @@ function BookingTest({ token, user }) {
       console.error('Error response:', err.response?.data);
       setError(err.response?.data?.message || 'Failed to load pending bookings');
       setPendingBookings([]);
+    }
+  };
+
+  const loadHostDashboard = async () => {
+    try {
+      setLoading(true);
+      const params = {};
+      if (dashboardFilters.status && dashboardFilters.status !== 'all') {
+        params.status = dashboardFilters.status;
+      }
+      if (dashboardFilters.activityId) {
+        params.activityId = dashboardFilters.activityId;
+      }
+      
+      const response = await axios.get(`${API_URL}/bookings/host/dashboard`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params,
+      });
+      
+      const data = response.data?.data || response.data || {
+        confirmed: 0,
+        pending: 0,
+        cancelled: 0,
+        results: [],
+      };
+      setDashboardData(data);
+    } catch (err) {
+      console.error('Failed to load dashboard:', err);
+      setError(err.response?.data?.message || 'Failed to load dashboard');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -222,6 +271,9 @@ function BookingTest({ token, user }) {
       setSuccess('Booking approved! Payment will be transferred to host.');
       loadPendingBookings();
       loadActivities();
+      if (activeTab === 'host-dashboard') {
+        loadHostDashboard();
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to approve booking');
     } finally {
@@ -245,6 +297,9 @@ function BookingTest({ token, user }) {
       setSuccess('Booking declined! Payment will be refunded to member.');
       loadPendingBookings();
       loadActivities();
+      if (activeTab === 'host-dashboard') {
+        loadHostDashboard();
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to decline booking');
     } finally {
@@ -287,6 +342,12 @@ function BookingTest({ token, user }) {
         )}
         {isHost && (
           <>
+            <button
+              className={activeTab === 'host-dashboard' ? 'active' : ''}
+              onClick={() => setActiveTab('host-dashboard')}
+            >
+              Host Dashboard
+            </button>
             <button
               className={activeTab === 'create-activity' ? 'active' : ''}
               onClick={() => setActiveTab('create-activity')}
@@ -573,6 +634,176 @@ function BookingTest({ token, user }) {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === 'host-dashboard' && isHost && (
+        <div className="host-dashboard">
+          <h2>Bookings & Requests</h2>
+          <p className="dashboard-subtitle">Pending approvals, confirmed bookings</p>
+
+          {/* Summary Cards */}
+          <div className="dashboard-summary">
+            <div className="summary-card pending">
+              <div className="summary-icon">⏰</div>
+              <div className="summary-content">
+                <div className="summary-number">{dashboardData.pending}</div>
+                <div className="summary-label">Awaiting approval</div>
+              </div>
+            </div>
+            <div className="summary-card confirmed">
+              <div className="summary-icon">✅</div>
+              <div className="summary-content">
+                <div className="summary-number">{dashboardData.confirmed}</div>
+                <div className="summary-label">Upcoming activities</div>
+              </div>
+            </div>
+            <div className="summary-card cancelled">
+              <div className="summary-icon">📅</div>
+              <div className="summary-content">
+                <div className="summary-number">{dashboardData.cancelled}</div>
+                <div className="summary-label">Past activities</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Filters */}
+          <div className="dashboard-filters">
+            <div className="filter-group">
+              <label>Filter by Activity:</label>
+              <select
+                value={dashboardFilters.activityId}
+                onChange={(e) => setDashboardFilters({ ...dashboardFilters, activityId: e.target.value })}
+              >
+                <option value="">All Activities</option>
+                {activities.map((activity) => (
+                  <option key={activity._id} value={activity._id}>
+                    {activity.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Status Tabs */}
+          <div className="dashboard-tabs">
+            <button
+              className={dashboardFilters.status === 'all' ? 'active' : ''}
+              onClick={() => setDashboardFilters({ ...dashboardFilters, status: 'all' })}
+            >
+              All ({dashboardData.results.length})
+            </button>
+            <button
+              className={dashboardFilters.status === 'pending' ? 'active' : ''}
+              onClick={() => setDashboardFilters({ ...dashboardFilters, status: 'pending' })}
+            >
+              Pending ({dashboardData.pending})
+            </button>
+            <button
+              className={dashboardFilters.status === 'confirmed' ? 'active' : ''}
+              onClick={() => setDashboardFilters({ ...dashboardFilters, status: 'confirmed' })}
+            >
+              Confirmed ({dashboardData.confirmed})
+            </button>
+            <button
+              className={dashboardFilters.status === 'cancelled' ? 'active' : ''}
+              onClick={() => setDashboardFilters({ ...dashboardFilters, status: 'cancelled' })}
+            >
+              Cancelled ({dashboardData.cancelled})
+            </button>
+          </div>
+
+          {/* Bookings List */}
+          <div className="dashboard-bookings">
+            {loading ? (
+              <p>Loading...</p>
+            ) : dashboardData.results.length === 0 ? (
+              <p>No bookings found.</p>
+            ) : (
+              <div className="bookings-list">
+                {dashboardData.results.map((booking) => {
+                  const activity = booking.activityId;
+                  const member = booking.memberId;
+                  const statusClass = booking.status === 'pending' ? 'pending' : 
+                                    booking.status === 'confirmed' ? 'confirmed' : 'cancelled';
+                  
+                  return (
+                    <div key={booking._id} className="booking-card-dashboard">
+                      <div className={`status-badge ${statusClass}`}>
+                        {booking.status.toUpperCase()}
+                      </div>
+                      
+                      <div className="booking-content">
+                        <div className="booking-image">
+                          {activity?.picture ? (
+                            <img src={activity.picture} alt={activity?.title || 'Activity'} />
+                          ) : (
+                            <div className="placeholder-image">📷</div>
+                          )}
+                        </div>
+                        
+                        <div className="booking-details">
+                          <h3>{activity?.title || 'Activity'}</h3>
+                          <p className="booking-date">
+                            {activity?.date ? new Date(activity.date).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            }) : 'N/A'} at {activity?.time || 'N/A'}
+                          </p>
+                          
+                          <div className="member-info">
+                            <div className="member-avatar">
+                              {member?.profilePhoto ? (
+                                <img src={member.profilePhoto} alt={member?.name || 'Member'} />
+                              ) : (
+                                <div className="avatar-placeholder">
+                                  {(member?.name || member?.email || 'M')[0].toUpperCase()}
+                                </div>
+                              )}
+                            </div>
+                            <div className="member-details">
+                              <p className="member-name">{member?.name || 'Unknown'}</p>
+                              <p className="member-email">{member?.email || 'N/A'}</p>
+                            </div>
+                          </div>
+                          
+                          <div className="booking-meta">
+                            <p><strong>Request Date:</strong> {new Date(booking.created_at).toLocaleDateString()}</p>
+                            {booking.amount > 0 && (
+                              <p><strong>Amount:</strong> ${booking.amount}</p>
+                            )}
+                            {booking.paymentStatus && (
+                              <p><strong>Payment:</strong> {booking.paymentStatus}</p>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {booking.status === 'pending' && (
+                          <div className="booking-actions">
+                            <button
+                              className="btn-approve"
+                              onClick={() => handleApproveBooking(booking._id)}
+                              disabled={loading}
+                            >
+                              ✅ Accept
+                            </button>
+                            <button
+                              className="btn-decline"
+                              onClick={() => handleDeclineBooking(booking._id)}
+                              disabled={loading}
+                            >
+                              ❌ Decline
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
