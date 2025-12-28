@@ -479,16 +479,63 @@ export class BookingService {
     }
   }
 
-  async getMemberBookings(memberId: string): Promise<Booking[]> {
+  async getMemberBookings(
+    memberId: string,
+    filter: 'upcoming' | 'pending' | 'past' | 'cancelled' | 'all' = 'all',
+  ): Promise<Booking[]> {
     try {
+      const isValidID = mongoose.isValidObjectId(memberId);
+      if (!isValidID) {
+        throw new BadRequestException('Invalid member ID');
+      }
+
+      // Base query
+      const baseQuery: any = {
+        memberId: new mongoose.Types.ObjectId(memberId),
+        deleted_at: null,
+      };
+
+      // Apply filter based on type
+      if (filter === 'pending') {
+        baseQuery.status = BookingStatus.PENDING;
+      } else if (filter === 'cancelled') {
+        baseQuery.status = BookingStatus.CANCELLED;
+      } else if (filter === 'upcoming' || filter === 'past') {
+        // For upcoming/past, we need confirmed bookings
+        baseQuery.status = BookingStatus.CONFIRMED;
+      }
+      // 'all' doesn't add any status filter
+
+      // Fetch bookings with populated data
       const bookings = await this.bookingModel
-        .find({
-          memberId: new mongoose.Types.ObjectId(memberId),
-          deleted_at: null,
-        })
+        .find(baseQuery)
         .populate('activityId')
         .populate('hostId', 'name email profilePhoto')
         .sort({ created_at: -1 });
+
+      // Filter by date for upcoming/past
+      if (filter === 'upcoming' || filter === 'past') {
+        const now = new Date();
+        now.setHours(0, 0, 0, 0); // Start of today
+
+        return bookings.filter((booking) => {
+          const activity = booking.activityId as any;
+          if (!activity || !activity.date) {
+            return false;
+          }
+
+          const activityDate = new Date(activity.date);
+          activityDate.setHours(0, 0, 0, 0);
+
+          if (filter === 'upcoming') {
+            // Upcoming: activity date is today or in the future
+            return activityDate >= now;
+          } else {
+            // Past: activity date is before today
+            return activityDate < now;
+          }
+        });
+      }
 
       return bookings;
     } catch (err) {

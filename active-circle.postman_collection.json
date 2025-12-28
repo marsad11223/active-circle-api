@@ -1006,7 +1006,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/bookings/member/my-bookings",
+							"raw": "{{base_url}}/bookings/member/my-bookings?filter=all",
 							"host": [
 								"{{base_url}}"
 							],
@@ -1014,9 +1014,16 @@
 								"bookings",
 								"member",
 								"my-bookings"
+							],
+							"query": [
+								{
+									"key": "filter",
+									"value": "all",
+									"description": "Filter bookings: upcoming (confirmed with future dates), pending, past (confirmed with past dates), cancelled, or all"
+								}
 							]
 						},
-						"description": "Get all bookings for the current member (authenticated user)."
+						"description": "Get filtered bookings for the current member. Filter options: upcoming (confirmed bookings with future activity dates), pending (awaiting approval), past (confirmed bookings with past activity dates), cancelled, or all."
 					},
 					"response": []
 				},

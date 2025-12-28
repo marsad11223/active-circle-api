@@ -14,6 +14,7 @@ import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
 import { HostDashboardDto } from './dto/host-dashboard.dto';
 import { MarkAttendanceDto } from './dto/mark-attendance.dto';
+import { MemberBookingsDto } from './dto/member-bookings.dto';
 import { GetUser } from 'src/auth/GetUser.Decorator';
 
 @Controller('bookings')
@@ -35,9 +36,15 @@ export class BookingController {
 
   @UseGuards(AuthGuard('jwt'))
   @Get('member/my-bookings')
-  getMemberBookings(@GetUser() user: any) {
-    // Get all bookings for the current member
-    return this.bookingService.getMemberBookings(user._id.toString());
+  getMemberBookings(
+    @Query() query: MemberBookingsDto,
+    @GetUser() user: any,
+  ) {
+    // Get filtered bookings for the current member
+    return this.bookingService.getMemberBookings(
+      user._id.toString(),
+      query.filter || 'all',
+    );
   }
 
   @UseGuards(AuthGuard('jwt'))
