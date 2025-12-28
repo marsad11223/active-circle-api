@@ -127,6 +127,11 @@ export class UsersService {
       const updatedUser = await this.userModel
         .findByIdAndUpdate({ _id: id }, updateData, { new: true })
         .select('-password');
+
+      if (!updatedUser) {
+        throw new NotFoundException('User not found after update');
+      }
+
       return updatedUser;
     } catch (err) {
       throw new BadRequestException(err.message);

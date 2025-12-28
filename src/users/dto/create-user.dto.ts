@@ -39,6 +39,10 @@ export class CreateUserDto {
   @IsString()
   phoneNumber?: string;
 
+  @IsOptional()
+  @IsString()
+  profilePhoto?: string;
+
   // Member profile specific fields
   @IsOptional()
   @IsArray()
