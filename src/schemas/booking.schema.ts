@@ -14,6 +14,12 @@ export enum PaymentStatus {
   TRANSFERRED = 'transferred', // Transferred to host
 }
 
+export enum AttendanceStatus {
+  PENDING = 'pending', // Not marked yet
+  PRESENT = 'present',
+  ABSENT = 'absent',
+}
+
 @Schema()
 export class Booking extends Document {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
@@ -56,6 +62,14 @@ export class Booking extends Document {
 
   @Prop({ required: false })
   declineReason?: string; // Reason if declined by host
+
+  @Prop({
+    type: String,
+    enum: AttendanceStatus,
+    required: false,
+    default: AttendanceStatus.PENDING,
+  })
+  attendanceStatus?: AttendanceStatus; // Attendance status (pending/present/absent)
 
   @Prop({ default: Date.now })
   created_at: Date;

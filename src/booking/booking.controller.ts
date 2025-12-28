@@ -13,6 +13,7 @@ import { BookingService } from './booking.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
 import { HostDashboardDto } from './dto/host-dashboard.dto';
+import { MarkAttendanceDto } from './dto/mark-attendance.dto';
 import { GetUser } from 'src/auth/GetUser.Decorator';
 
 @Controller('bookings')
@@ -57,6 +58,33 @@ export class BookingController {
       user._id.toString(),
       query.status,
       query.activityId,
+    );
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('host/activity/:activityId/attendance')
+  getActivityBookingsForAttendance(
+    @Param('activityId') activityId: string,
+    @GetUser() user: any,
+  ) {
+    // Get all confirmed bookings for an activity (for attendance marking)
+    return this.bookingService.getActivityBookingsForAttendance(
+      activityId,
+      user._id.toString(),
+    );
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Put('mark-attendance')
+  markAttendance(
+    @Body() markAttendanceDto: MarkAttendanceDto,
+    @GetUser() user: any,
+  ) {
+    // Mark attendance for a booking (present/absent)
+    return this.bookingService.markAttendance(
+      markAttendanceDto.bookingId,
+      markAttendanceDto.attendanceStatus,
+      user._id.toString(),
     );
   }
 

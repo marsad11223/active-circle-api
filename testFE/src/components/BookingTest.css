@@ -588,3 +588,157 @@
   font-size: 14px;
 }
 
+/* Mark Attendance Styles */
+.mark-attendance {
+  margin-top: 20px;
+}
+
+.mark-attendance h2 {
+  font-size: 28px;
+  color: #1a237e;
+  margin-bottom: 8px;
+}
+
+.attendance-subtitle {
+  color: #666;
+  margin-bottom: 24px;
+  font-size: 14px;
+}
+
+.attendance-activity-selector {
+  margin-bottom: 30px;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.attendance-activity-selector label {
+  display: block;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+  font-size: 16px;
+}
+
+.attendance-activity-selector select {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  background: white;
+}
+
+.attendance-list {
+  margin-top: 20px;
+}
+
+.attendance-bookings h3 {
+  margin-bottom: 20px;
+  color: #333;
+  font-size: 20px;
+}
+
+.attendance-booking-card {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  justify-content: space-between;
+}
+
+.attendance-member-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
+
+.attendance-status {
+  min-width: 120px;
+  text-align: center;
+}
+
+.attendance-badge {
+  padding: 6px 16px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.attendance-badge.pending {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.attendance-badge.present {
+  background: #d4edda;
+  color: #155724;
+}
+
+.attendance-badge.absent {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.attendance-actions {
+  display: flex;
+  gap: 10px;
+  min-width: 200px;
+}
+
+.btn-attendance {
+  flex: 1;
+  padding: 10px 16px;
+  border: 2px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s;
+  background: white;
+}
+
+.btn-attendance.present {
+  color: #28a745;
+  border-color: #28a745;
+}
+
+.btn-attendance.present:hover:not(:disabled) {
+  background: #28a745;
+  color: white;
+}
+
+.btn-attendance.present.active {
+  background: #28a745;
+  color: white;
+  border-color: #28a745;
+}
+
+.btn-attendance.absent {
+  color: #dc3545;
+  border-color: #dc3545;
+}
+
+.btn-attendance.absent:hover:not(:disabled) {
+  background: #dc3545;
+  color: white;
+}
+
+.btn-attendance.absent.active {
+  background: #dc3545;
+  color: white;
+  border-color: #dc3545;
+}
+
+.btn-attendance:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+

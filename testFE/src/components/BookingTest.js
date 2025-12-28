@@ -20,6 +20,8 @@ function BookingTest({ token, user }) {
     status: 'all',
     activityId: '',
   });
+  const [attendanceBookings, setAttendanceBookings] = useState([]);
+  const [selectedActivityForAttendance, setSelectedActivityForAttendance] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -156,6 +158,56 @@ function BookingTest({ token, user }) {
     } catch (err) {
       console.error('Failed to load dashboard:', err);
       setError(err.response?.data?.message || 'Failed to load dashboard');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadAttendanceBookings = async (activityId) => {
+    try {
+      setLoading(true);
+      const response = await axios.get(
+        `${API_URL}/bookings/host/activity/${activityId}/attendance`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const bookings = response.data?.data || response.data || [];
+      setAttendanceBookings(Array.isArray(bookings) ? bookings : []);
+    } catch (err) {
+      console.error('Failed to load attendance bookings:', err);
+      setError(err.response?.data?.message || 'Failed to load attendance bookings');
+      setAttendanceBookings([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMarkAttendance = async (bookingId, attendanceStatus) => {
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    try {
+      const response = await axios.put(
+        `${API_URL}/bookings/mark-attendance`,
+        {
+          bookingId,
+          attendanceStatus,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      
+      setSuccess(`Attendance marked as ${attendanceStatus}!`);
+      
+      // Reload attendance bookings
+      if (selectedActivityForAttendance) {
+        loadAttendanceBookings(selectedActivityForAttendance);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to mark attendance');
     } finally {
       setLoading(false);
     }
@@ -347,6 +399,12 @@ function BookingTest({ token, user }) {
               onClick={() => setActiveTab('host-dashboard')}
             >
               Host Dashboard
+            </button>
+            <button
+              className={activeTab === 'mark-attendance' ? 'active' : ''}
+              onClick={() => setActiveTab('mark-attendance')}
+            >
+              Mark Attendance
             </button>
             <button
               className={activeTab === 'create-activity' ? 'active' : ''}
@@ -804,6 +862,109 @@ function BookingTest({ token, user }) {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {activeTab === 'mark-attendance' && isHost && (
+        <div className="mark-attendance">
+          <h2>Mark Attendance</h2>
+          <p className="attendance-subtitle">Select an activity to mark attendance for confirmed bookings</p>
+
+          {/* Activity Selection */}
+          <div className="attendance-activity-selector">
+            <label>Select Activity:</label>
+            <select
+              value={selectedActivityForAttendance || ''}
+              onChange={(e) => {
+                const activityId = e.target.value;
+                setSelectedActivityForAttendance(activityId);
+                if (activityId) {
+                  loadAttendanceBookings(activityId);
+                } else {
+                  setAttendanceBookings([]);
+                }
+              }}
+            >
+              <option value="">-- Select Activity --</option>
+              {activities
+                .filter(activity => {
+                  // Only show activities that have passed or are today
+                  const activityDate = new Date(activity.date);
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  return activityDate <= today;
+                })
+                .map((activity) => (
+                  <option key={activity._id} value={activity._id}>
+                    {activity.title} - {new Date(activity.date).toLocaleDateString()}
+                  </option>
+                ))}
+            </select>
+          </div>
+
+          {/* Attendance List */}
+          {selectedActivityForAttendance && (
+            <div className="attendance-list">
+              {loading ? (
+                <p>Loading...</p>
+              ) : attendanceBookings.length === 0 ? (
+                <p>No confirmed bookings found for this activity.</p>
+              ) : (
+                <div className="attendance-bookings">
+                  <h3>Mark Attendance for Members</h3>
+                  {attendanceBookings.map((booking) => {
+                    const member = booking.memberId;
+                    const activity = booking.activityId;
+                    const attendanceStatus = booking.attendanceStatus || 'pending';
+                    
+                    return (
+                      <div key={booking._id} className="attendance-booking-card">
+                        <div className="attendance-member-info">
+                          <div className="member-avatar">
+                            {member?.profilePhoto ? (
+                              <img src={member.profilePhoto} alt={member?.name || 'Member'} />
+                            ) : (
+                              <div className="avatar-placeholder">
+                                {(member?.name || member?.email || 'M')[0].toUpperCase()}
+                              </div>
+                            )}
+                          </div>
+                          <div className="member-details">
+                            <p className="member-name">{member?.name || 'Unknown'}</p>
+                            <p className="member-email">{member?.email || 'N/A'}</p>
+                          </div>
+                        </div>
+                        
+                        <div className="attendance-status">
+                          <span className={`attendance-badge ${attendanceStatus}`}>
+                            {attendanceStatus === 'pending' ? 'Not Marked' : 
+                             attendanceStatus === 'present' ? 'Present' : 'Absent'}
+                          </span>
+                        </div>
+                        
+                        <div className="attendance-actions">
+                          <button
+                            className={`btn-attendance present ${attendanceStatus === 'present' ? 'active' : ''}`}
+                            onClick={() => handleMarkAttendance(booking._id, 'present')}
+                            disabled={loading || attendanceStatus === 'present'}
+                          >
+                            ✅ Present
+                          </button>
+                          <button
+                            className={`btn-attendance absent ${attendanceStatus === 'absent' ? 'active' : ''}`}
+                            onClick={() => handleMarkAttendance(booking._id, 'absent')}
+                            disabled={loading || attendanceStatus === 'absent'}
+                          >
+                            ❌ Absent
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

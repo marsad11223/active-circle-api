@@ -9,6 +9,7 @@ import {
   Booking,
   BookingStatus,
   PaymentStatus,
+  AttendanceStatus,
 } from 'src/schemas/booking.schema';
 import { Activity } from 'src/schemas/activity.schema';
 import { User, Role } from 'src/schemas/user.schema';
@@ -658,6 +659,145 @@ export class BookingService {
       };
     } catch (err) {
       console.error('Error fetching host dashboard:', err);
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  async getActivityBookingsForAttendance(
+    activityId: string,
+    hostId: string,
+  ): Promise<Booking[]> {
+    try {
+      const isValidActivityId = mongoose.isValidObjectId(activityId);
+      const isValidHostId = mongoose.isValidObjectId(hostId);
+
+      if (!isValidActivityId) {
+        throw new BadRequestException('Invalid activity ID');
+      }
+      if (!isValidHostId) {
+        throw new BadRequestException('Invalid host ID');
+      }
+
+      // Verify activity exists and belongs to host
+      const activity = await this.activityModel.findById(activityId);
+      if (!activity) {
+        throw new NotFoundException('Activity not found');
+      }
+
+      // Check if host owns this activity
+      let activityHostId: string;
+      if (
+        activity.hostId &&
+        typeof activity.hostId === 'object' &&
+        '_id' in activity.hostId
+      ) {
+        activityHostId = (activity.hostId as any)._id.toString();
+      } else {
+        activityHostId = (activity.hostId as any).toString();
+      }
+
+      if (activityHostId !== hostId) {
+        throw new ForbiddenException(
+          'You can only view attendance for your own activities',
+        );
+      }
+
+      // Get all confirmed bookings for this activity
+      const bookings = await this.bookingModel
+        .find({
+          activityId: new mongoose.Types.ObjectId(activityId),
+          hostId: new mongoose.Types.ObjectId(hostId),
+          status: BookingStatus.CONFIRMED, // Only confirmed bookings can have attendance
+          deleted_at: null,
+        })
+        .populate('memberId', 'name email profilePhoto')
+        .populate('activityId', 'title date time')
+        .sort({ created_at: -1 });
+
+      return bookings;
+    } catch (err) {
+      if (
+        err instanceof NotFoundException ||
+        err instanceof BadRequestException ||
+        err instanceof ForbiddenException
+      ) {
+        throw err;
+      }
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  async markAttendance(
+    bookingId: string,
+    attendanceStatus: AttendanceStatus,
+    hostId: string,
+  ): Promise<Booking> {
+    try {
+      const isValidBookingId = mongoose.isValidObjectId(bookingId);
+      const isValidHostId = mongoose.isValidObjectId(hostId);
+
+      if (!isValidBookingId) {
+        throw new BadRequestException('Invalid booking ID');
+      }
+      if (!isValidHostId) {
+        throw new BadRequestException('Invalid host ID');
+      }
+
+      const booking = await this.bookingModel
+        .findById(bookingId)
+        .populate('activityId')
+        .populate('memberId', 'name email profilePhoto');
+
+      if (!booking) {
+        throw new NotFoundException('Booking not found');
+      }
+
+      // Verify host owns this booking
+      let bookingHostId: string;
+      if (
+        booking.hostId &&
+        typeof booking.hostId === 'object' &&
+        '_id' in booking.hostId
+      ) {
+        bookingHostId = (booking.hostId as any)._id.toString();
+      } else {
+        bookingHostId = (booking.hostId as any).toString();
+      }
+
+      if (bookingHostId !== hostId) {
+        throw new ForbiddenException(
+          'You can only mark attendance for your own activities',
+        );
+      }
+
+      // Only allow attendance marking for confirmed bookings
+      if (booking.status !== BookingStatus.CONFIRMED) {
+        throw new BadRequestException(
+          'Attendance can only be marked for confirmed bookings',
+        );
+      }
+
+      // Update attendance status
+      booking.attendanceStatus = attendanceStatus;
+      booking.updated_at = new Date();
+      await booking.save();
+
+      // Populate member details before returning
+      const updatedBooking = await this.bookingModel
+        .findById(bookingId)
+        .populate('memberId', 'name email profilePhoto')
+        .populate('activityId', 'title date time')
+        .populate('hostId', 'name email');
+
+      return updatedBooking || booking;
+    } catch (err) {
+      if (
+        err instanceof NotFoundException ||
+        err instanceof BadRequestException ||
+        err instanceof ForbiddenException
+      ) {
+        throw err;
+      }
       throw new BadRequestException(err.message);
     }
   }

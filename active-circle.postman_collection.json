@@ -1198,6 +1198,76 @@
 						"description": "Get host dashboard data with booking counts and filtered results. Query params: status (pending/confirmed/cancelled/all) and activityId (optional)."
 					},
 					"response": []
+				},
+				{
+					"name": "Get Activity Bookings for Attendance",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/bookings/host/activity/{{activity_id}}/attendance",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bookings",
+								"host",
+								"activity",
+								"{{activity_id}}",
+								"attendance"
+							]
+						},
+						"description": "Get all confirmed bookings for a specific activity (for marking attendance). Only returns bookings for activities owned by the host."
+					},
+					"response": []
+				},
+				{
+					"name": "Mark Attendance",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"bookingId\": \"{{booking_id}}\",\n  \"attendanceStatus\": \"present\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/bookings/mark-attendance",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bookings",
+								"mark-attendance"
+							]
+						},
+						"description": "Mark attendance for a booking. attendanceStatus can be 'present' or 'absent'. Only works for confirmed bookings owned by the host."
+					},
+					"response": []
 				}
 			]
 		}
