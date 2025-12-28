@@ -50,12 +50,32 @@ function BookingTest({ token, user }) {
     }
   }, [activeTab, token, user]);
 
+  // Reload activities when switching to browse tab
+  useEffect(() => {
+    if (activeTab === 'browse' && token) {
+      loadActivities();
+    }
+  }, [activeTab, token, user]);
+
   const loadActivities = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_URL}/activities/browse`);
-      // API returns { activities: [...], total: number }
-      setActivities(response.data?.activities || response.data?.data || []);
+      // If user is a host, show only their activities
+      const isHost = user?.role === 'host' || user?.grantRole === 'host';
+      let response;
+      if (isHost && token) {
+        // Fetch host's own activities
+        response = await axios.get(`${API_URL}/activities/host/my-activities`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        // This endpoint returns activities directly as array
+        setActivities(response.data?.data || response.data || []);
+      } else {
+        // For members or public, browse all activities
+        response = await axios.get(`${API_URL}/activities/browse`);
+        // API returns { activities: [...], total: number }
+        setActivities(response.data?.activities || response.data?.data || []);
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load activities');
     } finally {

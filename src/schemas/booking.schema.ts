@@ -35,10 +35,12 @@ export class Booking extends Document {
   amount: number; // Booking amount (0 for free activities)
 
   @Prop({
+    type: String,
     enum: PaymentStatus,
-    default: PaymentStatus.PENDING,
+    required: false, // Optional - null for free activities
+    default: null, // Changed: null default instead of PENDING
   })
-  paymentStatus: PaymentStatus; // Payment status
+  paymentStatus?: PaymentStatus | null; // Payment status (null for free activities)
 
   @Prop({ required: false })
   paymentIntentId?: string; // Stripe Payment Intent ID
@@ -66,4 +68,3 @@ export class Booking extends Document {
 }
 
 export const BookingSchema = SchemaFactory.createForClass(Booking);
-

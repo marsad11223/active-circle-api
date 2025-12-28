@@ -5,7 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Booking, BookingStatus, PaymentStatus } from 'src/schemas/booking.schema';
+import {
+  Booking,
+  BookingStatus,
+  PaymentStatus,
+} from 'src/schemas/booking.schema';
 import { Activity } from 'src/schemas/activity.schema';
 import { User, Role } from 'src/schemas/user.schema';
 import mongoose, { Model } from 'mongoose';
@@ -98,7 +102,7 @@ export class BookingService {
       let paymentIntentId: string | undefined;
       let chargeId: string | undefined;
       let bookingStatus: BookingStatus;
-      let paymentStatus: PaymentStatus;
+      let paymentStatus: PaymentStatus | null | undefined; // Can be null for free activities
 
       if (activityPrice > 0) {
         // Paid activity - charge upfront
@@ -177,44 +181,57 @@ export class BookingService {
         bookingStatus = BookingStatus.PENDING; // Wait for host approval
         paymentStatus = PaymentStatus.PENDING; // Payment authorized but not captured (held in escrow)
       } else {
-        // Free activity - confirm immediately
-        bookingStatus = BookingStatus.CONFIRMED;
-        paymentStatus = PaymentStatus.PENDING; // No payment needed
+        // Free activity - send to host for approval
+        bookingStatus = BookingStatus.PENDING; // Changed: Free activities also need host approval
+        paymentStatus = null; // Changed: Explicitly null for free activities
       }
 
       // 6. Create booking
-      const booking = await this.bookingModel.create({
+      const bookingData: any = {
         memberId: new mongoose.Types.ObjectId(memberId),
         activityId: new mongoose.Types.ObjectId(createBookingDto.activityId),
         hostId: new mongoose.Types.ObjectId(hostId),
         status: bookingStatus,
         amount: activityPrice,
-        paymentStatus: paymentStatus,
-        paymentIntentId: paymentIntentId,
-        stripeChargeId: chargeId,
         created_at: new Date(),
         updated_at: new Date(),
-      });
+      };
+
+      // Set payment-related fields based on activity type
+      if (activityPrice > 0) {
+        // Paid activity - set payment fields
+        bookingData.paymentStatus = paymentStatus;
+        bookingData.paymentIntentId = paymentIntentId;
+        bookingData.stripeChargeId = chargeId;
+      } else {
+        // Free activity - explicitly set paymentStatus to null
+        bookingData.paymentStatus = null;
+      }
+
+      const booking = await this.bookingModel.create(bookingData);
 
       // 7. Send email notifications
       try {
         // Email to member
         await this.mailerService.sendMail({
           to: member.email,
-          subject: 'Booking Request Sent',
+          subject:
+            activityPrice > 0
+              ? 'Booking Request Sent'
+              : 'Free Activity Booking Request',
           html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2>Booking Request Sent</h2>
+            <h2>${activityPrice > 0 ? 'Booking Request Sent' : 'Free Activity Booking Request'}</h2>
             <p>Hello ${member.name || member.email},</p>
             <p>Your booking request for <strong>${activity.title}</strong> has been sent.</p>
-            <p>Status: <strong>${bookingStatus === BookingStatus.CONFIRMED ? 'Confirmed' : 'Pending Host Approval'}</strong></p>
-            ${activityPrice > 0 ? `<p>Amount: $${activityPrice}</p>` : ''}
+            <p>Status: <strong>Pending Host Approval</strong></p>
+            ${activityPrice > 0 ? `<p>Amount: $${activityPrice}</p>` : '<p>This is a free activity.</p>'}
             <p>We'll notify you once the host responds.</p>
           </div>
         `,
         });
 
-        // Email to host
+        // Email to host (same for both paid and free)
         await this.mailerService.sendMail({
           to: host.email,
           subject: 'New Booking Request',
@@ -224,6 +241,7 @@ export class BookingService {
             <p>Hello ${host.name || host.email},</p>
             <p>You have a new booking request for <strong>${activity.title}</strong>.</p>
             <p>Member: <strong>${member.name || member.email}</strong></p>
+            ${activityPrice > 0 ? `<p>Amount: $${activityPrice}</p>` : '<p>This is a free activity.</p>'}
             <p>Please review and approve or decline the booking.</p>
           </div>
         `,
@@ -245,10 +263,7 @@ export class BookingService {
     }
   }
 
-  async approveBooking(
-    bookingId: string,
-    hostId: string,
-  ): Promise<Booking> {
+  async approveBooking(bookingId: string, hostId: string): Promise<Booking> {
     try {
       const booking = await this.bookingModel
         .findById(bookingId)
@@ -278,9 +293,7 @@ export class BookingService {
       }
 
       if (booking.status !== BookingStatus.PENDING) {
-        throw new BadRequestException(
-          'Only pending bookings can be approved',
-        );
+        throw new BadRequestException('Only pending bookings can be approved');
       }
 
       // If paid activity, capture the payment (release from escrow)
@@ -393,9 +406,7 @@ export class BookingService {
       }
 
       if (booking.status !== BookingStatus.PENDING) {
-        throw new BadRequestException(
-          'Only pending bookings can be declined',
-        );
+        throw new BadRequestException('Only pending bookings can be declined');
       }
 
       // If paid activity, cancel the payment authorization (release from escrow)
@@ -502,7 +513,9 @@ export class BookingService {
         .populate('hostId', 'name email profilePhoto')
         .sort({ created_at: -1 });
 
-      console.log(`Found ${bookings.length} pending bookings for host ${hostId}`);
+      console.log(
+        `Found ${bookings.length} pending bookings for host ${hostId}`,
+      );
       return bookings;
     } catch (err) {
       console.error('Error fetching host pending bookings:', err);
@@ -578,4 +591,3 @@ export class BookingService {
     }
   }
 }
-
