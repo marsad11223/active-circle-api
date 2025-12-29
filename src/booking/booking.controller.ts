@@ -37,10 +37,7 @@ export class BookingController {
 
   @UseGuards(AuthGuard('jwt'))
   @Get('member/my-bookings')
-  getMemberBookings(
-    @Query() query: MemberBookingsDto,
-    @GetUser() user: any,
-  ) {
+  getMemberBookings(@Query() query: MemberBookingsDto, @GetUser() user: any) {
     // Get filtered bookings for the current member
     return this.bookingService.getMemberBookings(
       user._id.toString(),
@@ -57,10 +54,7 @@ export class BookingController {
 
   @UseGuards(AuthGuard('jwt'))
   @Get('host/dashboard')
-  getHostDashboard(
-    @Query() query: HostDashboardDto,
-    @GetUser() user: any,
-  ) {
+  getHostDashboard(@Query() query: HostDashboardDto, @GetUser() user: any) {
     // Get dashboard data for host with filters
     return this.bookingService.getHostDashboard(
       user._id.toString(),
@@ -98,10 +92,7 @@ export class BookingController {
 
   @UseGuards(AuthGuard('jwt'))
   @Put(':id/approve')
-  approveBooking(
-    @Param('id') id: string,
-    @GetUser() user: any,
-  ) {
+  approveBooking(@Param('id') id: string, @GetUser() user: any) {
     // Host can approve bookings
     return this.bookingService.approveBooking(id, user._id.toString());
   }
@@ -143,4 +134,3 @@ export class BookingController {
     return this.bookingService.getBookingById(id, user._id.toString());
   }
 }
-

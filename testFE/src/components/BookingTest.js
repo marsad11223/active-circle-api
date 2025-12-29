@@ -27,6 +27,10 @@ function BookingTest({ token, user }) {
   const [success, setSuccess] = useState('');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState(null);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [selectedBookingForRating, setSelectedBookingForRating] = useState(null);
+  const [ratingForm, setRatingForm] = useState({ rating: 0, review: '' });
+  const [bookingFilter, setBookingFilter] = useState('all');
 
   // Activity creation form state
   const [activityForm, setActivityForm] = useState({
@@ -105,14 +109,23 @@ function BookingTest({ token, user }) {
 
   const loadMyBookings = async () => {
     try {
+      const params = bookingFilter !== 'all' ? { filter: bookingFilter } : {};
       const response = await axios.get(`${API_URL}/bookings/member/my-bookings`, {
         headers: { Authorization: `Bearer ${token}` },
+        params,
       });
-      setMyBookings(response.data?.data || []);
+      setMyBookings(response.data?.data || response.data || []);
     } catch (err) {
       console.error('Failed to load bookings:', err);
     }
   };
+
+  // Reload bookings when filter changes
+  useEffect(() => {
+    if (activeTab === 'my-bookings' && token && isMember) {
+      loadMyBookings();
+    }
+  }, [bookingFilter, activeTab, token, user]);
 
   const loadPendingBookings = async () => {
     try {
@@ -359,6 +372,68 @@ function BookingTest({ token, user }) {
     }
   };
 
+  const handleCancelBooking = async (bookingId, cancelReason) => {
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    try {
+      const response = await axios.put(
+        `${API_URL}/bookings/member/${bookingId}/cancel`,
+        { cancelReason },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      setSuccess('Booking cancelled successfully! Refund will be processed if applicable.');
+      loadMyBookings();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to cancel booking');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenRatingModal = (booking) => {
+    setSelectedBookingForRating(booking);
+    setRatingForm({ rating: 0, review: '' });
+    setShowRatingModal(true);
+  };
+
+  const handleSubmitRating = async () => {
+    if (!selectedBookingForRating || ratingForm.rating === 0) {
+      setError('Please select a rating (1-5 stars)');
+      return;
+    }
+
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    try {
+      const response = await axios.post(
+        `${API_URL}/ratings`,
+        {
+          bookingId: selectedBookingForRating._id,
+          rating: ratingForm.rating,
+          review: ratingForm.review,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      setSuccess('Rating submitted successfully!');
+      setShowRatingModal(false);
+      setSelectedBookingForRating(null);
+      setRatingForm({ rating: 0, review: '' });
+      loadMyBookings();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to submit rating');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const isMember = user?.role === 'member' || user?.grantRole === 'member';
   const isHost = user?.role === 'host' || user?.grantRole === 'host';
 
@@ -470,42 +545,182 @@ function BookingTest({ token, user }) {
       {activeTab === 'my-bookings' && isMember && (
         <div className="bookings-list">
           <h2>My Bookings</h2>
-          {myBookings.length === 0 ? (
+          <p className="bookings-subtitle">Track all your activity bookings and engagements</p>
+
+          {/* Filter Tabs */}
+          <div className="booking-filter-tabs">
+            <button
+              className={bookingFilter === 'all' ? 'active' : ''}
+              onClick={() => setBookingFilter('all')}
+            >
+              All ({myBookings.length})
+            </button>
+            <button
+              className={bookingFilter === 'upcoming' ? 'active' : ''}
+              onClick={() => setBookingFilter('upcoming')}
+            >
+              Upcoming
+            </button>
+            <button
+              className={bookingFilter === 'pending' ? 'active' : ''}
+              onClick={() => setBookingFilter('pending')}
+            >
+              Pending Approval
+            </button>
+            <button
+              className={bookingFilter === 'past' ? 'active' : ''}
+              onClick={() => setBookingFilter('past')}
+            >
+              Past Activities
+            </button>
+            <button
+              className={bookingFilter === 'cancelled' ? 'active' : ''}
+              onClick={() => setBookingFilter('cancelled')}
+            >
+              Cancelled Bookings
+            </button>
+          </div>
+
+          {loading ? (
+            <p>Loading...</p>
+          ) : myBookings.length === 0 ? (
             <p>You have no bookings yet.</p>
           ) : (
             <div className="booking-grid">
-              {myBookings.map((booking) => (
-                <div key={booking._id} className="booking-card">
-                  <div className="booking-status">
-                    <span className={`status-badge ${booking.status}`}>
-                      {booking.status.toUpperCase()}
-                    </span>
-                    {booking.paymentStatus && (
-                      <span className={`payment-badge ${booking.paymentStatus}`}>
-                        Payment: {booking.paymentStatus.toUpperCase()}
-                      </span>
+              {myBookings.map((booking) => {
+                const activity = booking.activityId;
+                const host = booking.hostId;
+                const isPastActivity = activity?.date ? new Date(activity.date) < new Date() : false;
+                const isUpcoming = activity?.date ? new Date(activity.date) >= new Date() : false;
+                
+                return (
+                  <div key={booking._id} className="booking-card-member">
+                    {activity?.picture && (
+                      <img src={activity.picture} alt={activity.title || 'Activity'} />
                     )}
+                    <div className="booking-card-content">
+                      <div className="booking-header">
+                        <h3>{activity?.title || 'Activity'}</h3>
+                        <span className={`status-badge ${booking.status}`}>
+                          {booking.status === 'confirmed' ? 'Approved' : booking.status.toUpperCase()}
+                        </span>
+                      </div>
+                      
+                      <div className="booking-details-member">
+                        <p>
+                          <span className="icon">📅</span>
+                          {activity?.date ? new Date(activity.date).toLocaleDateString('en-US', {
+                            weekday: 'short',
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          }) : 'N/A'} at {activity?.time || 'N/A'}
+                        </p>
+                        <p>
+                          <span className="icon">📍</span>
+                          {activity?.location || 'N/A'}
+                        </p>
+                        <p>
+                          <span className="icon">👤</span>
+                          Host: {host?.name || 'N/A'}
+                        </p>
+                        {booking.amount > 0 && (
+                          <p><strong>Amount:</strong> ${booking.amount}</p>
+                        )}
+                      </div>
+
+                      <div className="booking-actions-member">
+                        {booking.status === 'confirmed' && isUpcoming && (
+                          <button
+                            className="btn-cancel-booking"
+                            onClick={() => {
+                              if (window.confirm('Are you sure you want to cancel this booking?')) {
+                                handleCancelBooking(booking._id, 'Cancelled by member');
+                              }
+                            }}
+                            disabled={loading}
+                          >
+                            Cancel Booking
+                          </button>
+                        )}
+                        {booking.status === 'confirmed' && isPastActivity && (
+                          <button
+                            className="btn-rate"
+                            onClick={() => handleOpenRatingModal(booking)}
+                            disabled={loading}
+                          >
+                            Rate & Review
+                          </button>
+                        )}
+                        {booking.status === 'pending' && (
+                          <p className="pending-info">Waiting for host approval</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div className="booking-info">
-                    <p><strong>Amount:</strong> ${booking.amount}</p>
-                    {booking.paymentIntentId && (
-                      <p><strong>Payment Intent:</strong> {booking.paymentIntentId}</p>
-                    )}
-                    {booking.paymentStatus === 'pending' && (
-                      <p className="escrow-info">💰 Payment is held in escrow</p>
-                    )}
-                    {booking.paymentStatus === 'transferred' && (
-                      <p className="escrow-info">✅ Payment transferred to host</p>
-                    )}
-                    {booking.paymentStatus === 'refunded' && (
-                      <p className="escrow-info">↩️ Payment refunded</p>
-                    )}
-                    <p><strong>Created:</strong> {new Date(booking.created_at).toLocaleString()}</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Rating Modal */}
+      {showRatingModal && selectedBookingForRating && (
+        <div className="modal-overlay" onClick={() => setShowRatingModal(false)}>
+          <div className="rating-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Rate & Review</h2>
+              <button className="modal-close" onClick={() => setShowRatingModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <p className="activity-name">
+                {(selectedBookingForRating.activityId || {}).title || 'Activity'}
+              </p>
+              
+              <div className="rating-section">
+                <label>Rating</label>
+                <div className="star-rating">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      className={`star ${ratingForm.rating >= star ? 'filled' : ''}`}
+                      onClick={() => setRatingForm({ ...ratingForm, rating: star })}
+                    >
+                      ★
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="review-section">
+                <label>Review</label>
+                <textarea
+                  placeholder="Share your experience..."
+                  value={ratingForm.review}
+                  onChange={(e) => setRatingForm({ ...ratingForm, review: e.target.value })}
+                  rows="5"
+                />
+              </div>
+
+              <div className="modal-actions">
+                <button
+                  className="btn-submit-review"
+                  onClick={handleSubmitRating}
+                  disabled={loading || ratingForm.rating === 0}
+                >
+                  Submit Review
+                </button>
+                <button
+                  className="btn-cancel-modal"
+                  onClick={() => setShowRatingModal(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

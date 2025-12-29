@@ -1317,6 +1317,131 @@
 					"response": []
 				}
 			]
+		},
+		{
+			"name": "rating",
+			"item": [
+				{
+					"name": "Create Rating",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"bookingId\": \"{{booking_id}}\",\n  \"rating\": 5,\n  \"review\": \"Great activity! Had a wonderful time.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/ratings",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"ratings"
+							]
+						},
+						"description": "Member rates and reviews a past activity. Rating must be 1-5 stars. Only confirmed bookings for past activities can be rated. One rating per booking."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Activity Ratings",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/ratings/activity/{{activity_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"ratings",
+								"activity",
+								"{{activity_id}}"
+							]
+						},
+						"description": "Get all ratings for an activity (public endpoint). Returns average rating, total ratings count, and list of ratings."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Member Ratings",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/ratings/member/my-ratings",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"ratings",
+								"member",
+								"my-ratings"
+							]
+						},
+						"description": "Get all ratings given by the current member (authenticated user)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Member Reviews Dashboard",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/ratings/member/dashboard",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"ratings",
+								"member",
+								"dashboard"
+							]
+						},
+						"description": "Get reviews dashboard data for member including: rating history (average rating, total reviews, rating distribution), activities to review (past activities without ratings), and past reviews (already submitted reviews)."
+					},
+					"response": []
+				}
+			]
 		}
 	],
 	"event": [

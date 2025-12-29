@@ -421,7 +421,7 @@ export class BookingService {
           // If payment was already captured (shouldn't happen with manual capture), refund it
           if (cancelError.code === 'payment_intent_unexpected_state') {
             try {
-              const refund = await this.stripe.refunds.create({
+              await this.stripe.refunds.create({
                 payment_intent: booking.paymentIntentId,
               });
               booking.paymentStatus = PaymentStatus.REFUNDED;
