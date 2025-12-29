@@ -902,7 +902,7 @@
 					"response": []
 				},
 				{
-					"name": "Get Activity by ID",
+					"name": "Get Activity by ID (Public)",
 					"request": {
 						"auth": {
 							"type": "noauth"
@@ -910,15 +910,75 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{base_url}}/activities/694d36f6119028136c257858",
+							"raw": "{{base_url}}/activities/{{activity_id}}",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
 								"activities",
-								"694d36f6119028136c257858"
+								"{{activity_id}}"
 							]
-						}
+						},
+						"description": "Get activity by ID (public endpoint). Works for both authenticated and unauthenticated users. If authenticated, includes booking status (isBooked, bookingStatus, bookingId)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Activity by ID (Authenticated)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/activities/{{activity_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"activities",
+								"{{activity_id}}"
+							]
+						},
+						"description": "Get activity by ID with authentication. Includes booking status (isBooked, bookingStatus, bookingId) if member has booked the activity. Same endpoint as public version, but with authentication token."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Activity by ID (Member Endpoint)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/activities/member/{{activity_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"activities",
+								"member",
+								"{{activity_id}}"
+							]
+						},
+						"description": "Get activity by ID for authenticated members. Always includes booking status (isBooked, bookingStatus, bookingId). Alternative endpoint specifically for members."
 					},
 					"response": []
 				},
