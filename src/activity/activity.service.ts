@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Activity } from 'src/schemas/activity.schema';
+import { Rating } from 'src/schemas/rating.schema';
 import mongoose, { Model } from 'mongoose';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
@@ -20,6 +21,8 @@ export class ActivityService {
     private readonly activityModel: Model<Activity>,
     @InjectModel(User.name)
     private readonly userModel: Model<User>,
+    @InjectModel(Rating.name)
+    private readonly ratingModel: Model<Rating>,
   ) {}
 
   async create(
@@ -70,22 +73,122 @@ export class ActivityService {
     }
   }
 
-  async findAll(): Promise<Activity[]> {
+  async findAll(): Promise<any[]> {
     try {
       const activities = await this.activityModel
         .find({ deleted_at: null })
         .populate('hostId', 'name email profilePhoto')
         .sort({ created_at: -1 });
-      return activities;
+
+      return this.addRatingsToActivities(activities);
     } catch (err) {
       throw new BadRequestException(err.message);
     }
   }
 
+  /**
+   * Helper method to add rating information to activities
+   */
+  private async addRatingsToActivities(activities: Activity[]): Promise<any[]> {
+    if (!activities || activities.length === 0) {
+      return [];
+    }
+
+    const activityIds = activities.map((activity) => activity._id);
+
+    // Get ratings for all activities in one query
+    const ratingsData = await this.ratingModel.aggregate([
+      {
+        $match: {
+          activityId: { $in: activityIds },
+          deleted_at: null,
+        },
+      },
+      {
+        $group: {
+          _id: '$activityId',
+          averageRating: { $avg: '$rating' },
+          totalReviews: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // Create a map of activityId -> rating info
+    const ratingsMap = new Map();
+    ratingsData.forEach((rating) => {
+      ratingsMap.set(rating._id.toString(), {
+        averageRating: Math.round(rating.averageRating * 10) / 10, // Round to 1 decimal
+        totalReviews: rating.totalReviews,
+      });
+    });
+
+    // Add rating information to each activity
+    return activities.map((activity) => {
+      const activityObj = activity.toObject();
+      const activityId = (activity._id as any).toString();
+      const ratingInfo = ratingsMap.get(activityId) || {
+        averageRating: 0,
+        totalReviews: 0,
+      };
+
+      return {
+        ...activityObj,
+        rating: {
+          averageRating: ratingInfo.averageRating,
+          totalReviews: ratingInfo.totalReviews,
+        },
+      };
+    });
+  }
+
+  /**
+   * Helper method to add rating information to a single activity
+   */
+  private async addRatingToActivity(activity: Activity): Promise<any> {
+    const activityId = (activity._id as any).toString();
+
+    // Get ratings for this activity
+    const ratingsData = await this.ratingModel.aggregate([
+      {
+        $match: {
+          activityId: new mongoose.Types.ObjectId(activityId),
+          deleted_at: null,
+        },
+      },
+      {
+        $group: {
+          _id: '$activityId',
+          averageRating: { $avg: '$rating' },
+          totalReviews: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const activityObj = activity.toObject();
+    const ratingInfo =
+      ratingsData.length > 0
+        ? {
+            averageRating: Math.round(ratingsData[0].averageRating * 10) / 10,
+            totalReviews: ratingsData[0].totalReviews,
+          }
+        : {
+            averageRating: 0,
+            totalReviews: 0,
+          };
+
+    return {
+      ...activityObj,
+      rating: {
+        averageRating: ratingInfo.averageRating,
+        totalReviews: ratingInfo.totalReviews,
+      },
+    };
+  }
+
   async browseActivities(
     filters: BrowseActivitiesDto,
     memberId?: string,
-  ): Promise<{ activities: Activity[]; total: number }> {
+  ): Promise<{ activities: any[]; total: number }> {
     try {
       // Build query
       const query: any = { deleted_at: null };
@@ -164,12 +267,12 @@ export class ActivityService {
       // Get total count
       const total = await this.activityModel.countDocuments(query);
 
-      // Note: Host rating filtering would require a rating system
-      // For now, we'll return all activities
-      // In future, you can add ratings to User schema and filter here
+      // Add rating information to activities using helper method
+      const activitiesWithRatings =
+        await this.addRatingsToActivities(activities);
 
       return {
-        activities,
+        activities: activitiesWithRatings,
         total,
       };
     } catch (err) {
@@ -177,7 +280,7 @@ export class ActivityService {
     }
   }
 
-  async findOne(id: string): Promise<Activity> {
+  async findOne(id: string): Promise<any> {
     try {
       const isValidID = mongoose.isValidObjectId(id);
       if (!isValidID) {
@@ -192,7 +295,7 @@ export class ActivityService {
         throw new NotFoundException('Activity not found');
       }
 
-      return activity;
+      return this.addRatingToActivity(activity);
     } catch (err) {
       if (
         err instanceof NotFoundException ||
@@ -204,7 +307,7 @@ export class ActivityService {
     }
   }
 
-  async findByHost(hostId: string): Promise<Activity[]> {
+  async findByHost(hostId: string): Promise<any[]> {
     try {
       console.log(hostId, 'hostId');
       const isValidID = mongoose.isValidObjectId(hostId);
@@ -217,7 +320,7 @@ export class ActivityService {
         .populate('hostId', 'name email profilePhoto')
         .sort({ created_at: -1 });
 
-      return activities;
+      return this.addRatingsToActivities(activities);
     } catch (err) {
       throw new BadRequestException(err.message);
     }
@@ -243,10 +346,10 @@ export class ActivityService {
         '_id' in activity.hostId
       ) {
         // hostId is populated (User object)
-        activityHostId = (activity.hostId as any)._id.toString();
+        activityHostId = activity.hostId._id.toString();
       } else {
         // hostId is just ObjectId
-        activityHostId = (activity.hostId as any).toString();
+        activityHostId = activity.hostId.toString();
       }
       const user = await this.userModel.findById(userId);
       if (!user) {
@@ -309,10 +412,10 @@ export class ActivityService {
         '_id' in activity.hostId
       ) {
         // hostId is populated (User object)
-        activityHostId = (activity.hostId as any)._id.toString();
+        activityHostId = activity.hostId._id.toString();
       } else {
         // hostId is just ObjectId
-        activityHostId = (activity.hostId as any).toString();
+        activityHostId = activity.hostId.toString();
       }
       const user = await this.userModel.findById(userId);
       if (!user) {

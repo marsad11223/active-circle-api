@@ -4,6 +4,7 @@ import { ActivityController } from './activity.controller';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Activity, ActivitySchema } from 'src/schemas/activity.schema';
 import { User, UserSchema } from 'src/schemas/user.schema';
+import { Rating, RatingSchema } from 'src/schemas/rating.schema';
 import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
@@ -11,6 +12,7 @@ import { AuthModule } from 'src/auth/auth.module';
     MongooseModule.forFeature([
       { name: Activity.name, schema: ActivitySchema },
       { name: User.name, schema: UserSchema },
+      { name: Rating.name, schema: RatingSchema },
     ]),
     forwardRef(() => AuthModule),
   ],
