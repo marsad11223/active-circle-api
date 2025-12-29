@@ -15,6 +15,7 @@ import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
 import { BrowseActivitiesDto } from './dto/browse-activities.dto';
 import { GetUser } from 'src/auth/GetUser.Decorator';
+import { OptionalJwtAuthGuard } from 'src/auth/optional-jwt.guard';
 
 @Controller('activities')
 export class ActivityController {
@@ -52,10 +53,20 @@ export class ActivityController {
     return this.activityService.browseActivities(filters, memberId);
   }
 
+  @UseGuards(AuthGuard('jwt'))
+  @Get('member/:id')
+  findOneForMember(@Param('id') id: string, @GetUser() user: any) {
+    // Authenticated endpoint for members - includes booking status
+    return this.activityService.findOne(id, user._id.toString());
+  }
+
+  @UseGuards(OptionalJwtAuthGuard)
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id') id: string, @GetUser() user?: any) {
     // Public endpoint - anyone can view a specific activity
-    return this.activityService.findOne(id);
+    // If user is authenticated, includes booking status
+    const memberId = user?._id?.toString();
+    return this.activityService.findOne(id, memberId);
   }
 
   @UseGuards(AuthGuard('jwt'))

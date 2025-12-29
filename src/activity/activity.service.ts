@@ -337,7 +337,7 @@ export class ActivityService {
     }
   }
 
-  async findOne(id: string): Promise<any> {
+  async findOne(id: string, memberId?: string): Promise<any> {
     try {
       const isValidID = mongoose.isValidObjectId(id);
       if (!isValidID) {
@@ -352,7 +352,32 @@ export class ActivityService {
         throw new NotFoundException('Activity not found');
       }
 
-      return this.addRatingToActivity(activity);
+      const activityWithRating = await this.addRatingToActivity(activity);
+
+      // If memberId is provided, check if member has booked this activity
+      if (memberId) {
+        const booking = await this.bookingModel.findOne({
+          memberId: new mongoose.Types.ObjectId(memberId),
+          activityId: new mongoose.Types.ObjectId(id),
+          status: { $in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
+          deleted_at: null,
+        });
+
+        return {
+          ...activityWithRating,
+          isBooked: !!booking,
+          bookingStatus: booking ? booking.status : null,
+          bookingId: booking ? booking._id : null,
+        };
+      }
+
+      // If no memberId, add default values
+      return {
+        ...activityWithRating,
+        isBooked: false,
+        bookingStatus: null,
+        bookingId: null,
+      };
     } catch (err) {
       if (
         err instanceof NotFoundException ||
