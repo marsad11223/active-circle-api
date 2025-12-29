@@ -143,44 +143,48 @@ export class ActivityService {
 
   /**
    * Helper method to add rating information to a single activity
+   * Includes full reviews/ratings array
    */
   private async addRatingToActivity(activity: Activity): Promise<any> {
     const activityId = (activity._id as any).toString();
 
-    // Get ratings for this activity
-    const ratingsData = await this.ratingModel.aggregate([
-      {
-        $match: {
-          activityId: new mongoose.Types.ObjectId(activityId),
-          deleted_at: null,
-        },
-      },
-      {
-        $group: {
-          _id: '$activityId',
-          averageRating: { $avg: '$rating' },
-          totalReviews: { $sum: 1 },
-        },
-      },
-    ]);
+    // Get all ratings/reviews for this activity with member details
+    const ratings = await this.ratingModel
+      .find({
+        activityId: new mongoose.Types.ObjectId(activityId),
+        deleted_at: null,
+      })
+      .populate('memberId', 'name email profilePhoto')
+      .sort({ created_at: -1 });
+
+    const totalReviews = ratings.length;
+    const averageRating =
+      totalReviews > 0
+        ? ratings.reduce((sum, r) => sum + r.rating, 0) / totalReviews
+        : 0;
 
     const activityObj = activity.toObject();
-    const ratingInfo =
-      ratingsData.length > 0
-        ? {
-            averageRating: Math.round(ratingsData[0].averageRating * 10) / 10,
-            totalReviews: ratingsData[0].totalReviews,
-          }
-        : {
-            averageRating: 0,
-            totalReviews: 0,
-          };
 
     return {
       ...activityObj,
       rating: {
-        averageRating: ratingInfo.averageRating,
-        totalReviews: ratingInfo.totalReviews,
+        averageRating: Math.round(averageRating * 10) / 10, // Round to 1 decimal
+        totalReviews: totalReviews,
+        reviews: ratings.map((rating) => {
+          const member = rating.memberId as any;
+          return {
+            _id: rating._id,
+            rating: rating.rating,
+            review: rating.review,
+            member: {
+              _id: member?._id || member,
+              name: member?.name || '',
+              email: member?.email || '',
+              profilePhoto: member?.profilePhoto || null,
+            },
+            createdAt: rating.created_at,
+          };
+        }),
       },
     };
   }
