@@ -11,6 +11,8 @@ import { Activity } from 'src/schemas/activity.schema';
 import { User } from 'src/schemas/user.schema';
 import mongoose, { Model } from 'mongoose';
 import { CreateRatingDto } from './dto/create-rating.dto';
+import { ReplyToReviewDto } from './dto/reply-to-review.dto';
+import { ForbiddenException } from '@nestjs/common';
 
 @Injectable()
 export class RatingService {
@@ -349,6 +351,214 @@ export class RatingService {
         pastReviews,
       };
     } catch (err) {
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  async getHostReviewsDashboard(hostId: string): Promise<{
+    averageRating: number;
+    totalReviews: number;
+    ratingDistribution: {
+      '5': number;
+      '4': number;
+      '3': number;
+      '2': number;
+      '1': number;
+    };
+    responseRate: number; // Percentage of reviews with replies
+    pendingResponses: number; // Reviews without replies
+  }> {
+    try {
+      const isValidHostId = mongoose.isValidObjectId(hostId);
+      if (!isValidHostId) {
+        throw new BadRequestException('Invalid host ID');
+      }
+
+      const ratings = await this.ratingModel.find({
+        hostId: new mongoose.Types.ObjectId(hostId),
+        deleted_at: null,
+      });
+
+      const totalReviews = ratings.length;
+      const averageRating =
+        totalReviews > 0
+          ? ratings.reduce((sum, r) => sum + r.rating, 0) / totalReviews
+          : 0;
+
+      // Calculate rating distribution
+      const ratingDistribution = {
+        '5': 0,
+        '4': 0,
+        '3': 0,
+        '2': 0,
+        '1': 0,
+      };
+
+      ratings.forEach((rating) => {
+        const ratingKey = rating.rating.toString() as '1' | '2' | '3' | '4' | '5';
+        if (ratingDistribution[ratingKey] !== undefined) {
+          ratingDistribution[ratingKey]++;
+        }
+      });
+
+      // Calculate response rate
+      const reviewsWithReplies = ratings.filter((r) => r.hostReply).length;
+      const responseRate =
+        totalReviews > 0 ? Math.round((reviewsWithReplies / totalReviews) * 100) : 0;
+      const pendingResponses = totalReviews - reviewsWithReplies;
+
+      return {
+        averageRating: Math.round(averageRating * 10) / 10, // Round to 1 decimal
+        totalReviews,
+        ratingDistribution,
+        responseRate,
+        pendingResponses,
+      };
+    } catch (err) {
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  async getHostReviews(
+    hostId: string,
+    activityId?: string,
+  ): Promise<{
+    averageRating: number;
+    totalReviews: number;
+    reviews: any[];
+  }> {
+    try {
+      const isValidHostId = mongoose.isValidObjectId(hostId);
+      if (!isValidHostId) {
+        throw new BadRequestException('Invalid host ID');
+      }
+
+      const query: any = {
+        hostId: new mongoose.Types.ObjectId(hostId),
+        deleted_at: null,
+      };
+
+      if (activityId) {
+        const isValidActivityId = mongoose.isValidObjectId(activityId);
+        if (!isValidActivityId) {
+          throw new BadRequestException('Invalid activity ID');
+        }
+        query.activityId = new mongoose.Types.ObjectId(activityId);
+      }
+
+      const ratings = await this.ratingModel
+        .find(query)
+        .populate('memberId', 'name email profilePhoto')
+        .populate('activityId', 'title picture date location')
+        .populate('hostId', 'name email profilePhoto')
+        .sort({ created_at: -1 });
+
+      const totalReviews = ratings.length;
+      const averageRating =
+        totalReviews > 0
+          ? ratings.reduce((sum, r) => sum + r.rating, 0) / totalReviews
+          : 0;
+
+      // Format reviews with member, activity, and host details
+      const reviews = ratings.map((rating) => {
+        const member = rating.memberId as any;
+        const activity = rating.activityId as any;
+        const host = rating.hostId as any;
+        return {
+          _id: rating._id,
+          rating: rating.rating,
+          review: rating.review,
+          hostReply: rating.hostReply || null,
+          hostReplyDate: rating.hostReplyDate || null,
+          host: {
+            _id: host?._id || host,
+            name: host?.name || '',
+            email: host?.email || '',
+            profilePhoto: host?.profilePhoto || null,
+          },
+          member: {
+            _id: member?._id || member,
+            name: member?.name || '',
+            email: member?.email || '',
+            profilePhoto: member?.profilePhoto || null,
+          },
+          activity: {
+            _id: activity?._id || activity,
+            title: activity?.title || '',
+            picture: activity?.picture || null,
+            date: activity?.date || null,
+            location: activity?.location || null,
+          },
+          createdAt: rating.created_at,
+        };
+      });
+
+      return {
+        averageRating: Math.round(averageRating * 10) / 10, // Round to 1 decimal
+        totalReviews,
+        reviews,
+      };
+    } catch (err) {
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  async replyToReview(
+    replyDto: ReplyToReviewDto,
+    hostId: string,
+  ): Promise<Rating> {
+    try {
+      const isValidRatingId = mongoose.isValidObjectId(replyDto.ratingId);
+      const isValidHostId = mongoose.isValidObjectId(hostId);
+
+      if (!isValidRatingId) {
+        throw new BadRequestException('Invalid rating ID');
+      }
+      if (!isValidHostId) {
+        throw new BadRequestException('Invalid host ID');
+      }
+
+      // Find the rating
+      const rating = await this.ratingModel.findById(replyDto.ratingId);
+
+      if (!rating) {
+        throw new NotFoundException('Rating not found');
+      }
+
+      // Check if rating belongs to this host
+      const ratingHostId = (rating.hostId as any).toString();
+      if (ratingHostId !== hostId) {
+        throw new ForbiddenException(
+          'You can only reply to reviews for your own activities',
+        );
+      }
+
+      // Check if already replied
+      if (rating.hostReply) {
+        throw new ConflictException('You have already replied to this review');
+      }
+
+      // Update rating with reply
+      rating.hostReply = replyDto.reply;
+      rating.hostReplyDate = new Date();
+      rating.updated_at = new Date();
+
+      await rating.save();
+
+      // Populate and return
+      await rating.populate('memberId', 'name email profilePhoto');
+      await rating.populate('activityId', 'title picture date location');
+
+      return rating;
+    } catch (err) {
+      if (
+        err instanceof NotFoundException ||
+        err instanceof BadRequestException ||
+        err instanceof ForbiddenException ||
+        err instanceof ConflictException
+      ) {
+        throw err;
+      }
       throw new BadRequestException(err.message);
     }
   }

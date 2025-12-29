@@ -1568,6 +1568,142 @@
 						"description": "Get reviews dashboard data for member including: rating history (average rating, total reviews, rating distribution), activities to review (past activities without ratings), and past reviews (already submitted reviews)."
 					},
 					"response": []
+				},
+				{
+					"name": "Get Host Reviews Dashboard",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/ratings/host/dashboard",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"ratings",
+								"host",
+								"dashboard"
+							]
+						},
+						"description": "Get host reviews dashboard with summary stats: average rating, total reviews, rating distribution (1-5 stars), response rate (%), and pending responses count."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Host Reviews (All Activities)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/ratings/host/reviews",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"ratings",
+								"host",
+								"reviews"
+							]
+						},
+						"description": "Get all reviews for host's activities. Returns average rating, total reviews, and full reviews array with member and activity details. Includes hostReply if host has replied."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Host Reviews (By Activity ID)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/ratings/host/reviews?activityId={{activity_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"ratings",
+								"host",
+								"reviews"
+							],
+							"query": [
+								{
+									"key": "activityId",
+									"value": "{{activity_id}}",
+									"description": "Optional: Filter reviews by activity ID. If not provided, returns all host's reviews."
+								}
+							]
+						},
+						"description": "Get reviews for a specific activity. If activityId is provided, returns reviews for that activity only. Otherwise returns all host's reviews. Includes hostReply if host has replied."
+					},
+					"response": []
+				},
+				{
+					"name": "Reply to Review",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"ratingId\": \"{{rating_id}}\",\n  \"reply\": \"Thank you for your feedback! We're glad you enjoyed the session.\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/ratings/host/reply",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"ratings",
+								"host",
+								"reply"
+							]
+						},
+						"description": "Host can reply to a member's review. One-time reply only - member cannot reply back. Requires ratingId and reply text. Host can only reply to reviews for their own activities."
+					},
+					"response": []
 				}
 			]
 		}

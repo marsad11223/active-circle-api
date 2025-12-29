@@ -151,13 +151,14 @@ export class ActivityService {
   private async addRatingToActivity(activity: Activity): Promise<any> {
     const activityId = (activity._id as any).toString();
 
-    // Get all ratings/reviews for this activity with member details
+    // Get all ratings/reviews for this activity with member and host details
     const ratings = await this.ratingModel
       .find({
         activityId: new mongoose.Types.ObjectId(activityId),
         deleted_at: null,
       })
       .populate('memberId', 'name email profilePhoto')
+      .populate('hostId', 'name email profilePhoto')
       .sort({ created_at: -1 });
 
     const totalReviews = ratings.length;
@@ -175,10 +176,19 @@ export class ActivityService {
         totalReviews: totalReviews,
         reviews: ratings.map((rating) => {
           const member = rating.memberId as any;
+          const host = rating.hostId as any;
           return {
             _id: rating._id,
             rating: rating.rating,
             review: rating.review,
+            hostReply: rating.hostReply || null,
+            hostReplyDate: rating.hostReplyDate || null,
+            host: {
+              _id: host?._id || host,
+              name: host?.name || '',
+              email: host?.email || '',
+              profilePhoto: host?.profilePhoto || null,
+            },
             member: {
               _id: member?._id || member,
               name: member?.name || '',

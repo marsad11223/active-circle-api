@@ -21,6 +21,12 @@ export class Rating extends Document {
   @Prop({ required: false })
   review?: string; // Optional review text
 
+  @Prop({ required: false })
+  hostReply?: string; // Host's reply to the review
+
+  @Prop({ required: false })
+  hostReplyDate?: Date; // Date when host replied
+
   @Prop({ default: Date.now })
   created_at: Date;
 
