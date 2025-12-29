@@ -11,6 +11,7 @@ import { ActivityModule } from './activity/activity.module';
 import { BookingModule } from './booking/booking.module';
 import { RatingModule } from './rating/rating.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
+import { MessageModule } from './message/message.module';
 
 import { MailerModule } from '@nestjs-modules/mailer';
 import { APP_PIPE } from '@nestjs/core';
@@ -24,6 +25,7 @@ import { APP_PIPE } from '@nestjs/core';
     BookingModule,
     RatingModule,
     CloudinaryModule,
+    MessageModule,
 
     ConfigModule.forRoot({ isGlobal: true }),
     MailerModule.forRoot({

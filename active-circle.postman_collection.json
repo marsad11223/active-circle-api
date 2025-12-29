@@ -1706,6 +1706,242 @@
 					"response": []
 				}
 			]
+		},
+		{
+			"name": "messages",
+			"item": [
+				{
+					"name": "Send Message (Member to Host)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"activityId\": \"{{activity_id}}\",\n  \"subject\": \"Question about Morning Yoga Session\",\n  \"content\": \"Hi! I'm interested in joining your Morning Yoga Session. I'm a complete beginner - will this be suitable for me? Also, do I need to bring my own mat?\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/messages/send",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"messages",
+								"send"
+							]
+						},
+						"description": "Member can send a message to host about an activity. Email will be sent to host and message saved in DB."
+					},
+					"response": []
+				},
+				{
+					"name": "Reply to Message (Host to Member)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"messageId\": \"{{message_id}}\",\n  \"content\": \"Hi! Yes, this session is perfect for beginners. We provide all mats and equipment, so you don't need to bring anything. Looking forward to seeing you!\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/messages/reply",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"messages",
+								"reply"
+							]
+						},
+						"description": "Host can reply to a member's message. Email will be sent to member and reply saved in DB."
+					},
+					"response": []
+				},
+				{
+					"name": "Broadcast Message (Host to All Booked Members)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"activityId\": \"{{activity_id}}\",\n  \"broadcastType\": \"reminder\",\n  \"subject\": \"Reminder: Morning Yoga Session Tomorrow\",\n  \"content\": \"This is a friendly reminder that our Morning Yoga Session is scheduled for tomorrow at 10:00 AM. Please arrive 10 minutes early. See you there!\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/messages/broadcast",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"messages",
+								"broadcast"
+							]
+						},
+						"description": "Host can broadcast a message to all confirmed/pending booked members of an activity. Broadcast types: reminder, event_cancel, general_info. Email will be sent to all members and messages saved in DB."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Inbox",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/messages/inbox",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"messages",
+								"inbox"
+							]
+						},
+						"description": "Get all messages received by the current user (inbox). For host: shows messages from members. For member: shows messages from host (replies and broadcasts). Returns messages with sender, activity, parent message (if reply), and seen status."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Sent Messages",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/messages/sent",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"messages",
+								"sent"
+							]
+						},
+						"description": "Get all messages sent by the current user. Shows messages you have sent to others."
+					},
+					"response": []
+				},
+				{
+					"name": "Mark Message as Seen",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/messages/{{message_id}}/seen",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"messages",
+								"{{message_id}}",
+								"seen"
+							]
+						},
+						"description": "Mark a message as seen. Updates isSeen to true and sets seenAt timestamp."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Unread Count",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/messages/unread-count",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"messages",
+								"unread-count"
+							]
+						},
+						"description": "Get count of unread messages for the current user."
+					},
+					"response": []
+				}
+			]
 		}
 	],
 	"event": [
