@@ -13,6 +13,7 @@ import {
 } from 'src/schemas/booking.schema';
 import { Activity } from 'src/schemas/activity.schema';
 import { User, Role } from 'src/schemas/user.schema';
+import { Rating } from 'src/schemas/rating.schema';
 import mongoose, { Model } from 'mongoose';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
@@ -31,6 +32,8 @@ export class BookingService {
     private readonly activityModel: Model<Activity>,
     @InjectModel(User.name)
     private readonly userModel: Model<User>,
+    @InjectModel(Rating.name)
+    private readonly ratingModel: Model<Rating>,
     private configService: ConfigService,
     private readonly mailerService: MailerService,
   ) {
@@ -482,7 +485,7 @@ export class BookingService {
   async getMemberBookings(
     memberId: string,
     filter: 'upcoming' | 'pending' | 'past' | 'cancelled' | 'all' = 'all',
-  ): Promise<Booking[]> {
+  ): Promise<any[]> {
     try {
       const isValidID = mongoose.isValidObjectId(memberId);
       if (!isValidID) {
@@ -514,11 +517,12 @@ export class BookingService {
         .sort({ created_at: -1 });
 
       // Filter by date for upcoming/past
+      let filteredBookings = bookings;
       if (filter === 'upcoming' || filter === 'past') {
         const now = new Date();
         now.setHours(0, 0, 0, 0); // Start of today
 
-        return bookings.filter((booking) => {
+        filteredBookings = bookings.filter((booking) => {
           const activity = booking.activityId as any;
           if (!activity || !activity.date) {
             return false;
@@ -537,7 +541,33 @@ export class BookingService {
         });
       }
 
-      return bookings;
+      // For past activities, check if member has reviewed each booking
+      if (filter === 'past') {
+        const bookingIds = filteredBookings.map((b) => b._id);
+        
+        // Get all ratings for these bookings
+        const ratings = await this.ratingModel.find({
+          bookingId: { $in: bookingIds },
+          deleted_at: null,
+        });
+
+        // Create a map of bookingId -> rating exists
+        const reviewedBookingIds = new Set(
+          ratings.map((r) => (r.bookingId as any).toString()),
+        );
+
+        // Add isReviewed flag to each booking
+        return filteredBookings.map((booking) => {
+          const bookingObj = booking.toObject();
+          const bookingId = (booking._id as any).toString();
+          return {
+            ...bookingObj,
+            isReviewed: reviewedBookingIds.has(bookingId),
+          };
+        });
+      }
+
+      return filteredBookings;
     } catch (err) {
       throw new BadRequestException(err.message);
     }
