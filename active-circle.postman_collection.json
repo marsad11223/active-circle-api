@@ -604,6 +604,74 @@
 						}
 					},
 					"response": []
+				},
+				{
+					"name": "Toggle Favorite Activity",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"activityId\": \"activity_id_here\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/users/favorites/toggle",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"favorites",
+								"toggle"
+							]
+						},
+						"description": "Add or remove an activity from favorites. If activity is already favorited, it will be removed. If not favorited, it will be added."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Favorite Activities",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/users/favorites",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"favorites"
+							]
+						},
+						"description": "Get all favorite activities for the current member (authenticated user). Returns array of activities with full details including host information."
+					},
+					"response": []
 				}
 			]
 		},

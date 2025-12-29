@@ -9,6 +9,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { User, Role } from 'src/schemas/user.schema';
+import { Activity } from 'src/schemas/activity.schema';
 import mongoose, { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { ContactUsDto } from './dto/contact-us.dto';
@@ -19,6 +20,7 @@ import { JwtService } from '@nestjs/jwt';
 export class UsersService {
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<User>,
+    @InjectModel(Activity.name) private readonly activityModel: Model<Activity>,
     private readonly mailerService: MailerService,
     private readonly jwtService: JwtService,
   ) {}
@@ -211,6 +213,112 @@ export class UsersService {
         data: updatedUser as User,
         accessToken: accessToken,
       };
+    } catch (err) {
+      if (
+        err instanceof NotFoundException ||
+        err instanceof BadRequestException
+      ) {
+        throw err;
+      }
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  async toggleFavoriteActivity(
+    userId: string,
+    activityId: string,
+  ): Promise<{ message: string; isFavorite: boolean }> {
+    try {
+      const isValidUserId = mongoose.isValidObjectId(userId);
+      const isValidActivityId = mongoose.isValidObjectId(activityId);
+
+      if (!isValidUserId) {
+        throw new BadRequestException('Invalid user ID');
+      }
+      if (!isValidActivityId) {
+        throw new BadRequestException('Invalid activity ID');
+      }
+
+      const user = await this.userModel.findById(userId);
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      // Get current favorites
+      const currentFavorites = user.favoriteActivities || [];
+      const activityObjectId = new mongoose.Types.ObjectId(activityId);
+
+      // Check if activity is already in favorites
+      const isFavorite = currentFavorites.some(
+        (favId) => favId.toString() === activityId,
+      );
+
+      let updatedFavorites: mongoose.Types.ObjectId[];
+      let isFavoriteNow: boolean;
+
+      if (isFavorite) {
+        // Remove from favorites
+        updatedFavorites = currentFavorites.filter(
+          (favId) => favId.toString() !== activityId,
+        );
+        isFavoriteNow = false;
+      } else {
+        // Add to favorites
+        updatedFavorites = [...currentFavorites, activityObjectId];
+        isFavoriteNow = true;
+      }
+
+      // Update user
+      await this.userModel.findByIdAndUpdate(userId, {
+        favoriteActivities: updatedFavorites,
+        updated_at: Date.now(),
+      });
+
+      return {
+        message: isFavoriteNow
+          ? 'Activity added to favorites'
+          : 'Activity removed from favorites',
+        isFavorite: isFavoriteNow,
+      };
+    } catch (err) {
+      if (
+        err instanceof NotFoundException ||
+        err instanceof BadRequestException
+      ) {
+        throw err;
+      }
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  async getFavoriteActivities(userId: string): Promise<any[]> {
+    try {
+      const isValidUserId = mongoose.isValidObjectId(userId);
+      if (!isValidUserId) {
+        throw new BadRequestException('Invalid user ID');
+      }
+
+      const user = await this.userModel
+        .findById(userId)
+        .populate('favoriteActivities')
+        .select('favoriteActivities');
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      const favoriteActivityIds = user.favoriteActivities || [];
+
+      // Fetch activities with full details
+      const activities = await this.activityModel
+        .find({
+          _id: { $in: favoriteActivityIds },
+          deleted_at: null,
+        })
+        .populate('hostId', 'name email profilePhoto')
+        .sort({ created_at: -1 });
+
+      return activities;
     } catch (err) {
       if (
         err instanceof NotFoundException ||

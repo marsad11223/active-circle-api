@@ -15,6 +15,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { User } from 'src/schemas/user.schema';
 import { GetUser } from 'src/auth/GetUser.Decorator';
 import { ContactUsDto } from './dto/contact-us.dto';
+import { ToggleFavoriteDto } from './dto/toggle-favorite.dto';
 import { IsAdmin, canAccessResource } from 'src/utils/helper';
 
 @Controller('users')
@@ -60,17 +61,37 @@ export class UsersController {
   }
 
   @UseGuards(AuthGuard('jwt'))
+  @Post('toggle-role')
+  toggleRole(@GetUser() user: any) {
+    // Users can only toggle their own role
+    return this.usersService.toggleRole(user._id.toString());
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('favorites/toggle')
+  toggleFavorite(
+    @Body() toggleFavoriteDto: ToggleFavoriteDto,
+    @GetUser() user: any,
+  ) {
+    // Members can add/remove favorites
+    return this.usersService.toggleFavoriteActivity(
+      user._id.toString(),
+      toggleFavoriteDto.activityId,
+    );
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('favorites')
+  getFavoriteActivities(@GetUser() user: any) {
+    // Members can view their favorites
+    return this.usersService.getFavoriteActivities(user._id.toString());
+  }
+
+  @UseGuards(AuthGuard('jwt'))
   @Get(':id')
   findOne(@Param('id') id: string, @GetUser() user: User) {
     // Check authorization: superAdmin can view anyone, users can only view themselves
     canAccessResource(user, id);
     return this.usersService.findOne(id);
-  }
-
-  @UseGuards(AuthGuard('jwt'))
-  @Post('toggle-role')
-  toggleRole(@GetUser() user: any) {
-    // Users can only toggle their own role
-    return this.usersService.toggleRole(user._id.toString());
   }
 }

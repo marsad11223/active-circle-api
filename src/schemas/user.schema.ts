@@ -1,4 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import * as mongoose from 'mongoose';
 
 export enum Role {
   member = 'member',
@@ -81,6 +82,9 @@ export class User {
 
   @Prop({ default: 10 })
   radius: number; // Search radius in km for activities (default 10km, only for members)
+
+  @Prop({ type: [{ type: mongoose.Types.ObjectId, ref: 'Activity' }], default: [] })
+  favoriteActivities?: mongoose.Types.ObjectId[]; // Array of favorite activity IDs (only for members)
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

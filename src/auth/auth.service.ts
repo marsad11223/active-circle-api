@@ -78,16 +78,16 @@ export class AuthService {
       // Set permanent role to 'host' if user has active subscription
       if (user.hasActiveSubscription && user.role !== Role.host) {
         updateData.role = Role.host;
-      }
+          }
 
       // Update user with new grantRole and lastLogin
-      const updated = await this.userModel.findByIdAndUpdate(
-        user._id,
+          const updated = await this.userModel.findByIdAndUpdate(
+            user._id,
         updateData,
-        { new: true },
-      );
-      if (updated) {
-        updatedUser = updated;
+            { new: true },
+          );
+          if (updated) {
+            updatedUser = updated;
       }
 
       const payload = { id: updatedUser._id, email: updatedUser.email };
