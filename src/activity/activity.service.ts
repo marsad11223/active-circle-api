@@ -7,6 +7,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Activity } from 'src/schemas/activity.schema';
 import { Rating } from 'src/schemas/rating.schema';
+import { Booking, BookingStatus } from 'src/schemas/booking.schema';
 import mongoose, { Model } from 'mongoose';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
@@ -23,6 +24,8 @@ export class ActivityService {
     private readonly userModel: Model<User>,
     @InjectModel(Rating.name)
     private readonly ratingModel: Model<Rating>,
+    @InjectModel(Booking.name)
+    private readonly bookingModel: Model<Booking>,
   ) {}
 
   async create(
@@ -275,8 +278,58 @@ export class ActivityService {
       const activitiesWithRatings =
         await this.addRatingsToActivities(activities);
 
+      // If memberId is provided, check which activities are already booked
+      let activitiesWithBookingStatus = activitiesWithRatings;
+      if (memberId) {
+        const activityIds = activities.map((activity) => activity._id);
+
+        // Get all bookings for this member for these activities (pending or confirmed only)
+        const bookings = await this.bookingModel.find({
+          memberId: new mongoose.Types.ObjectId(memberId),
+          activityId: { $in: activityIds },
+          status: { $in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
+          deleted_at: null,
+        });
+
+        // Create a map of activityId -> booking status
+        const bookingMap = new Map();
+        bookings.forEach((booking) => {
+          const activityId = (booking.activityId as any).toString();
+          bookingMap.set(activityId, {
+            isBooked: true,
+            bookingStatus: booking.status,
+            bookingId: booking._id,
+          });
+        });
+
+        // Add booking information to each activity
+        activitiesWithBookingStatus = activitiesWithRatings.map((activity) => {
+          const activityId = activity._id.toString();
+          const bookingInfo = bookingMap.get(activityId) || {
+            isBooked: false,
+            bookingStatus: null,
+            bookingId: null,
+          };
+
+          return {
+            ...activity,
+            isBooked: bookingInfo.isBooked,
+            bookingStatus: bookingInfo.bookingStatus,
+            bookingId: bookingInfo.bookingId,
+          };
+        });
+      } else {
+        // If no memberId, add default values
+        activitiesWithBookingStatus = activitiesWithRatings.map((activity) => ({
+          ...activity,
+          isBooked: false,
+          bookingStatus: null,
+          bookingId: null,
+        }));
+      }
+
       return {
-        activities: activitiesWithRatings,
+        activities: activitiesWithBookingStatus,
         total,
       };
     } catch (err) {
