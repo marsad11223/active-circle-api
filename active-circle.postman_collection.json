@@ -1028,6 +1028,46 @@
 					"response": []
 				},
 				{
+					"name": "Cancel Booking by Member",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"cancelReason\": \"Change of plans\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/bookings/member/{{booking_id}}/cancel",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bookings",
+								"member",
+								"{{booking_id}}",
+								"cancel"
+							]
+						},
+						"description": "Member cancels their own confirmed booking. Refund policy: 48+ hours = 99% refund (1% fee), 24-48 hours = 49% refund (50% penalty + 1% fee), <24 hours = no refund. Free bookings are cancelled immediately."
+					},
+					"response": []
+				},
+				{
 					"name": "Get Host Pending Bookings",
 					"request": {
 						"auth": {

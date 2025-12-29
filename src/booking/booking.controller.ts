@@ -15,6 +15,7 @@ import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
 import { HostDashboardDto } from './dto/host-dashboard.dto';
 import { MarkAttendanceDto } from './dto/mark-attendance.dto';
 import { MemberBookingsDto } from './dto/member-bookings.dto';
+import { CancelBookingDto } from './dto/cancel-booking.dto';
 import { GetUser } from 'src/auth/GetUser.Decorator';
 
 @Controller('bookings')
@@ -117,6 +118,21 @@ export class BookingController {
       id,
       user._id.toString(),
       updateStatusDto.declineReason,
+    );
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Put('member/:id/cancel')
+  cancelBookingByMember(
+    @Param('id') id: string,
+    @Body() cancelBookingDto: CancelBookingDto,
+    @GetUser() user: any,
+  ) {
+    // Member can cancel their own confirmed bookings
+    return this.bookingService.cancelBookingByMember(
+      id,
+      user._id.toString(),
+      cancelBookingDto.cancelReason,
     );
   }
 

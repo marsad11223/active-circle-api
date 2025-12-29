@@ -848,4 +848,223 @@ export class BookingService {
       throw new BadRequestException(err.message);
     }
   }
+
+  async cancelBookingByMember(
+    bookingId: string,
+    memberId: string,
+    cancelReason?: string,
+  ): Promise<Booking> {
+    try {
+      const isValidBookingId = mongoose.isValidObjectId(bookingId);
+      const isValidMemberId = mongoose.isValidObjectId(memberId);
+
+      if (!isValidBookingId) {
+        throw new BadRequestException('Invalid booking ID');
+      }
+      if (!isValidMemberId) {
+        throw new BadRequestException('Invalid member ID');
+      }
+
+      const booking = await this.bookingModel
+        .findById(bookingId)
+        .populate('activityId')
+        .populate('memberId');
+
+      if (!booking) {
+        throw new NotFoundException('Booking not found');
+      }
+
+      // Verify member owns this booking
+      let bookingMemberId: string;
+      if (
+        booking.memberId &&
+        typeof booking.memberId === 'object' &&
+        '_id' in booking.memberId
+      ) {
+        bookingMemberId = (booking.memberId as any)._id.toString();
+      } else {
+        bookingMemberId = (booking.memberId as any).toString();
+      }
+
+      if (bookingMemberId !== memberId) {
+        throw new ForbiddenException('You can only cancel your own bookings');
+      }
+
+      // Only allow cancellation for confirmed bookings
+      if (booking.status !== BookingStatus.CONFIRMED) {
+        throw new BadRequestException(
+          'Only confirmed bookings can be cancelled',
+        );
+      }
+
+      const activity = booking.activityId as any;
+      if (!activity || !activity.date) {
+        throw new BadRequestException('Activity date not found');
+      }
+
+      // Calculate time difference
+      const activityDate = new Date(activity.date);
+      const now = new Date();
+      const hoursUntilEvent =
+        (activityDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+      // Handle free activities - immediate cancellation
+      if (booking.amount === 0 || !booking.paymentStatus) {
+        booking.status = BookingStatus.CANCELLED;
+        booking.declineReason = cancelReason || 'Cancelled by member';
+        booking.updated_at = new Date();
+        await booking.save();
+
+        // Send cancellation email
+        const member = await this.userModel.findById(memberId);
+        if (member) {
+          try {
+            await this.mailerService.sendMail({
+              to: member.email,
+              subject: 'Booking Cancelled',
+              html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2>Booking Cancelled</h2>
+                <p>Hello ${member.name || member.email},</p>
+                <p>Your booking for <strong>${activity.title}</strong> has been cancelled.</p>
+                ${cancelReason ? `<p>Reason: ${cancelReason}</p>` : ''}
+              </div>
+            `,
+            });
+          } catch (emailError: any) {
+            console.error('Error sending cancellation email:', emailError);
+          }
+        }
+
+        return booking;
+      }
+
+      // Handle paid activities - refund logic
+      if (!booking.paymentIntentId) {
+        throw new BadRequestException(
+          'Payment information not found for this booking',
+        );
+      }
+
+      // Check if already refunded
+      if (booking.paymentStatus === PaymentStatus.REFUNDED) {
+        throw new BadRequestException('This booking has already been refunded');
+      }
+
+      let refundAmount: number;
+      let refundPercentage: number;
+      const stripeFeePercentage = 0.029; // 2.9%
+      const stripeFeeFixed = 30; // 30 cents
+
+      if (hoursUntilEvent >= 48) {
+        // 48+ hours: refund = payment - (2.9% + 30¢) Stripe fees
+        const originalAmountCents = Math.round(booking.amount * 100);
+        const stripeFee =
+          Math.round(originalAmountCents * stripeFeePercentage) +
+          stripeFeeFixed;
+        refundAmount = originalAmountCents - stripeFee;
+        refundPercentage = Math.round(
+          (refundAmount / originalAmountCents) * 100,
+        );
+      } else if (hoursUntilEvent >= 24) {
+        // 24-48 hours: refund = payment - 50% of payment - (2.9% + 30¢) of payment
+        // Formula: payment - 50% - (2.9% + 30¢) - both calculated on original payment
+        const originalAmountCents = Math.round(booking.amount * 100);
+        const penaltyAmount = Math.round(originalAmountCents * 0.5); // 50% penalty
+        const stripeFee =
+          Math.round(originalAmountCents * stripeFeePercentage) +
+          stripeFeeFixed; // Fee on original amount
+        refundAmount = Math.max(
+          0,
+          originalAmountCents - penaltyAmount - stripeFee,
+        );
+        refundPercentage = Math.round(
+          (refundAmount / originalAmountCents) * 100,
+        );
+      } else {
+        // Less than 24 hours: no refund
+        throw new BadRequestException(
+          'Cancellation is not allowed less than 24 hours before the event. No refund will be issued.',
+        );
+      }
+
+      // Process Stripe refund
+      try {
+        // First, retrieve the payment intent to get the charge ID
+        const paymentIntent = await this.stripe.paymentIntents.retrieve(
+          booking.paymentIntentId,
+        );
+
+        // Get charge ID from payment intent or booking
+        const chargeId =
+          (paymentIntent.latest_charge as string) || booking.stripeChargeId;
+        if (!chargeId) {
+          throw new BadRequestException('Charge ID not found');
+        }
+
+        // Create partial refund
+        const refund = await this.stripe.refunds.create({
+          charge: chargeId,
+          amount: refundAmount, // Amount in cents
+          reason: 'requested_by_customer',
+          metadata: {
+            bookingId: bookingId,
+            memberId: memberId,
+            refundPercentage: refundPercentage.toString(),
+            hoursUntilEvent: hoursUntilEvent.toFixed(2),
+          },
+        });
+
+        booking.status = BookingStatus.CANCELLED;
+        booking.paymentStatus = PaymentStatus.REFUNDED;
+        booking.stripeRefundId = refund.id;
+        booking.declineReason =
+          cancelReason || `Cancelled by member. ${refundPercentage}% refunded.`;
+        booking.updated_at = new Date();
+        await booking.save();
+
+        // Send cancellation email with refund details
+        const member = await this.userModel.findById(memberId);
+        if (member) {
+          try {
+            await this.mailerService.sendMail({
+              to: member.email,
+              subject: 'Booking Cancelled - Refund Processed',
+              html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2>Booking Cancelled</h2>
+                <p>Hello ${member.name || member.email},</p>
+                <p>Your booking for <strong>${activity.title}</strong> has been cancelled.</p>
+                ${cancelReason ? `<p>Reason: ${cancelReason}</p>` : ''}
+                <p><strong>Refund Details:</strong></p>
+                <p>Original Amount: $${booking.amount}</p>
+                <p>Refund Amount: $${(refundAmount / 100).toFixed(2)} (${refundPercentage}%)</p>
+                <p>Refund will be processed to your original payment method within 5-10 business days.</p>
+                <p>Refund ID: ${refund.id}</p>
+              </div>
+            `,
+            });
+          } catch (emailError: any) {
+            console.error('Error sending cancellation email:', emailError);
+          }
+        }
+
+        return booking;
+      } catch (refundError: any) {
+        console.error('Error processing refund:', refundError);
+        throw new BadRequestException(
+          `Failed to process refund: ${refundError.message}`,
+        );
+      }
+    } catch (err) {
+      if (
+        err instanceof NotFoundException ||
+        err instanceof BadRequestException ||
+        err instanceof ForbiddenException
+      ) {
+        throw err;
+      }
+      throw new BadRequestException(err.message);
+    }
+  }
 }
