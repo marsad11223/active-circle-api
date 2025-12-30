@@ -5,7 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Message, MessageType, BroadcastType } from 'src/schemas/message.schema';
+import {
+  Message,
+  MessageType,
+  BroadcastType,
+} from 'src/schemas/message.schema';
 import { Booking, BookingStatus } from 'src/schemas/booking.schema';
 import { Activity } from 'src/schemas/activity.schema';
 import { User } from 'src/schemas/user.schema';
@@ -93,7 +97,9 @@ export class MessageService {
         updated_at: new Date(),
       });
 
-      console.log(`[Send Message] Created message: ${message._id}, Sender: ${memberId}, Receiver: ${hostId}`);
+      console.log(
+        `[Send Message] Created message: ${message._id}, Sender: ${memberId}, Receiver: ${hostId}`,
+      );
 
       // Send email to host
       try {
@@ -412,7 +418,9 @@ export class MessageService {
         .populate('parentMessageId', 'subject content')
         .sort({ created_at: -1 });
 
-      console.log(`[Inbox] User ID: ${userId}, Messages found: ${messages.length}`);
+      console.log(
+        `[Inbox] User ID: ${userId}, Messages found: ${messages.length}`,
+      );
 
       // Format messages
       return messages.map((message) => {
@@ -528,6 +536,109 @@ export class MessageService {
     }
   }
 
+  async getBroadcastMessages(
+    hostId: string,
+    activityId?: string,
+  ): Promise<any[]> {
+    try {
+      const isValidHostId = mongoose.isValidObjectId(hostId);
+      if (!isValidHostId) {
+        throw new BadRequestException('Invalid host ID');
+      }
+
+      const query: any = {
+        senderId: new mongoose.Types.ObjectId(hostId),
+        messageType: MessageType.BROADCAST,
+        deleted_at: null,
+      };
+
+      if (activityId) {
+        const isValidActivityId = mongoose.isValidObjectId(activityId);
+        if (!isValidActivityId) {
+          throw new BadRequestException('Invalid activity ID');
+        }
+        query.activityId = new mongoose.Types.ObjectId(activityId);
+      }
+
+      // Get broadcast messages and group by unique broadcasts
+      // Use aggregation to get unique broadcasts with count
+      const broadcasts = await this.messageModel.aggregate([
+        {
+          $match: query,
+        },
+        {
+          $group: {
+            _id: {
+              activityId: '$activityId',
+              subject: '$subject',
+              broadcastType: '$broadcastType',
+              content: '$content',
+              createdAt: {
+                $dateToString: {
+                  format: '%Y-%m-%dT%H:%M:%S.%LZ',
+                  date: '$created_at',
+                },
+              },
+            },
+            messageId: { $first: '$_id' },
+            sentTo: { $sum: 1 },
+          },
+        },
+        {
+          $sort: { '_id.createdAt': -1 },
+        },
+      ]);
+
+      // Get activity IDs to populate
+      const activityIds = [
+        ...new Set(
+          broadcasts
+            .map((b) => b._id.activityId)
+            .filter((id) => id)
+            .map((id) => new mongoose.Types.ObjectId(id)),
+        ),
+      ];
+
+      // Populate activities
+      const activities = await this.activityModel.find({
+        _id: { $in: activityIds },
+      });
+
+      const activityMap = new Map();
+      activities.forEach((activity) => {
+        const activityId = (activity._id as any).toString();
+        activityMap.set(activityId, activity);
+      });
+
+      // Format response
+      return broadcasts.map((broadcast) => {
+        const activityId = broadcast._id.activityId?.toString();
+        const activity = activityId ? activityMap.get(activityId) : null;
+
+        return {
+          _id: broadcast.messageId,
+          activityId: activityId,
+          activity: activity
+            ? {
+                _id: activity._id,
+                title: activity.title || '',
+                picture: activity.picture || null,
+                date: activity.date || null,
+                location: activity.location || null,
+              }
+            : null,
+          broadcastType: broadcast._id.broadcastType,
+          subject: broadcast._id.subject,
+          content: broadcast._id.content,
+          createdAt: new Date(broadcast._id.createdAt),
+          sentTo: broadcast.sentTo,
+        };
+      });
+    } catch (err) {
+      throw new BadRequestException(err.message);
+    }
+  }
+
   async getSentMessages(userId: string): Promise<any[]> {
     try {
       const isValidUserId = mongoose.isValidObjectId(userId);
@@ -598,4 +709,3 @@ export class MessageService {
     }
   }
 }
-

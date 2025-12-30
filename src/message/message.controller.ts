@@ -6,12 +6,14 @@ import {
   Param,
   UseGuards,
   Put,
+  Query,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { MessageService } from './message.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { ReplyMessageDto } from './dto/reply-message.dto';
 import { BroadcastMessageDto } from './dto/broadcast-message.dto';
+import { GetBroadcastsDto } from './dto/get-broadcasts.dto';
 import { GetUser } from 'src/auth/GetUser.Decorator';
 
 @Controller('messages')
@@ -22,10 +24,7 @@ export class MessageController {
   @Post('send')
   sendMessage(@Body() sendMessageDto: SendMessageDto, @GetUser() user: any) {
     // Member can send message to host
-    return this.messageService.sendMessage(
-      sendMessageDto,
-      user._id.toString(),
-    );
+    return this.messageService.sendMessage(sendMessageDto, user._id.toString());
   }
 
   @UseGuards(AuthGuard('jwt'))
@@ -77,5 +76,18 @@ export class MessageController {
     // Get count of unread messages
     return this.messageService.getUnreadCount(user._id.toString());
   }
-}
 
+  @UseGuards(AuthGuard('jwt'))
+  @Get('host/broadcasts')
+  getBroadcastMessages(
+    @Query() filters: GetBroadcastsDto,
+    @GetUser() user: any,
+  ) {
+    // Get all broadcast messages sent by the host
+    // Optionally filter by activityId
+    return this.messageService.getBroadcastMessages(
+      user._id.toString(),
+      filters.activityId,
+    );
+  }
+}

@@ -1940,6 +1940,73 @@
 						"description": "Get count of unread messages for the current user."
 					},
 					"response": []
+				},
+				{
+					"name": "Get Host Broadcast Messages (All)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/messages/host/broadcasts",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"messages",
+								"host",
+								"broadcasts"
+							]
+						},
+						"description": "Get all broadcast messages sent by the host. Returns unique broadcasts grouped by activity, subject, and timestamp. Includes sentTo count (number of members who received the broadcast)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Host Broadcast Messages (By Activity)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/messages/host/broadcasts?activityId={{activity_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"messages",
+								"host",
+								"broadcasts"
+							],
+							"query": [
+								{
+									"key": "activityId",
+									"value": "{{activity_id}}",
+									"description": "Optional: Filter broadcasts by activity ID"
+								}
+							]
+						},
+						"description": "Get broadcast messages for a specific activity. If activityId is provided, returns broadcasts for that activity only. Otherwise returns all host's broadcasts."
+					},
+					"response": []
 				}
 			]
 		}
