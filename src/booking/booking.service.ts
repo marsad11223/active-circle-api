@@ -20,6 +20,14 @@ import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { MailerService } from '@nestjs-modules/mailer';
+import {
+  bookingRequestSentToMember,
+  newBookingRequestToHost,
+  bookingConfirmedToMember,
+  bookingDeclinedToMember,
+  bookingCancelledFreeToMember,
+  bookingCancelledWithRefundToMember,
+} from 'src/utils/email-templates';
 
 @Injectable()
 export class BookingService {
@@ -225,32 +233,26 @@ export class BookingService {
             activityPrice > 0
               ? 'Booking Request Sent'
               : 'Free Activity Booking Request',
-          html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2>${activityPrice > 0 ? 'Booking Request Sent' : 'Free Activity Booking Request'}</h2>
-            <p>Hello ${member.name || member.email},</p>
-            <p>Your booking request for <strong>${activity.title}</strong> has been sent.</p>
-            <p>Status: <strong>Pending Host Approval</strong></p>
-            ${activityPrice > 0 ? `<p>Amount: $${activityPrice}</p>` : '<p>This is a free activity.</p>'}
-            <p>We'll notify you once the host responds.</p>
-          </div>
-        `,
+          html: bookingRequestSentToMember({
+            memberName: member.name,
+            memberEmail: member.email,
+            activityTitle: activity.title,
+            activityPrice: activityPrice,
+          }),
         });
 
         // Email to host (same for both paid and free)
         await this.mailerService.sendMail({
           to: host.email,
           subject: 'New Booking Request',
-          html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2>New Booking Request</h2>
-            <p>Hello ${host.name || host.email},</p>
-            <p>You have a new booking request for <strong>${activity.title}</strong>.</p>
-            <p>Member: <strong>${member.name || member.email}</strong></p>
-            ${activityPrice > 0 ? `<p>Amount: $${activityPrice}</p>` : '<p>This is a free activity.</p>'}
-            <p>Please review and approve or decline the booking.</p>
-          </div>
-        `,
+          html: newBookingRequestToHost({
+            hostName: host.name,
+            hostEmail: host.email,
+            activityTitle: activity.title,
+            memberName: member.name,
+            memberEmail: member.email,
+            activityPrice: activityPrice,
+          }),
         });
       } catch (emailError: any) {
         console.error('Error sending booking emails:', emailError);
@@ -351,14 +353,11 @@ export class BookingService {
           await this.mailerService.sendMail({
             to: member.email,
             subject: 'Booking Confirmed',
-            html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2>Booking Confirmed!</h2>
-              <p>Hello ${member.name || member.email},</p>
-              <p>Great news! Your booking for <strong>${(booking.activityId as any).title}</strong> has been confirmed by the host.</p>
-              <p>We look forward to seeing you at the activity!</p>
-            </div>
-          `,
+            html: bookingConfirmedToMember({
+              memberName: member.name,
+              memberEmail: member.email,
+              activityTitle: (booking.activityId as any).title,
+            }),
           });
         } catch (emailError: any) {
           console.error('Error sending confirmation email:', emailError);
@@ -456,15 +455,13 @@ export class BookingService {
           await this.mailerService.sendMail({
             to: member.email,
             subject: 'Booking Declined',
-            html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2>Booking Declined</h2>
-              <p>Hello ${member.name || member.email},</p>
-              <p>Unfortunately, your booking for <strong>${(booking.activityId as any).title}</strong> has been declined by the host.</p>
-              ${declineReason ? `<p>Reason: ${declineReason}</p>` : ''}
-              ${booking.amount > 0 ? '<p>Your payment has been refunded to your original payment method.</p>' : ''}
-            </div>
-          `,
+            html: bookingDeclinedToMember({
+              memberName: member.name,
+              memberEmail: member.email,
+              activityTitle: (booking.activityId as any).title,
+              declineReason: declineReason,
+              isPaid: booking.amount > 0,
+            }),
           });
         } catch (emailError: any) {
           console.error('Error sending cancellation email:', emailError);
@@ -954,14 +951,12 @@ export class BookingService {
             await this.mailerService.sendMail({
               to: member.email,
               subject: 'Booking Cancelled',
-              html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2>Booking Cancelled</h2>
-                <p>Hello ${member.name || member.email},</p>
-                <p>Your booking for <strong>${activity.title}</strong> has been cancelled.</p>
-                ${cancelReason ? `<p>Reason: ${cancelReason}</p>` : ''}
-              </div>
-            `,
+              html: bookingCancelledFreeToMember({
+                memberName: member.name,
+                memberEmail: member.email,
+                activityTitle: activity.title,
+                cancelReason: cancelReason,
+              }),
             });
           } catch (emailError: any) {
             console.error('Error sending cancellation email:', emailError);
@@ -1062,19 +1057,16 @@ export class BookingService {
             await this.mailerService.sendMail({
               to: member.email,
               subject: 'Booking Cancelled - Refund Processed',
-              html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2>Booking Cancelled</h2>
-                <p>Hello ${member.name || member.email},</p>
-                <p>Your booking for <strong>${activity.title}</strong> has been cancelled.</p>
-                ${cancelReason ? `<p>Reason: ${cancelReason}</p>` : ''}
-                <p><strong>Refund Details:</strong></p>
-                <p>Original Amount: $${booking.amount}</p>
-                <p>Refund Amount: $${(refundAmount / 100).toFixed(2)} (${refundPercentage}%)</p>
-                <p>Refund will be processed to your original payment method within 5-10 business days.</p>
-                <p>Refund ID: ${refund.id}</p>
-              </div>
-            `,
+              html: bookingCancelledWithRefundToMember({
+                memberName: member.name,
+                memberEmail: member.email,
+                activityTitle: activity.title,
+                cancelReason: cancelReason,
+                originalAmount: booking.amount,
+                refundAmount: refundAmount,
+                refundPercentage: refundPercentage,
+                refundId: refund.id,
+              }),
             });
           } catch (emailError: any) {
             console.error('Error sending cancellation email:', emailError);

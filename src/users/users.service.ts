@@ -15,6 +15,7 @@ import * as bcrypt from 'bcrypt';
 import { ContactUsDto } from './dto/contact-us.dto';
 import { MailerService } from '@nestjs-modules/mailer';
 import { JwtService } from '@nestjs/jwt';
+import { contactUsToAdmin } from 'src/utils/email-templates';
 
 @Injectable()
 export class UsersService {
@@ -62,10 +63,12 @@ export class UsersService {
       await this.mailerService.sendMail({
         to: 'marsad11223@gmail.com',
         subject: subject,
-        html: `<p>Name: ${name}</p>
-        <p>Email: ${email}</p>
-        <p>Subject: ${subject}</p>
-        <p>Message: ${body}</p>`,
+        html: contactUsToAdmin({
+          name,
+          email,
+          subject,
+          body,
+        }),
       });
 
       return {

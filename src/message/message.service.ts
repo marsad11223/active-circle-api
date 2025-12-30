@@ -5,11 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import {
-  Message,
-  MessageType,
-  BroadcastType,
-} from 'src/schemas/message.schema';
+import { Message, MessageType } from 'src/schemas/message.schema';
 import { Booking, BookingStatus } from 'src/schemas/booking.schema';
 import { Activity } from 'src/schemas/activity.schema';
 import { User } from 'src/schemas/user.schema';
@@ -18,6 +14,11 @@ import { SendMessageDto } from './dto/send-message.dto';
 import { ReplyMessageDto } from './dto/reply-message.dto';
 import { BroadcastMessageDto } from './dto/broadcast-message.dto';
 import { MailerService } from '@nestjs-modules/mailer';
+import {
+  newMessageToHost,
+  replyToMessageToMember,
+  broadcastMessageToMember,
+} from 'src/utils/email-templates';
 
 @Injectable()
 export class MessageService {
@@ -106,23 +107,13 @@ export class MessageService {
         await this.mailerService.sendMail({
           to: host.email,
           subject: `New Message: ${sendMessageDto.subject}`,
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2>New Message from ${member.name || member.email}</h2>
-              <p><strong>Activity:</strong> ${activity.title}</p>
-              <p><strong>Subject:</strong> ${sendMessageDto.subject}</p>
-              <p><strong>Message:</strong></p>
-              <p style="background-color: #f5f5f5; padding: 15px; border-radius: 5px;">
-                ${sendMessageDto.content.replace(/\n/g, '<br>')}
-              </p>
-              <p style="margin-top: 20px;">
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/messages" 
-                   style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
-                  View Message
-                </a>
-              </p>
-            </div>
-          `,
+          html: newMessageToHost({
+            memberName: member.name,
+            memberEmail: member.email,
+            activityTitle: activity.title,
+            subject: sendMessageDto.subject,
+            content: sendMessageDto.content,
+          }),
         });
 
         // Update message to mark email as sent
@@ -241,26 +232,13 @@ export class MessageService {
         await this.mailerService.sendMail({
           to: memberDetails.email,
           subject: `Reply: ${originalMessage.subject}`,
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2>Reply from ${host.name || host.email}</h2>
-              <p><strong>Activity:</strong> ${activity?.title || 'N/A'}</p>
-              <p><strong>Original Message:</strong></p>
-              <p style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; border-left: 3px solid #007bff;">
-                ${originalMessage.content.replace(/\n/g, '<br>')}
-              </p>
-              <p><strong>Reply:</strong></p>
-              <p style="background-color: #e8f5e9; padding: 15px; border-radius: 5px; border-left: 3px solid #28a745;">
-                ${replyDto.content.replace(/\n/g, '<br>')}
-              </p>
-              <p style="margin-top: 20px;">
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/messages" 
-                   style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
-                  View Message
-                </a>
-              </p>
-            </div>
-          `,
+          html: replyToMessageToMember({
+            hostName: host.name,
+            hostEmail: host.email,
+            activityTitle: activity?.title,
+            originalMessage: originalMessage.content,
+            replyContent: replyDto.content,
+          }),
         });
 
         reply.isEmailSent = true;
@@ -371,24 +349,14 @@ export class MessageService {
           .sendMail({
             to: member.email,
             subject: `[${broadcastDto.broadcastType.toUpperCase()}] ${broadcastDto.subject}`,
-            html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2>Message from ${host.name || host.email}</h2>
-                <p><strong>Activity:</strong> ${activity.title}</p>
-                <p><strong>Type:</strong> ${broadcastDto.broadcastType.replace('_', ' ').toUpperCase()}</p>
-                <p><strong>Subject:</strong> ${broadcastDto.subject}</p>
-                <p><strong>Message:</strong></p>
-                <p style="background-color: #f5f5f5; padding: 15px; border-radius: 5px;">
-                  ${broadcastDto.content.replace(/\n/g, '<br>')}
-                </p>
-                <p style="margin-top: 20px;">
-                  <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/messages" 
-                     style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
-                    View Message
-                  </a>
-                </p>
-              </div>
-            `,
+            html: broadcastMessageToMember({
+              hostName: host.name,
+              hostEmail: host.email,
+              activityTitle: activity.title,
+              broadcastType: broadcastDto.broadcastType,
+              subject: broadcastDto.subject,
+              content: broadcastDto.content,
+            }),
           })
           .then(() => {
             message.isEmailSent = true;

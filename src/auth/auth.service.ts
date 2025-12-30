@@ -16,6 +16,11 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { MailerService } from '@nestjs-modules/mailer';
 import { ConfigService } from '@nestjs/config';
+import {
+  passwordResetRequest,
+  passwordResetSuccessful,
+  passwordChangedSuccessfully,
+} from 'src/utils/email-templates';
 
 @Injectable()
 export class AuthService {
@@ -193,21 +198,11 @@ export class AuthService {
           {
             to: user.email,
             subject: 'Forgot Password Request',
-            html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>Password Reset Request</h2>
-          <p>Hello ${user.name || user.email},</p>
-          <p>You requested to reset your password. Please click the link below to reset your password:</p>
-          <p style="margin: 20px 0;">
-            <a href="${resetLink}" style="background-color: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Reset Password</a>
-          </p>
-          <p>Or copy and paste this link in your browser:</p>
-          <p style="word-break: break-all; color: #666;">${resetLink}</p>
-          <p style="color: #999; font-size: 12px; margin-top: 30px;">
-            If you did not request this password reset, please ignore this email. This link will expire in 24 hours.
-          </p>
-        </div>
-      `,
+            html: passwordResetRequest({
+              userName: user.name,
+              userEmail: user.email,
+              resetLink: resetLink,
+            }),
           },
           emailStartTime,
         );
@@ -390,14 +385,10 @@ export class AuthService {
         await this.mailerService.sendMail({
           to: user.email,
           subject: 'Password Reset Successful',
-          html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2>Password Reset Successful</h2>
-            <p>Hello ${user.name || user.email},</p>
-            <p>Your password has been successfully reset.</p>
-            <p>If you did not make this change, please contact support immediately.</p>
-          </div>
-        `,
+          html: passwordResetSuccessful({
+            userName: user.name,
+            userEmail: user.email,
+          }),
         });
       } catch (emailError: any) {
         console.error('Error sending reset confirmation email:', emailError);
@@ -462,14 +453,10 @@ export class AuthService {
         await this.mailerService.sendMail({
           to: user.email,
           subject: 'Password Changed Successfully',
-          html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2>Password Changed Successfully</h2>
-            <p>Hello ${user.name || user.email},</p>
-            <p>Your password has been successfully changed.</p>
-            <p>If you did not make this change, please contact support immediately.</p>
-          </div>
-        `,
+          html: passwordChangedSuccessfully({
+            userName: user.name,
+            userEmail: user.email,
+          }),
         });
       } catch (emailError: any) {
         console.error(
