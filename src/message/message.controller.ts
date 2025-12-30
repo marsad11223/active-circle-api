@@ -90,4 +90,12 @@ export class MessageController {
       filters.activityId,
     );
   }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('conversations')
+  getConversations(@GetUser() user: any) {
+    // Get all conversations (grouped messages) for the current user
+    // Shows both sent and received messages grouped by activity and partner
+    return this.messageService.getConversations(user._id.toString());
+  }
 }

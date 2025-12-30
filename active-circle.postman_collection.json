@@ -1883,6 +1883,35 @@
 					"response": []
 				},
 				{
+					"name": "Get Conversations",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/messages/conversations",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"messages",
+								"conversations"
+							]
+						},
+						"description": "Get all conversations (grouped messages) for the current user. Shows both sent and received messages grouped by activity and conversation partner. Each conversation includes: activity details, conversation partner info, all messages in thread, unread count, and last message timestamp. Sorted by last message time (most recent first)."
+					},
+					"response": []
+				},
+				{
 					"name": "Mark Message as Seen",
 					"request": {
 						"auth": {

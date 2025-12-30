@@ -190,9 +190,24 @@ export class MessageService {
 
       // Get member (original sender) and host details
       const member = originalMessage.senderId as any;
+
+      // Get member ID properly (handle both populated and non-populated cases)
+      let memberId: string;
+      if (member && typeof member === 'object' && '_id' in member) {
+        memberId = member._id.toString();
+      } else {
+        memberId = (originalMessage.senderId as any).toString();
+      }
+
       const host = await this.userModel.findById(hostId);
       if (!host) {
         throw new NotFoundException('Host not found');
+      }
+
+      // Get member details for email
+      const memberDetails = await this.userModel.findById(memberId);
+      if (!memberDetails) {
+        throw new NotFoundException('Member not found');
       }
 
       const activity = originalMessage.activityId as any;
@@ -200,8 +215,13 @@ export class MessageService {
       // Create reply message
       const reply = await this.messageModel.create({
         senderId: new mongoose.Types.ObjectId(hostId),
-        receiverId: originalMessage.senderId,
-        activityId: originalMessage.activityId,
+        receiverId: new mongoose.Types.ObjectId(memberId),
+        activityId: originalMessage.activityId
+          ? new mongoose.Types.ObjectId(
+              (originalMessage.activityId as any)._id?.toString() ||
+                (originalMessage.activityId as any).toString(),
+            )
+          : undefined,
         parentMessageId: originalMessage._id,
         messageType: MessageType.REPLY,
         subject: `Re: ${originalMessage.subject}`,
@@ -212,10 +232,14 @@ export class MessageService {
         updated_at: new Date(),
       });
 
+      console.log(
+        `[Reply Message] Created reply: ${reply._id}, Sender (Host): ${hostId}, Receiver (Member): ${memberId}`,
+      );
+
       // Send email to member
       try {
         await this.mailerService.sendMail({
-          to: member.email,
+          to: memberDetails.email,
           subject: `Reply: ${originalMessage.subject}`,
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -419,12 +443,20 @@ export class MessageService {
         .sort({ created_at: -1 });
 
       console.log(
-        `[Inbox] User ID: ${userId}, Messages found: ${messages.length}`,
+        `[Inbox] User ID: ${userId}, Query: ${JSON.stringify(query)}, Messages found: ${messages.length}`,
       );
+
+      // Debug: Log first few messages
+      if (messages.length > 0) {
+        console.log(
+          `[Inbox] First message receiverId: ${(messages[0].receiverId as any)?._id || (messages[0].receiverId as any)}`,
+        );
+      }
 
       // Format messages
       return messages.map((message) => {
         const sender = message.senderId as any;
+        const receiver = message.receiverId as any;
         const activity = message.activityId as any;
         const parent = message.parentMessageId as any;
 
@@ -435,6 +467,12 @@ export class MessageService {
             name: sender?.name || '',
             email: sender?.email || '',
             profilePhoto: sender?.profilePhoto || null,
+          },
+          receiver: {
+            _id: receiver?._id || receiver,
+            name: receiver?.name || '',
+            email: receiver?.email || '',
+            profilePhoto: receiver?.profilePhoto || null,
           },
           activity: activity
             ? {
@@ -461,6 +499,141 @@ export class MessageService {
           createdAt: message.created_at,
         };
       });
+    } catch (err) {
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  async getConversations(userId: string): Promise<any[]> {
+    try {
+      const isValidUserId = mongoose.isValidObjectId(userId);
+      if (!isValidUserId) {
+        throw new BadRequestException('Invalid user ID');
+      }
+
+      // Get all messages where user is either sender or receiver
+      const messages = await this.messageModel
+        .find({
+          $or: [
+            { senderId: new mongoose.Types.ObjectId(userId) },
+            { receiverId: new mongoose.Types.ObjectId(userId) },
+          ],
+          deleted_at: null,
+        })
+        .populate('senderId', 'name email profilePhoto')
+        .populate('receiverId', 'name email profilePhoto')
+        .populate('activityId', 'title picture date location')
+        .populate('parentMessageId', 'subject content')
+        .sort({ created_at: -1 });
+
+      // Group messages by activity and other user (conversation partner)
+      const conversationMap = new Map<string, any>();
+
+      messages.forEach((message) => {
+        const sender = message.senderId as any;
+        const receiver = message.receiverId as any;
+        const activity = message.activityId as any;
+
+        // Determine conversation partner
+        const senderId = sender?._id?.toString() || sender?.toString();
+        const receiverId = receiver?._id?.toString() || receiver?.toString();
+        const partnerId = senderId === userId ? receiverId : senderId;
+
+        // Create conversation key: activityId_partnerId or just partnerId if no activity
+        const activityId = activity
+          ? activity._id?.toString() || activity?.toString()
+          : 'no-activity';
+        const conversationKey = `${activityId}_${partnerId}`;
+
+        if (!conversationMap.has(conversationKey)) {
+          conversationMap.set(conversationKey, {
+            activity: activity
+              ? {
+                  _id: activity?._id || activity,
+                  title: activity?.title || '',
+                  picture: activity?.picture || null,
+                  date: activity?.date || null,
+                  location: activity?.location || null,
+                }
+              : null,
+            partner: {
+              _id: partnerId,
+              name:
+                senderId === userId ? receiver?.name || '' : sender?.name || '',
+              email:
+                senderId === userId
+                  ? receiver?.email || ''
+                  : sender?.email || '',
+              profilePhoto:
+                senderId === userId
+                  ? receiver?.profilePhoto || null
+                  : sender?.profilePhoto || null,
+            },
+            messages: [],
+            unreadCount: 0,
+            lastMessageAt: null,
+          });
+        }
+
+        const conversation = conversationMap.get(conversationKey);
+        const parent = message.parentMessageId as any;
+
+        conversation.messages.push({
+          _id: message._id,
+          sender: {
+            _id: sender?._id || sender,
+            name: sender?.name || '',
+            email: sender?.email || '',
+            profilePhoto: sender?.profilePhoto || null,
+          },
+          receiver: {
+            _id: receiver?._id || receiver,
+            name: receiver?.name || '',
+            email: receiver?.email || '',
+            profilePhoto: receiver?.profilePhoto || null,
+          },
+          messageType: message.messageType,
+          broadcastType: message.broadcastType || null,
+          subject: message.subject,
+          content: message.content,
+          isSeen: message.isSeen,
+          seenAt: message.seenAt || null,
+          parentMessage: parent
+            ? {
+                _id: parent?._id || parent,
+                subject: parent?.subject || '',
+                content: parent?.content || '',
+              }
+            : null,
+          createdAt: message.created_at,
+        });
+
+        // Count unread messages (where user is receiver and not seen)
+        if (
+          receiverId === userId &&
+          !message.isSeen &&
+          message.messageType !== MessageType.BROADCAST
+        ) {
+          conversation.unreadCount++;
+        }
+
+        // Track last message time
+        if (
+          !conversation.lastMessageAt ||
+          message.created_at > conversation.lastMessageAt
+        ) {
+          conversation.lastMessageAt = message.created_at;
+        }
+      });
+
+      // Convert map to array and sort by last message time
+      const conversations = Array.from(conversationMap.values()).sort(
+        (a, b) =>
+          new Date(b.lastMessageAt).getTime() -
+          new Date(a.lastMessageAt).getTime(),
+      );
+
+      return conversations;
     } catch (err) {
       throw new BadRequestException(err.message);
     }
