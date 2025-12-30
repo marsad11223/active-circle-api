@@ -83,16 +83,16 @@ export class AuthService {
       // Set permanent role to 'host' if user has active subscription
       if (user.hasActiveSubscription && user.role !== Role.host) {
         updateData.role = Role.host;
-          }
+      }
 
       // Update user with new grantRole and lastLogin
-          const updated = await this.userModel.findByIdAndUpdate(
-            user._id,
+      const updated = await this.userModel.findByIdAndUpdate(
+        user._id,
         updateData,
-            { new: true },
-          );
-          if (updated) {
-            updatedUser = updated;
+        { new: true },
+      );
+      if (updated) {
+        updatedUser = updated;
       }
 
       const payload = { id: updatedUser._id, email: updatedUser.email };
@@ -262,6 +262,13 @@ export class AuthService {
       `[FORGOT_PASSWORD] Email send attempt ${attempt}/${maxAttempts}...`,
     );
 
+    const emailsEnabled =
+      this.configService.get<string>('EMAILS_ENABLED') === 'true';
+    if (!emailsEnabled) {
+      console.log('[FORGOT_PASSWORD] Emails disabled, skipping email send');
+      return;
+    }
+
     try {
       const result: any = await this.mailerService.sendMail(emailOptions);
       const emailDuration = Date.now() - startTime;
@@ -381,18 +388,22 @@ export class AuthService {
       );
 
       // 5. Send confirmation email
-      try {
-        await this.mailerService.sendMail({
-          to: user.email,
-          subject: 'Password Reset Successful',
-          html: passwordResetSuccessful({
-            userName: user.name,
-            userEmail: user.email,
-          }),
-        });
-      } catch (emailError: any) {
-        console.error('Error sending reset confirmation email:', emailError);
-        // Don't throw error, password was reset successfully
+      const emailsEnabled =
+        this.configService.get<string>('EMAILS_ENABLED') === 'true';
+      if (emailsEnabled) {
+        try {
+          await this.mailerService.sendMail({
+            to: user.email,
+            subject: 'Password Reset Successful',
+            html: passwordResetSuccessful({
+              userName: user.name,
+              userEmail: user.email,
+            }),
+          });
+        } catch (emailError: any) {
+          console.error('Error sending reset confirmation email:', emailError);
+          // Don't throw error, password was reset successfully
+        }
       }
 
       return {
@@ -449,21 +460,25 @@ export class AuthService {
       );
 
       // 7. Send confirmation email
-      try {
-        await this.mailerService.sendMail({
-          to: user.email,
-          subject: 'Password Changed Successfully',
-          html: passwordChangedSuccessfully({
-            userName: user.name,
-            userEmail: user.email,
-          }),
-        });
-      } catch (emailError: any) {
-        console.error(
-          'Error sending password change confirmation email:',
-          emailError,
-        );
-        // Don't throw error, password was changed successfully
+      const emailsEnabled =
+        this.configService.get<string>('EMAILS_ENABLED') === 'true';
+      if (emailsEnabled) {
+        try {
+          await this.mailerService.sendMail({
+            to: user.email,
+            subject: 'Password Changed Successfully',
+            html: passwordChangedSuccessfully({
+              userName: user.name,
+              userEmail: user.email,
+            }),
+          });
+        } catch (emailError: any) {
+          console.error(
+            'Error sending password change confirmation email:',
+            emailError,
+          );
+          // Don't throw error, password was changed successfully
+        }
       }
 
       return {

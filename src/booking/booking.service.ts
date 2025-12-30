@@ -225,38 +225,42 @@ export class BookingService {
       const booking = await this.bookingModel.create(bookingData);
 
       // 7. Send email notifications
-      try {
-        // Email to member
-        await this.mailerService.sendMail({
-          to: member.email,
-          subject:
-            activityPrice > 0
-              ? 'Booking Request Sent'
-              : 'Free Activity Booking Request',
-          html: bookingRequestSentToMember({
-            memberName: member.name,
-            memberEmail: member.email,
-            activityTitle: activity.title,
-            activityPrice: activityPrice,
-          }),
-        });
+      const emailsEnabled =
+        this.configService.get<string>('EMAILS_ENABLED') === 'true';
+      if (emailsEnabled) {
+        try {
+          // Email to member
+          await this.mailerService.sendMail({
+            to: member.email,
+            subject:
+              activityPrice > 0
+                ? 'Booking Request Sent'
+                : 'Free Activity Booking Request',
+            html: bookingRequestSentToMember({
+              memberName: member.name,
+              memberEmail: member.email,
+              activityTitle: activity.title,
+              activityPrice: activityPrice,
+            }),
+          });
 
-        // Email to host (same for both paid and free)
-        await this.mailerService.sendMail({
-          to: host.email,
-          subject: 'New Booking Request',
-          html: newBookingRequestToHost({
-            hostName: host.name,
-            hostEmail: host.email,
-            activityTitle: activity.title,
-            memberName: member.name,
-            memberEmail: member.email,
-            activityPrice: activityPrice,
-          }),
-        });
-      } catch (emailError: any) {
-        console.error('Error sending booking emails:', emailError);
-        // Don't throw error, booking was created successfully
+          // Email to host (same for both paid and free)
+          await this.mailerService.sendMail({
+            to: host.email,
+            subject: 'New Booking Request',
+            html: newBookingRequestToHost({
+              hostName: host.name,
+              hostEmail: host.email,
+              activityTitle: activity.title,
+              memberName: member.name,
+              memberEmail: member.email,
+              activityPrice: activityPrice,
+            }),
+          });
+        } catch (emailError: any) {
+          console.error('Error sending booking emails:', emailError);
+          // Don't throw error, booking was created successfully
+        }
       }
 
       return booking;
@@ -347,8 +351,10 @@ export class BookingService {
       await booking.save();
 
       // Send confirmation email to member
+      const emailsEnabled =
+        this.configService.get<string>('EMAILS_ENABLED') === 'true';
       const member = await this.userModel.findById(booking.memberId);
-      if (member) {
+      if (member && emailsEnabled) {
         try {
           await this.mailerService.sendMail({
             to: member.email,
@@ -449,8 +455,10 @@ export class BookingService {
       await booking.save();
 
       // Send cancellation email to member
+      const emailsEnabled =
+        this.configService.get<string>('EMAILS_ENABLED') === 'true';
       const member = await this.userModel.findById(booking.memberId);
-      if (member) {
+      if (member && emailsEnabled) {
         try {
           await this.mailerService.sendMail({
             to: member.email,
@@ -945,8 +953,10 @@ export class BookingService {
         await booking.save();
 
         // Send cancellation email
+        const emailsEnabled =
+          this.configService.get<string>('EMAILS_ENABLED') === 'true';
         const member = await this.userModel.findById(memberId);
-        if (member) {
+        if (member && emailsEnabled) {
           try {
             await this.mailerService.sendMail({
               to: member.email,
@@ -1051,8 +1061,10 @@ export class BookingService {
         await booking.save();
 
         // Send cancellation email with refund details
+        const emailsEnabled =
+          this.configService.get<string>('EMAILS_ENABLED') === 'true';
         const member = await this.userModel.findById(memberId);
-        if (member) {
+        if (member && emailsEnabled) {
           try {
             await this.mailerService.sendMail({
               to: member.email,

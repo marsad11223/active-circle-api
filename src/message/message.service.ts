@@ -14,6 +14,7 @@ import { SendMessageDto } from './dto/send-message.dto';
 import { ReplyMessageDto } from './dto/reply-message.dto';
 import { BroadcastMessageDto } from './dto/broadcast-message.dto';
 import { MailerService } from '@nestjs-modules/mailer';
+import { ConfigService } from '@nestjs/config';
 import {
   newMessageToHost,
   replyToMessageToMember,
@@ -32,6 +33,7 @@ export class MessageService {
     @InjectModel(User.name)
     private readonly userModel: Model<User>,
     private readonly mailerService: MailerService,
+    private readonly configService: ConfigService,
   ) {}
 
   async sendMessage(
@@ -103,25 +105,33 @@ export class MessageService {
       );
 
       // Send email to host
-      try {
-        await this.mailerService.sendMail({
-          to: host.email,
-          subject: `New Message: ${sendMessageDto.subject}`,
-          html: newMessageToHost({
-            memberName: member.name,
-            memberEmail: member.email,
-            activityTitle: activity.title,
-            subject: sendMessageDto.subject,
-            content: sendMessageDto.content,
-          }),
-        });
+      const emailsEnabled =
+        this.configService.get<string>('EMAILS_ENABLED') === 'true';
+      if (emailsEnabled) {
+        try {
+          await this.mailerService.sendMail({
+            to: host.email,
+            subject: `New Message: ${sendMessageDto.subject}`,
+            html: newMessageToHost({
+              memberName: member.name,
+              memberEmail: member.email,
+              activityTitle: activity.title,
+              subject: sendMessageDto.subject,
+              content: sendMessageDto.content,
+            }),
+          });
 
-        // Update message to mark email as sent
+          // Update message to mark email as sent
+          message.isEmailSent = true;
+          await message.save();
+        } catch (emailError: any) {
+          console.error('Error sending email:', emailError);
+          // Don't throw error - message is still saved
+        }
+      } else {
+        // Mark as sent even if emails are disabled
         message.isEmailSent = true;
         await message.save();
-      } catch (emailError: any) {
-        console.error('Error sending email:', emailError);
-        // Don't throw error - message is still saved
       }
 
       // Populate for response
@@ -345,29 +355,38 @@ export class MessageService {
         messages.push(message);
 
         // Send email to member
-        const emailPromise = this.mailerService
-          .sendMail({
-            to: member.email,
-            subject: `[${broadcastDto.broadcastType.toUpperCase()}] ${broadcastDto.subject}`,
-            html: broadcastMessageToMember({
-              hostName: host.name,
-              hostEmail: host.email,
-              activityTitle: activity.title,
-              broadcastType: broadcastDto.broadcastType,
-              subject: broadcastDto.subject,
-              content: broadcastDto.content,
-            }),
-          })
-          .then(() => {
-            message.isEmailSent = true;
-            return message.save();
-          })
-          .catch((error) => {
-            console.error(`Error sending email to ${member.email}:`, error);
-            return message;
-          });
+        const emailsEnabled =
+          this.configService.get<string>('EMAILS_ENABLED') === 'true';
+        if (emailsEnabled) {
+          const emailPromise = this.mailerService
+            .sendMail({
+              to: member.email,
+              subject: `[${broadcastDto.broadcastType.toUpperCase()}] ${broadcastDto.subject}`,
+              html: broadcastMessageToMember({
+                hostName: host.name,
+                hostEmail: host.email,
+                activityTitle: activity.title,
+                broadcastType: broadcastDto.broadcastType,
+                subject: broadcastDto.subject,
+                content: broadcastDto.content,
+              }),
+            })
+            .then(() => {
+              message.isEmailSent = true;
+              return message.save();
+            })
+            .catch((error) => {
+              console.error(`Error sending email to ${member.email}:`, error);
+              return message;
+            });
 
-        emailPromises.push(emailPromise);
+          emailPromises.push(emailPromise);
+        } else {
+          // Mark as sent even if emails are disabled
+          message.isEmailSent = true;
+          const savedMessage = await message.save();
+          emailPromises.push(Promise.resolve(savedMessage));
+        }
       }
 
       // Wait for all emails to be sent (or fail)

@@ -15,6 +15,7 @@ import * as bcrypt from 'bcrypt';
 import { ContactUsDto } from './dto/contact-us.dto';
 import { MailerService } from '@nestjs-modules/mailer';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { contactUsToAdmin } from 'src/utils/email-templates';
 
 @Injectable()
@@ -24,6 +25,7 @@ export class UsersService {
     @InjectModel(Activity.name) private readonly activityModel: Model<Activity>,
     private readonly mailerService: MailerService,
     private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
   ) {}
 
   async validateUser(email: string) {
@@ -59,24 +61,29 @@ export class UsersService {
 
   async contactUs(contactUsDto: ContactUsDto): Promise<any> {
     const { subject, body, email, name } = contactUsDto;
-    try {
-      await this.mailerService.sendMail({
-        to: 'marsad11223@gmail.com',
-        subject: subject,
-        html: contactUsToAdmin({
-          name,
-          email,
-          subject,
-          body,
-        }),
-      });
+    const emailsEnabled =
+      this.configService.get<string>('EMAILS_ENABLED') === 'true';
 
-      return {
-        message: 'Email has been sent to the team',
-      };
-    } catch (err) {
-      throw new BadRequestException(err.message);
+    if (emailsEnabled) {
+      try {
+        await this.mailerService.sendMail({
+          to: 'marsad11223@gmail.com',
+          subject: subject,
+          html: contactUsToAdmin({
+            name,
+            email,
+            subject,
+            body,
+          }),
+        });
+      } catch (err) {
+        throw new BadRequestException(err.message);
+      }
     }
+
+    return {
+      message: 'Email has been sent to the team',
+    };
   }
 
   async findAll(): Promise<User[]> {
