@@ -1156,6 +1156,67 @@
 					"response": []
 				},
 				{
+					"name": "Get Payment History",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/bookings/member/payment-history",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bookings",
+								"member",
+								"payment-history"
+							]
+						},
+						"description": "Get payment history with summary statistics for the current member. Returns: summary (totalActivities, paidActivities, freeActivities) and paymentHistory array with all bookings (excluding cancelled), including activity details, host info, booking/activity dates, type (Paid/Free), status, amount, invoice number, and payment intent ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Invoice Details",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/bookings/member/invoice/{{booking_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bookings",
+								"member",
+								"invoice",
+								"{{booking_id}}"
+							]
+						},
+						"description": "Get detailed invoice information for a specific booking. Returns invoice number, transaction ID, date, activity details, host info, member info, activity fee, payment method (card brand and last 4 digits from Stripe), total paid, payment status, and booking status. Fetches payment method details from Stripe using payment intent ID."
+					},
+					"response": []
+				},
+				{
 					"name": "Cancel Booking by Member",
 					"request": {
 						"auth": {

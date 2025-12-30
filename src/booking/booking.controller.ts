@@ -128,6 +128,20 @@ export class BookingController {
   }
 
   @UseGuards(AuthGuard('jwt'))
+  @Get('member/payment-history')
+  getPaymentHistory(@GetUser() user: any) {
+    // Get payment history with summary statistics for the current member
+    return this.bookingService.getPaymentHistory(user._id.toString());
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('member/invoice/:id')
+  getInvoiceDetails(@Param('id') id: string, @GetUser() user: any) {
+    // Get invoice details for a specific booking
+    return this.bookingService.getInvoiceDetails(id, user._id.toString());
+  }
+
+  @UseGuards(AuthGuard('jwt'))
   @Get(':id')
   getBookingById(@Param('id') id: string, @GetUser() user: any) {
     // Get booking details (member, host, or superAdmin can view)

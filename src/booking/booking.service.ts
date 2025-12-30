@@ -207,6 +207,8 @@ export class BookingService {
         bookingData.paymentStatus = paymentStatus;
         bookingData.paymentIntentId = paymentIntentId;
         bookingData.stripeChargeId = chargeId;
+        // Generate invoice number for paid bookings
+        bookingData.invoiceNumber = await this.generateInvoiceNumber();
       } else {
         // Free activity - explicitly set paymentStatus to null
         bookingData.paymentStatus = null;
@@ -544,7 +546,7 @@ export class BookingService {
       // For past activities, check if member has reviewed each booking
       if (filter === 'past') {
         const bookingIds = filteredBookings.map((b) => b._id);
-        
+
         // Get all ratings for these bookings
         const ratings = await this.ratingModel.find({
           bookingId: { $in: bookingIds },
@@ -1086,6 +1088,403 @@ export class BookingService {
           `Failed to process refund: ${refundError.message}`,
         );
       }
+    } catch (err) {
+      if (
+        err instanceof NotFoundException ||
+        err instanceof BadRequestException ||
+        err instanceof ForbiddenException
+      ) {
+        throw err;
+      }
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  /**
+   * Generate unique invoice number in format: INV-YYYY-XXX
+   * Example: INV-2024-001
+   */
+  private async generateInvoiceNumber(): Promise<string> {
+    const year = new Date().getFullYear();
+    const prefix = `INV-${year}-`;
+
+    // Find the highest invoice number for this year
+    const lastInvoice = await this.bookingModel
+      .findOne({
+        invoiceNumber: { $regex: `^${prefix}` },
+        deleted_at: null,
+      })
+      .sort({ invoiceNumber: -1 })
+      .select('invoiceNumber');
+
+    let sequence = 1;
+    if (lastInvoice && lastInvoice.invoiceNumber) {
+      const lastSequence = parseInt(
+        lastInvoice.invoiceNumber.replace(prefix, ''),
+      );
+      if (!isNaN(lastSequence)) {
+        sequence = lastSequence + 1;
+      }
+    }
+
+    // Format with leading zeros (e.g., 001, 002, ...)
+    const sequenceStr = sequence.toString().padStart(3, '0');
+    return `${prefix}${sequenceStr}`;
+  }
+
+  /**
+   * Get payment history with summary statistics for a member
+   */
+  async getPaymentHistory(memberId: string): Promise<{
+    summary: {
+      totalActivities: number;
+      paidActivities: number;
+      freeActivities: number;
+    };
+    paymentHistory: any[];
+  }> {
+    try {
+      const isValidId = mongoose.isValidObjectId(memberId);
+      if (!isValidId) {
+        throw new BadRequestException('Invalid member ID');
+      }
+
+      // Get all bookings for the member (excluding cancelled)
+      const bookings = await this.bookingModel
+        .find({
+          memberId: new mongoose.Types.ObjectId(memberId),
+          status: { $ne: BookingStatus.CANCELLED },
+          deleted_at: null,
+        })
+        .populate('activityId')
+        .populate('hostId', 'name email profilePhoto')
+        .sort({ created_at: -1 });
+
+      // Calculate summary statistics
+      const totalActivities = bookings.length;
+      const paidActivities = bookings.filter(
+        (b) => b.amount > 0 && b.paymentStatus !== null,
+      ).length;
+      const freeActivities = bookings.filter((b) => b.amount === 0).length;
+
+      // Format payment history
+      const paymentHistory = bookings.map((booking) => {
+        const activity = booking.activityId as any;
+        const host = booking.hostId as any;
+
+        // Determine status based on booking status and activity date
+        let displayStatus = 'Completed';
+        if (booking.status === BookingStatus.PENDING) {
+          displayStatus = 'Pending';
+        } else if (booking.status === BookingStatus.CANCELLED) {
+          displayStatus = 'Cancelled';
+        } else if (booking.status === BookingStatus.CONFIRMED) {
+          if (activity && activity.date) {
+            const activityDate = new Date(activity.date);
+            const now = new Date();
+            if (activityDate > now) {
+              displayStatus = 'Upcoming';
+            } else {
+              displayStatus = 'Completed';
+            }
+          }
+        }
+
+        return {
+          _id: booking._id,
+          activity: {
+            _id: activity?._id || activity,
+            title: activity?.title || '',
+            picture: activity?.picture || null,
+            date: activity?.date || null,
+            location: activity?.location || null,
+          },
+          host: {
+            _id: host?._id || host,
+            name: host?.name || '',
+            email: host?.email || '',
+            profilePhoto: host?.profilePhoto || null,
+          },
+          bookingDate: booking.created_at,
+          activityDate: activity?.date || null,
+          type: booking.amount > 0 ? 'Paid Activity' : 'Free Activity',
+          amount: booking.amount,
+          status: displayStatus,
+          paymentStatus: booking.paymentStatus,
+          invoiceNumber: booking.invoiceNumber || null,
+          paymentIntentId: booking.paymentIntentId || null,
+        };
+      });
+
+      return {
+        summary: {
+          totalActivities,
+          paidActivities,
+          freeActivities,
+        },
+        paymentHistory,
+      };
+    } catch (err) {
+      if (err instanceof BadRequestException) {
+        throw err;
+      }
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  /**
+   * Get invoice details for a specific booking
+   */
+  async getInvoiceDetails(bookingId: string, memberId: string): Promise<any> {
+    try {
+      const isValidBookingId = mongoose.isValidObjectId(bookingId);
+      const isValidMemberId = mongoose.isValidObjectId(memberId);
+
+      if (!isValidBookingId) {
+        throw new BadRequestException('Invalid booking ID');
+      }
+      if (!isValidMemberId) {
+        throw new BadRequestException('Invalid member ID');
+      }
+
+      // Get booking with populated data
+      const booking = await this.bookingModel
+        .findOne({
+          _id: bookingId,
+          memberId: new mongoose.Types.ObjectId(memberId),
+          deleted_at: null,
+        })
+        .populate('activityId')
+        .populate('hostId', 'name email profilePhoto')
+        .populate('memberId', 'name email');
+
+      if (!booking) {
+        throw new NotFoundException('Booking not found');
+      }
+
+      // Verify member owns this booking
+      const bookingMemberId =
+        (booking.memberId as any)?._id?.toString() ||
+        (booking.memberId as any)?.toString();
+      if (bookingMemberId !== memberId) {
+        throw new ForbiddenException(
+          'You do not have permission to view this invoice',
+        );
+      }
+
+      const activity = booking.activityId as any;
+      const host = booking.hostId as any;
+      const member = booking.memberId as any;
+
+      // Get payment details from Stripe if it's a paid booking
+      let paymentMethod: {
+        type: string;
+        card: {
+          brand: string;
+          last4: string;
+          expMonth: number;
+          expYear: number;
+        };
+      } | null = null;
+      let transactionId: string | null = null;
+
+      if (booking.amount > 0 && booking.paymentIntentId) {
+        try {
+          // Get payment intent from Stripe with expanded payment method
+          const paymentIntent = await this.stripe.paymentIntents.retrieve(
+            booking.paymentIntentId,
+            {
+              expand: ['payment_method', 'latest_charge'],
+            },
+          );
+
+          transactionId = paymentIntent.id;
+
+          // Try to get payment method from payment intent first (most reliable)
+          let paymentMethodId: string | null = null;
+
+          if (paymentIntent.payment_method) {
+            // Payment method might be expanded or just an ID
+            if (typeof paymentIntent.payment_method === 'string') {
+              paymentMethodId = paymentIntent.payment_method;
+            } else {
+              // Already expanded
+              const pm = paymentIntent.payment_method as any;
+              if (pm.card) {
+                paymentMethod = {
+                  type: pm.type || 'card',
+                  card: {
+                    brand: pm.card.brand || 'unknown',
+                    last4: pm.card.last4 || '',
+                    expMonth: pm.card.exp_month || 0,
+                    expYear: pm.card.exp_year || 0,
+                  },
+                };
+              } else {
+                paymentMethodId = pm.id;
+              }
+            }
+          }
+
+          // If we have a payment method ID but not the details, retrieve it
+          if (!paymentMethod && paymentMethodId) {
+            try {
+              const paymentMethodDetails =
+                await this.stripe.paymentMethods.retrieve(paymentMethodId);
+
+              if (paymentMethodDetails.card) {
+                paymentMethod = {
+                  type: paymentMethodDetails.type,
+                  card: {
+                    brand: paymentMethodDetails.card.brand,
+                    last4: paymentMethodDetails.card.last4,
+                    expMonth: paymentMethodDetails.card.exp_month,
+                    expYear: paymentMethodDetails.card.exp_year,
+                  },
+                };
+              }
+            } catch (pmError: any) {
+              console.error(
+                'Error retrieving payment method details:',
+                pmError.message,
+              );
+            }
+          }
+
+          // Fallback: Try to get from charge if payment intent didn't work
+          if (!paymentMethod && paymentIntent.latest_charge) {
+            try {
+              const chargeId =
+                typeof paymentIntent.latest_charge === 'string'
+                  ? paymentIntent.latest_charge
+                  : paymentIntent.latest_charge.id;
+
+              const chargeDetails = await this.stripe.charges.retrieve(
+                chargeId,
+                {
+                  expand: ['payment_method'],
+                },
+              );
+
+              // Extract payment method from charge
+              if (chargeDetails.payment_method) {
+                let chargePmId: string | null = null;
+                if (typeof chargeDetails.payment_method === 'string') {
+                  chargePmId = chargeDetails.payment_method;
+                } else {
+                  const chargePm = chargeDetails.payment_method as any;
+                  if (chargePm.card) {
+                    paymentMethod = {
+                      type: chargePm.type || 'card',
+                      card: {
+                        brand: chargePm.card.brand || 'unknown',
+                        last4: chargePm.card.last4 || '',
+                        expMonth: chargePm.card.exp_month || 0,
+                        expYear: chargePm.card.exp_year || 0,
+                      },
+                    };
+                  } else {
+                    chargePmId = chargePm.id;
+                  }
+                }
+
+                // If we still need to retrieve it
+                if (!paymentMethod && chargePmId) {
+                  const paymentMethodDetails =
+                    await this.stripe.paymentMethods.retrieve(chargePmId);
+
+                  if (paymentMethodDetails.card) {
+                    paymentMethod = {
+                      type: paymentMethodDetails.type,
+                      card: {
+                        brand: paymentMethodDetails.card.brand,
+                        last4: paymentMethodDetails.card.last4,
+                        expMonth: paymentMethodDetails.card.exp_month,
+                        expYear: paymentMethodDetails.card.exp_year,
+                      },
+                    };
+                  }
+                }
+              }
+            } catch (chargeError: any) {
+              console.error(
+                'Error retrieving payment method from charge:',
+                chargeError.message,
+              );
+            }
+          }
+
+          // Log if we still don't have payment method
+          if (!paymentMethod) {
+            console.warn(
+              `Could not retrieve payment method for payment intent: ${booking.paymentIntentId}`,
+            );
+          }
+        } catch (stripeError: any) {
+          console.error(
+            'Error fetching Stripe payment details:',
+            stripeError.message,
+          );
+          // Continue without Stripe details if there's an error
+        }
+      }
+
+      // Determine status
+      let displayStatus = 'Completed';
+      if (booking.status === BookingStatus.PENDING) {
+        displayStatus = 'Pending';
+      } else if (booking.status === BookingStatus.CANCELLED) {
+        displayStatus = 'Cancelled';
+      } else if (booking.status === BookingStatus.CONFIRMED) {
+        if (activity && activity.date) {
+          const activityDate = new Date(activity.date);
+          const now = new Date();
+          if (activityDate > now) {
+            displayStatus = 'Upcoming';
+          } else {
+            displayStatus = 'Completed';
+          }
+        }
+      }
+
+      // Format payment method display
+      let paymentMethodDisplay: string | null = null;
+      if (paymentMethod && paymentMethod.card) {
+        const brand =
+          paymentMethod.card.brand.charAt(0).toUpperCase() +
+          paymentMethod.card.brand.slice(1);
+        paymentMethodDisplay = `${brand} ending in ${paymentMethod.card.last4}`;
+      }
+
+      return {
+        invoiceNumber: booking.invoiceNumber || null,
+        transactionId: transactionId || booking.paymentIntentId || null,
+        date: booking.created_at,
+        status: displayStatus,
+        activity: {
+          _id: activity?._id || activity,
+          title: activity?.title || '',
+          picture: activity?.picture || null,
+          date: activity?.date || null,
+          location: activity?.location || null,
+        },
+        host: {
+          _id: host?._id || host,
+          name: host?.name || '',
+          email: host?.email || '',
+          profilePhoto: host?.profilePhoto || null,
+        },
+        member: {
+          _id: member?._id || member,
+          name: member?.name || '',
+          email: member?.email || '',
+        },
+        activityFee: booking.amount,
+        paymentMethod: paymentMethodDisplay,
+        totalPaid: booking.amount,
+        paymentStatus: booking.paymentStatus,
+        bookingStatus: booking.status,
+      };
     } catch (err) {
       if (
         err instanceof NotFoundException ||

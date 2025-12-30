@@ -61,6 +61,9 @@ export class Booking extends Document {
   stripeTransferId?: string; // Stripe Transfer ID (when sent to host)
 
   @Prop({ required: false })
+  invoiceNumber?: string; // Invoice number (e.g., INV-2024-001)
+
+  @Prop({ required: false })
   declineReason?: string; // Reason if declined by host
 
   @Prop({
