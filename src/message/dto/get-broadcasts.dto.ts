@@ -5,4 +5,3 @@ export class GetBroadcastsDto {
   @IsString()
   activityId?: string; // Optional activity ID filter
 }
-
