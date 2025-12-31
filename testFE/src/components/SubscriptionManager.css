@@ -7,6 +7,56 @@
   margin-bottom: 15px;
 }
 
+.user-role-info {
+  margin-top: 15px;
+}
+
+.user-role-info p {
+  color: #374151;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.role-badge.role-member {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.role-badge.role-host {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.info-box {
+  background: #eff6ff;
+  color: #1e40af;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid #bfdbfe;
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+.info-box ul {
+  margin-top: 8px;
+  padding-left: 20px;
+}
+
+.info-box li {
+  margin: 4px 0;
+  font-size: 13px;
+}
+
 .warning-box {
   background: #fef3c7;
   color: #92400e;

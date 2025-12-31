@@ -85,7 +85,14 @@ function App() {
           </Elements>
         ) : (
           <Elements stripe={stripePromise}>
-            <SubscriptionManager token={token} user={user} />
+            <SubscriptionManager 
+              token={token} 
+              user={user} 
+              onUserUpdate={(updatedUser) => {
+                setUser(updatedUser);
+                localStorage.setItem('user', JSON.stringify(updatedUser));
+              }}
+            />
           </Elements>
         )}
       </div>

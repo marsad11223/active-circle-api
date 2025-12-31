@@ -5,13 +5,14 @@ import './SubscriptionManager.css';
 
 const API_URL = process.env.REACT_APP_API_URL;
 
-function SubscriptionManager({ token, user }) {
+function SubscriptionManager({ token, user, onUserUpdate }) {
   const [subscription, setSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
   const [clientSecret, setClientSecret] = useState('');
   const [showCheckout, setShowCheckout] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [currentUser, setCurrentUser] = useState(user);
 
   const fetchSubscriptionStatus = async () => {
     try {
@@ -29,14 +30,10 @@ function SubscriptionManager({ token, user }) {
 
   useEffect(() => {
     fetchSubscriptionStatus();
-  }, [token]);
+    setCurrentUser(user);
+  }, [token, user]);
 
   const handleCreateSubscription = async () => {
-    if (user.role !== 'host') {
-      setError('Only hosts can create subscriptions');
-      return;
-    }
-
     setLoading(true);
     setError('');
     setSuccess('');
@@ -52,11 +49,40 @@ function SubscriptionManager({ token, user }) {
 
       setClientSecret(response.data.clientSecret);
       setShowCheckout(true);
-      setSuccess('Subscription created! Please complete payment.');
+      
+      // Show different message for members vs hosts
+      if (currentUser.role === 'member') {
+        setSuccess('💳 Payment intent created! Complete payment to become a host. Your role will remain "member" until payment succeeds.');
+      } else {
+        setSuccess('Subscription created! Please complete payment.');
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to create subscription');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchUserData = async () => {
+    try {
+      // Get user data using the user ID
+      if (!currentUser?._id) {
+        console.warn('No user ID available to fetch user data');
+        return;
+      }
+      
+      const response = await axios.get(`${API_URL}/users/${currentUser._id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const updatedUser = response.data;
+      setCurrentUser(updatedUser);
+      if (onUserUpdate) {
+        onUserUpdate(updatedUser);
+      }
+      // Also update localStorage
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+    } catch (err) {
+      console.error('Failed to fetch user data:', err);
     }
   };
 
@@ -86,6 +112,7 @@ function SubscriptionManager({ token, user }) {
   const handlePaymentSuccess = async (paymentIntentId) => {
     setLoading(true);
     setError('');
+    const wasMember = currentUser.role === 'member';
     setSuccess('Payment successful! Activating subscription...');
 
     try {
@@ -98,13 +125,19 @@ function SubscriptionManager({ token, user }) {
         },
       );
 
-      setSuccess('🎉 Payment successful! Your subscription is now active.');
+      if (wasMember) {
+        setSuccess('🎉 Payment successful! You are now a host! Your role has been upgraded.');
+      } else {
+        setSuccess('🎉 Payment successful! Your subscription is now active.');
+      }
+      
       setShowCheckout(false);
       setClientSecret('');
 
-      // Refresh subscription status
-      setTimeout(() => {
-        fetchSubscriptionStatus();
+      // Refresh subscription status and user data
+      setTimeout(async () => {
+        await fetchSubscriptionStatus();
+        await fetchUserData();
       }, 1000);
     } catch (err) {
       setError(
@@ -113,8 +146,9 @@ function SubscriptionManager({ token, user }) {
       );
       // Still close checkout and refresh status
       setShowCheckout(false);
-      setTimeout(() => {
-        fetchSubscriptionStatus();
+      setTimeout(async () => {
+        await fetchSubscriptionStatus();
+        await fetchUserData();
       }, 2000);
     } finally {
       setLoading(false);
@@ -134,12 +168,20 @@ function SubscriptionManager({ token, user }) {
 
       <div className="subscription-header">
         <h2>Subscription Management</h2>
-        {user.role !== 'host' && (
-          <div className="warning-box">
-            ⚠️ You are logged in as a <strong>{user.role}</strong>. Only hosts
-            can manage subscriptions.
-          </div>
-        )}
+        <div className="user-role-info">
+          <p>
+            <strong>Current Role:</strong>{' '}
+            <span className={`role-badge role-${currentUser.role || currentUser.grantRole || 'member'}`}>
+              {currentUser.role || currentUser.grantRole || 'member'}
+            </span>
+          </p>
+          {currentUser.role === 'member' && (
+            <div className="info-box">
+              ℹ️ You are currently a <strong>member</strong>. Subscribe to become a <strong>host</strong>!
+              Your role will only change to "host" after successful payment.
+            </div>
+          )}
+        </div>
       </div>
 
       {subscription?.hasSubscription ? (
@@ -204,19 +246,31 @@ function SubscriptionManager({ token, user }) {
               <li>✓ Create and manage events</li>
               <li>✓ Member management tools</li>
               <li>✓ Priority support</li>
+              {currentUser.role === 'member' && (
+                <li>✓ Upgrade from member to host</li>
+              )}
             </ul>
 
-            {user.role === 'host' ? (
-              <button
-                onClick={handleCreateSubscription}
-                className="btn-primary"
-                disabled={loading}
-              >
-                {loading ? 'Creating...' : 'Subscribe Now'}
-              </button>
-            ) : (
-              <div className="warning-box">
-                Only hosts can subscribe. Current role: {user.role}
+            <button
+              onClick={handleCreateSubscription}
+              className="btn-primary"
+              disabled={loading}
+            >
+              {loading 
+                ? 'Creating...' 
+                : currentUser.role === 'member' 
+                  ? 'Become a Host - Subscribe Now' 
+                  : 'Subscribe Now'}
+            </button>
+            
+            {currentUser.role === 'member' && (
+              <div className="info-box" style={{ marginTop: '15px', fontSize: '0.9em' }}>
+                <strong>🧪 Test Flow:</strong> Click "Become a Host" to create a payment intent.
+                Your role will remain "member" until payment succeeds. Try with:
+                <ul style={{ marginTop: '8px', paddingLeft: '20px' }}>
+                  <li><strong>Success card (4242...):</strong> Payment succeeds → Role becomes "host"</li>
+                  <li><strong>Decline card (4000...0002):</strong> Payment fails → Role stays "member"</li>
+                </ul>
               </div>
             )}
           </div>

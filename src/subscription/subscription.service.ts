@@ -40,28 +40,8 @@ export class SubscriptionService {
     }
 
     // Allow both members and hosts to subscribe
-    // If user is a member, they will become a host after payment
-    // Store their last role before changing
-    if (user.role === Role.member) {
-      // Save current grantRole as lastRole before switching to host
-      const currentGrantRole = user.grantRole || Role.member;
-      await this.userModel.findByIdAndUpdate(userId, {
-        lastRole: currentGrantRole,
-        role: Role.host, // Permanent role - user has paid
-        grantRole: Role.host, // Current selected role
-      });
-    } else if (user.role === Role.host && !user.lastRole) {
-      // If already host but no lastRole set, set it
-      await this.userModel.findByIdAndUpdate(userId, {
-        lastRole: user.grantRole || Role.host,
-        grantRole: Role.host, // Ensure grantRole is set to host
-      });
-    } else if (user.role === Role.host) {
-      // User is already a host, just ensure grantRole is set
-      await this.userModel.findByIdAndUpdate(userId, {
-        grantRole: Role.host,
-      });
-    }
+    // Note: Role will be updated to 'host' only after payment succeeds
+    // Do NOT update role here - wait for payment confirmation
 
     // Check if user already has an active subscription
     const existingSubscription = await this.subscriptionModel.findOne({
@@ -623,10 +603,28 @@ export class SubscriptionService {
 
           await subscription.save();
 
-          // Update user subscription status
-          await this.userModel.findByIdAndUpdate(userId, {
+          // Update user subscription status and role (only when payment succeeds)
+          const user = await this.userModel.findById(userId);
+          if (!user) {
+            throw new NotFoundException('User not found');
+          }
+
+          const updateData: any = {
             hasActiveSubscription: finalStatus === SubscriptionStatus.ACTIVE,
-          });
+          };
+
+          // Only update role to host when payment actually succeeds
+          if (finalStatus === SubscriptionStatus.ACTIVE) {
+            // Save current grantRole as lastRole before switching to host (if not already host)
+            if (user.role === Role.member) {
+              const currentGrantRole = user.grantRole || Role.member;
+              updateData.lastRole = currentGrantRole;
+            }
+            updateData.role = Role.host; // Permanent role - user has paid
+            updateData.grantRole = Role.host; // Current selected role
+          }
+
+          await this.userModel.findByIdAndUpdate(userId, updateData);
 
           console.log('Subscription updated in database:', {
             status: finalStatus,
@@ -753,11 +751,16 @@ export class SubscriptionService {
     const updateData: any = {
       hasActiveSubscription: true,
       role: Role.host,
+      grantRole: Role.host, // Current selected role
     };
 
-    // Update lastRole if not already set
-    if (!user?.lastRole) {
-      updateData.lastRole = Role.host;
+    // Save current grantRole as lastRole before switching to host (if not already host)
+    if (user && user.role === Role.member) {
+      const currentGrantRole = user.grantRole || Role.member;
+      updateData.lastRole = currentGrantRole;
+    } else if (!user?.lastRole) {
+      // If already host but no lastRole set, set it
+      updateData.lastRole = user?.grantRole || Role.host;
     }
 
     await this.userModel.findByIdAndUpdate(subscription.userId, updateData);
@@ -829,10 +832,24 @@ export class SubscriptionService {
         subscription.updated_at = new Date();
         await subscription.save();
 
-        await this.userModel.findByIdAndUpdate(subscription.userId, {
+        // Update user subscription status and role (only when payment succeeds)
+        const user = await this.userModel.findById(subscription.userId);
+        const updateData: any = {
           hasActiveSubscription: true,
           role: Role.host,
-        });
+          grantRole: Role.host, // Current selected role
+        };
+
+        // Save current grantRole as lastRole before switching to host (if not already host)
+        if (user && user.role === Role.member) {
+          const currentGrantRole = user.grantRole || Role.member;
+          updateData.lastRole = currentGrantRole;
+        } else if (!user?.lastRole) {
+          // If already host but no lastRole set, set it
+          updateData.lastRole = user?.grantRole || Role.host;
+        }
+
+        await this.userModel.findByIdAndUpdate(subscription.userId, updateData);
 
         console.log('Subscription activated directly from payment intent');
       }
