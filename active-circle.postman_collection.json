@@ -1075,6 +1075,89 @@
 						}
 					},
 					"response": []
+				},
+				{
+					"name": "Mark Activity as Completed",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/activities/{{activity_id}}/complete",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"activities",
+								"{{activity_id}}",
+								"complete"
+							],
+							"variable": [
+								{
+									"key": "activity_id",
+									"value": "{{activity_id}}",
+									"description": "Activity ID to mark as completed"
+								}
+							]
+						},
+						"description": "Mark an activity as completed (held). Only the host who created the activity (or superAdmin) can mark it as completed. Previous bookings remain with the original activity."
+					},
+					"response": []
+				},
+				{
+					"name": "Re-occur Activity",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"date\": \"2024-12-30\",\n  \"time\": \"10:00\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/activities/{{activity_id}}/reoccur",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"activities",
+								"{{activity_id}}",
+								"reoccur"
+							],
+							"variable": [
+								{
+									"key": "activity_id",
+									"value": "{{activity_id}}",
+									"description": "Activity ID to re-occur"
+								}
+							]
+						},
+						"description": "Re-occur an activity with new date and time. Creates a new activity based on the original one with the same details (title, description, category, location, maxParticipants, price, etc.) but with new date and time. Previous bookings remain with the original activity. Only the host who created the activity (or superAdmin) can re-occur it."
+					},
+					"response": []
 				}
 			]
 		},
