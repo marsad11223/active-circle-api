@@ -13,7 +13,7 @@ import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
 import { BrowseActivitiesDto, PriceFilter } from './dto/browse-activities.dto';
 import { User, Role } from 'src/schemas/user.schema';
-import { RecurringType } from 'src/schemas/activity.schema';
+import { RecurringType, ActivityStatus } from 'src/schemas/activity.schema';
 
 @Injectable()
 export class ActivityService {
@@ -60,6 +60,7 @@ export class ActivityService {
         date: activityDate,
         price: createActivityDto.price ?? 0, // Default to 0 if not provided
         recurring: createActivityDto.recurring ?? RecurringType.ONE_TIME,
+        status: ActivityStatus.ACTIVE, // New activities are active by default
         created_at: new Date(),
         updated_at: new Date(),
       });
@@ -79,7 +80,10 @@ export class ActivityService {
   async findAll(): Promise<any[]> {
     try {
       const activities = await this.activityModel
-        .find({ deleted_at: null })
+        .find({
+          deleted_at: null,
+          status: ActivityStatus.ACTIVE, // Only show active activities
+        })
         .populate('hostId', 'name email profilePhoto')
         .sort({ created_at: -1 });
 
@@ -87,6 +91,36 @@ export class ActivityService {
     } catch (err) {
       throw new BadRequestException(err.message);
     }
+  }
+
+  /**
+   * Helper method to get booking count for activities
+   */
+  private async getBookingCounts(
+    activityIds: mongoose.Types.ObjectId[],
+  ): Promise<Map<string, number>> {
+    const bookingCounts = await this.bookingModel.aggregate([
+      {
+        $match: {
+          activityId: { $in: activityIds },
+          status: { $in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
+          deleted_at: null,
+        },
+      },
+      {
+        $group: {
+          _id: '$activityId',
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const countsMap = new Map<string, number>();
+    bookingCounts.forEach((item) => {
+      countsMap.set(item._id.toString(), item.count);
+    });
+
+    return countsMap;
   }
 
   /**
@@ -125,7 +159,12 @@ export class ActivityService {
       });
     });
 
-    // Add rating information to each activity
+    // Get booking counts for all activities
+    const bookingCountsMap = await this.getBookingCounts(
+      activityIds as mongoose.Types.ObjectId[],
+    );
+
+    // Add rating information and booking counts to each activity
     return activities.map((activity) => {
       const activityObj = activity.toObject();
       const activityId = (activity._id as any).toString();
@@ -134,11 +173,22 @@ export class ActivityService {
         totalReviews: 0,
       };
 
+      const bookedCount = bookingCountsMap.get(activityId) || 0;
+      const remainingSeats = Math.max(
+        0,
+        activity.maxParticipants - bookedCount,
+      );
+
       return {
         ...activityObj,
         rating: {
           averageRating: ratingInfo.averageRating,
           totalReviews: ratingInfo.totalReviews,
+        },
+        bookingInfo: {
+          bookedCount: bookedCount,
+          remainingSeats: remainingSeats,
+          maxParticipants: activity.maxParticipants,
         },
       };
     });
@@ -168,6 +218,15 @@ export class ActivityService {
         : 0;
 
     const activityObj = activity.toObject();
+
+    // Get booking count for this activity
+    const bookedCount = await this.bookingModel.countDocuments({
+      activityId: new mongoose.Types.ObjectId(activityId),
+      status: { $in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
+      deleted_at: null,
+    });
+
+    const remainingSeats = Math.max(0, activity.maxParticipants - bookedCount);
 
     return {
       ...activityObj,
@@ -199,6 +258,11 @@ export class ActivityService {
           };
         }),
       },
+      bookingInfo: {
+        bookedCount: bookedCount,
+        remainingSeats: remainingSeats,
+        maxParticipants: activity.maxParticipants,
+      },
     };
   }
 
@@ -208,7 +272,10 @@ export class ActivityService {
   ): Promise<{ activities: any[]; total: number }> {
     try {
       // Build query
-      const query: any = { deleted_at: null };
+      const query: any = {
+        deleted_at: null,
+        status: ActivityStatus.ACTIVE, // Only show active activities by default
+      };
 
       // Search filter (title or description)
       if (filters.search) {
@@ -315,7 +382,7 @@ export class ActivityService {
         // Add booking information to each activity
         activitiesWithBookingStatus = activitiesWithRatings.map((activity) => {
           const activityId = activity._id.toString();
-          const bookingInfo = bookingMap.get(activityId) || {
+          const memberBookingStatus = bookingMap.get(activityId) || {
             isBooked: false,
             bookingStatus: null,
             bookingId: null,
@@ -323,9 +390,15 @@ export class ActivityService {
 
           return {
             ...activity,
-            isBooked: bookingInfo.isBooked,
-            bookingStatus: bookingInfo.bookingStatus,
-            bookingId: bookingInfo.bookingId,
+            isBooked: memberBookingStatus.isBooked,
+            bookingStatus: memberBookingStatus.bookingStatus,
+            bookingId: memberBookingStatus.bookingId,
+            // Explicitly preserve bookingInfo if it exists
+            bookingInfo: activity.bookingInfo || {
+              bookedCount: 0,
+              remainingSeats: activity.maxParticipants || 0,
+              maxParticipants: activity.maxParticipants || 0,
+            },
           };
         });
       } else {
@@ -335,6 +408,7 @@ export class ActivityService {
           isBooked: false,
           bookingStatus: null,
           bookingId: null,
+          // bookingInfo already includes bookedCount, remainingSeats, maxParticipants
         }));
       }
 
@@ -407,8 +481,12 @@ export class ActivityService {
         throw new BadRequestException('Invalid host ID');
       }
 
+      // Hosts can see all their activities (active, completed, cancelled)
       const activities = await this.activityModel
-        .find({ hostId: new mongoose.Types.ObjectId(hostId), deleted_at: null })
+        .find({
+          hostId: new mongoose.Types.ObjectId(hostId),
+          deleted_at: null,
+        })
         .populate('hostId', 'name email profilePhoto')
         .sort({ created_at: -1 });
 
@@ -531,6 +609,115 @@ export class ActivityService {
       return {
         message: 'Activity deleted successfully',
       };
+    } catch (err) {
+      if (
+        err instanceof NotFoundException ||
+        err instanceof ForbiddenException ||
+        err instanceof BadRequestException
+      ) {
+        throw err;
+      }
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  async markAsCompleted(id: string, userId: string): Promise<Activity> {
+    try {
+      const activity = await this.activityModel.findOne({
+        _id: id,
+        deleted_at: null,
+      });
+
+      if (!activity) {
+        throw new NotFoundException('Activity not found');
+      }
+
+      // Check if user is the host who created the activity or superAdmin
+      const activityHostId = (activity.hostId as any).toString();
+      const user = await this.userModel.findById(userId);
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      const isSuperAdmin = user.role === Role.superAdmin;
+      const isActivityHost = activityHostId === userId;
+
+      if (!isSuperAdmin && !isActivityHost) {
+        throw new ForbiddenException(
+          'You can only mark your own activities as completed',
+        );
+      }
+
+      // Mark activity as completed
+      activity.status = ActivityStatus.COMPLETED;
+      activity.updated_at = new Date();
+      await activity.save();
+
+      return activity;
+    } catch (err) {
+      if (
+        err instanceof NotFoundException ||
+        err instanceof ForbiddenException ||
+        err instanceof BadRequestException
+      ) {
+        throw err;
+      }
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  async reoccurActivity(
+    id: string,
+    newDate: Date,
+    newTime: string,
+    userId: string,
+  ): Promise<Activity> {
+    try {
+      const originalActivity = await this.activityModel.findOne({
+        _id: id,
+        deleted_at: null,
+      });
+
+      if (!originalActivity) {
+        throw new NotFoundException('Activity not found');
+      }
+
+      // Check if user is the host who created the activity or superAdmin
+      const activityHostId = (originalActivity.hostId as any).toString();
+      const user = await this.userModel.findById(userId);
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      const isSuperAdmin = user.role === Role.superAdmin;
+      const isActivityHost = activityHostId === userId;
+
+      if (!isSuperAdmin && !isActivityHost) {
+        throw new ForbiddenException(
+          'You can only re-occur your own activities',
+        );
+      }
+
+      // Create a new activity based on the original one
+      const newActivity = await this.activityModel.create({
+        hostId: originalActivity.hostId,
+        title: originalActivity.title,
+        description: originalActivity.description,
+        category: originalActivity.category,
+        location: originalActivity.location,
+        date: newDate,
+        time: newTime,
+        maxParticipants: originalActivity.maxParticipants,
+        price: originalActivity.price ?? 0,
+        recurring: originalActivity.recurring,
+        additionalInformation: originalActivity.additionalInformation,
+        picture: originalActivity.picture,
+        status: ActivityStatus.ACTIVE, // New activity starts as active
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      return newActivity;
     } catch (err) {
       if (
         err instanceof NotFoundException ||

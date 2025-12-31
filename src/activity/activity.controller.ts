@@ -14,6 +14,7 @@ import { ActivityService } from './activity.service';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
 import { BrowseActivitiesDto } from './dto/browse-activities.dto';
+import { ReoccurActivityDto } from './dto/reoccur-activity.dto';
 import { GetUser } from 'src/auth/GetUser.Decorator';
 import { OptionalJwtAuthGuard } from 'src/auth/optional-jwt.guard';
 
@@ -96,5 +97,30 @@ export class ActivityController {
   remove(@Param('id') id: string, @GetUser() user: any) {
     // Only the host who created the activity or superAdmin can delete
     return this.activityService.remove(id, user._id.toString());
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post(':id/complete')
+  markAsCompleted(@Param('id') id: string, @GetUser() user: any) {
+    // Mark activity as completed (held)
+    return this.activityService.markAsCompleted(id, user._id.toString());
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post(':id/reoccur')
+  reoccurActivity(
+    @Param('id') id: string,
+    @Body() reoccurActivityDto: ReoccurActivityDto,
+    @GetUser() user: any,
+  ) {
+    // Re-occur an activity with new date and time
+    // Previous bookings remain with the original activity
+    const newDate = new Date(reoccurActivityDto.date);
+    return this.activityService.reoccurActivity(
+      id,
+      newDate,
+      reoccurActivityDto.time,
+      user._id.toString(),
+    );
   }
 }

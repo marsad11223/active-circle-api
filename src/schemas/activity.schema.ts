@@ -9,6 +9,12 @@ export enum RecurringType {
   YEARLY = 'yearly',
 }
 
+export enum ActivityStatus {
+  ACTIVE = 'active', // Activity is active and accepting bookings
+  COMPLETED = 'completed', // Activity has been held/completed
+  CANCELLED = 'cancelled', // Activity was cancelled
+}
+
 @Schema()
 export class Activity extends Document {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
@@ -49,6 +55,12 @@ export class Activity extends Document {
 
   @Prop({ required: true })
   picture: string; // Picture URL to display
+
+  @Prop({
+    enum: ActivityStatus,
+    default: ActivityStatus.ACTIVE,
+  })
+  status: ActivityStatus; // Activity status (active, completed, cancelled)
 
   @Prop({ default: Date.now })
   created_at: Date;
