@@ -11,7 +11,7 @@ import {
   PaymentStatus,
   AttendanceStatus,
 } from 'src/schemas/booking.schema';
-import { Activity } from 'src/schemas/activity.schema';
+import { Activity, ActivityStatus } from 'src/schemas/activity.schema';
 import { User, Role } from 'src/schemas/user.schema';
 import { Rating } from 'src/schemas/rating.schema';
 import mongoose, { Model } from 'mongoose';
@@ -76,6 +76,27 @@ export class BookingService {
       // Check if activity is deleted
       if (activity.deleted_at) {
         throw new BadRequestException('Activity is no longer available');
+      }
+
+      // Check if activity is active (not completed or cancelled)
+      if (activity.status && activity.status !== ActivityStatus.ACTIVE) {
+        throw new BadRequestException(
+          'This activity is no longer accepting bookings',
+        );
+      }
+
+      // Check if there are remaining seats available
+      const bookedCount = await this.bookingModel.countDocuments({
+        activityId: new mongoose.Types.ObjectId(createBookingDto.activityId),
+        status: { $in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
+        deleted_at: null,
+      });
+
+      const remainingSeats = activity.maxParticipants - bookedCount;
+      if (remainingSeats <= 0) {
+        throw new BadRequestException(
+          'No seats available. This activity is fully booked.',
+        );
       }
 
       // 3. Check if member already has a booking for this activity
