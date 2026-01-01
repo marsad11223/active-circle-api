@@ -11,6 +11,7 @@ import {
   Booking,
   BookingStatus,
   PaymentStatus,
+  AttendanceStatus,
 } from 'src/schemas/booking.schema';
 import mongoose, { Model } from 'mongoose';
 import { CreateActivityDto } from './dto/create-activity.dto';
@@ -1123,6 +1124,154 @@ export class ActivityService {
       ) {
         throw err;
       }
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  async getPastActivities(hostId: string): Promise<any[]> {
+    try {
+      const isValidID = mongoose.isValidObjectId(hostId);
+      if (!isValidID) {
+        throw new BadRequestException('Invalid host ID');
+      }
+
+      const now = new Date();
+      now.setHours(0, 0, 0, 0); // Start of today
+
+      // Get all completed activities (date < today OR status = COMPLETED)
+      const activities = await this.activityModel
+        .find({
+          hostId: new mongoose.Types.ObjectId(hostId),
+          deleted_at: null,
+          $or: [
+            { status: ActivityStatus.COMPLETED },
+            {
+              status: ActivityStatus.ACTIVE,
+              date: { $lt: now },
+            },
+          ],
+        })
+        .populate('hostId', 'name email profilePhoto')
+        .sort({ date: -1 }); // Sort by date descending (most recent first)
+
+      if (activities.length === 0) {
+        return [];
+      }
+
+      const activityIds = activities.map((activity) => activity._id);
+
+      // Get all confirmed bookings for these activities
+      const allBookings = await this.bookingModel.find({
+        activityId: { $in: activityIds },
+        status: BookingStatus.CONFIRMED,
+        deleted_at: null,
+      });
+
+      // Get all ratings for these activities (including original activities if re-occurred)
+      const allActivityIdsForRatings = [...activityIds];
+      activities.forEach((activity) => {
+        const activityObj = activity.toObject();
+        if (activityObj.originalActivityId) {
+          allActivityIdsForRatings.push(
+            new mongoose.Types.ObjectId(activityObj.originalActivityId),
+          );
+        }
+      });
+
+      const allRatings = await this.ratingModel.find({
+        activityId: { $in: allActivityIdsForRatings },
+        deleted_at: null,
+      });
+
+      // Create maps for quick lookup
+      const bookingsByActivity = new Map();
+      const ratingsByActivity = new Map();
+
+      allBookings.forEach((booking) => {
+        const activityId = (booking.activityId as any).toString();
+        if (!bookingsByActivity.has(activityId)) {
+          bookingsByActivity.set(activityId, []);
+        }
+        bookingsByActivity.get(activityId).push(booking);
+      });
+
+      // Group ratings by activity (including original activity ratings)
+      activities.forEach((activity) => {
+        const activityId = (activity._id as any).toString();
+        const activityObj = activity.toObject();
+        const activityIdsToCheck = [activityId];
+        if (activityObj.originalActivityId) {
+          activityIdsToCheck.push(activityObj.originalActivityId.toString());
+        }
+        const activityRatings = allRatings.filter((rating) => {
+          const ratingActivityId = (rating.activityId as any).toString();
+          return activityIdsToCheck.includes(ratingActivityId);
+        });
+        ratingsByActivity.set(activityId, activityRatings);
+      });
+
+      // Build detailed activity data
+      const activitiesWithDetails = activities.map((activity) => {
+        const activityId = (activity._id as any).toString();
+        const bookings = bookingsByActivity.get(activityId) || [];
+        const ratings = ratingsByActivity.get(activityId) || [];
+
+        // Calculate attendance breakdown
+        const presentCount = bookings.filter(
+          (b) => b.attendanceStatus === AttendanceStatus.PRESENT,
+        ).length;
+        const absentCount = bookings.filter(
+          (b) => b.attendanceStatus === AttendanceStatus.ABSENT,
+        ).length;
+        const pendingCount = bookings.filter(
+          (b) =>
+            !b.attendanceStatus ||
+            b.attendanceStatus === AttendanceStatus.PENDING,
+        ).length;
+
+        // Calculate earnings for this activity
+        const earningsGenerated = bookings.reduce(
+          (sum, booking) => sum + (booking.amount || 0),
+          0,
+        );
+
+        // Calculate average rating for this activity
+        const activityAverageRating =
+          ratings.length > 0
+            ? ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length
+            : 0;
+
+        return {
+          _id: activity._id,
+          title: activity.title,
+          description: activity.description,
+          category: activity.category,
+          location: activity.location,
+          date: activity.date,
+          time: activity.time,
+          picture: activity.picture,
+          maxParticipants: activity.maxParticipants,
+          price: activity.price || 0,
+          status: activity.status,
+          hostId: activity.hostId,
+          attendance: {
+            total: bookings.length,
+            attended: presentCount,
+            noShow: absentCount,
+            pending: pendingCount,
+            summary: `${presentCount}/${bookings.length} attended`,
+          },
+          reviewsAndRatings: {
+            averageRating: Math.round(activityAverageRating * 10) / 10,
+            totalReviews: ratings.length,
+            summary: `${Math.round(activityAverageRating * 10) / 10} stars (out of 5, with ${ratings.length} review${ratings.length !== 1 ? 's' : ''})`,
+          },
+          earningsGenerated: earningsGenerated,
+        };
+      });
+
+      return activitiesWithDetails;
+    } catch (err) {
       throw new BadRequestException(err.message);
     }
   }

@@ -934,6 +934,36 @@
 							"response": []
 						},
 						{
+							"name": "Get Past Activities",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/activities/host/past",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"activities",
+										"host",
+										"past"
+									]
+								},
+								"description": "Get past/completed activities for the current host. Returns activities with status = COMPLETED or date < today. Includes attendance breakdown, reviews & ratings (including from original activity if re-occurred), and earnings generated. Sorted by date descending (most recent first)."
+							},
+							"response": []
+						},
+						{
 							"name": "Update Activity",
 							"request": {
 								"auth": {

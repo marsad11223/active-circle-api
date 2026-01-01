@@ -85,6 +85,13 @@ export class ActivityController {
   }
 
   @UseGuards(AuthGuard('jwt'))
+  @Get('host/past')
+  getPastActivities(@GetUser() user: any) {
+    // Get past/completed activities for the current host with summary statistics
+    return this.activityService.getPastActivities(user._id.toString());
+  }
+
+  @UseGuards(AuthGuard('jwt'))
   @Post(':id/cancel')
   cancelActivity(
     @Param('id') id: string,
