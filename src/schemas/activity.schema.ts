@@ -62,6 +62,9 @@ export class Activity extends Document {
   })
   status: ActivityStatus; // Activity status (active, completed, cancelled)
 
+  @Prop({ type: Types.ObjectId, ref: 'Activity', required: false })
+  originalActivityId?: Types.ObjectId; // Reference to original activity if this is a re-occurred activity
+
   @Prop({ default: Date.now })
   created_at: Date;
 

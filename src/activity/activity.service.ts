@@ -146,6 +146,7 @@ export class ActivityService {
 
   /**
    * Helper method to add rating information to activities
+   * Also includes ratings from original activities if activities are re-occurred
    */
   private async addRatingsToActivities(activities: Activity[]): Promise<any[]> {
     if (!activities || activities.length === 0) {
@@ -154,11 +155,22 @@ export class ActivityService {
 
     const activityIds = activities.map((activity) => activity._id);
 
-    // Get ratings for all activities in one query
+    // Collect all activity IDs including original activity IDs for re-occurred activities
+    const allActivityIds = [...activityIds];
+    activities.forEach((activity) => {
+      const activityObj = activity.toObject();
+      if (activityObj.originalActivityId) {
+        allActivityIds.push(
+          new mongoose.Types.ObjectId(activityObj.originalActivityId),
+        );
+      }
+    });
+
+    // Get ratings for all activities (including original activities) in one query
     const ratingsData = await this.ratingModel.aggregate([
       {
         $match: {
-          activityId: { $in: activityIds },
+          activityId: { $in: allActivityIds },
           deleted_at: null,
         },
       },
@@ -174,9 +186,50 @@ export class ActivityService {
     // Create a map of activityId -> rating info
     const ratingsMap = new Map();
     ratingsData.forEach((rating) => {
-      ratingsMap.set(rating._id.toString(), {
+      const id = rating._id.toString();
+      ratingsMap.set(id, {
         averageRating: Math.round(rating.averageRating * 10) / 10, // Round to 1 decimal
         totalReviews: rating.totalReviews,
+      });
+    });
+
+    // For each activity, combine ratings from current activity and original activity
+    const combinedRatingsMap = new Map();
+    activities.forEach((activity) => {
+      const activityId = (activity._id as any).toString();
+      const activityObj = activity.toObject();
+
+      // Get ratings for current activity
+      const currentRatings = ratingsMap.get(activityId) || {
+        averageRating: 0,
+        totalReviews: 0,
+      };
+
+      // Get ratings for original activity if exists
+      let originalRatings = { averageRating: 0, totalReviews: 0 };
+      if (activityObj.originalActivityId) {
+        const originalId = activityObj.originalActivityId.toString();
+        originalRatings = ratingsMap.get(originalId) || {
+          averageRating: 0,
+          totalReviews: 0,
+        };
+      }
+
+      // Combine ratings: calculate weighted average
+      const totalReviews =
+        currentRatings.totalReviews + originalRatings.totalReviews;
+      let averageRating = 0;
+      if (totalReviews > 0) {
+        const currentSum =
+          currentRatings.averageRating * currentRatings.totalReviews;
+        const originalSum =
+          originalRatings.averageRating * originalRatings.totalReviews;
+        averageRating = (currentSum + originalSum) / totalReviews;
+      }
+
+      combinedRatingsMap.set(activityId, {
+        averageRating: Math.round(averageRating * 10) / 10,
+        totalReviews: totalReviews,
       });
     });
 
@@ -189,7 +242,7 @@ export class ActivityService {
     return activities.map((activity) => {
       const activityObj = activity.toObject();
       const activityId = (activity._id as any).toString();
-      const ratingInfo = ratingsMap.get(activityId) || {
+      const ratingInfo = combinedRatingsMap.get(activityId) || {
         averageRating: 0,
         totalReviews: 0,
       };
@@ -218,14 +271,24 @@ export class ActivityService {
   /**
    * Helper method to add rating information to a single activity
    * Includes full reviews/ratings array
+   * Also includes ratings from original activity if this is a re-occurred activity
    */
   private async addRatingToActivity(activity: Activity): Promise<any> {
     const activityId = (activity._id as any).toString();
+    const activityObj = activity.toObject();
 
-    // Get all ratings/reviews for this activity with member and host details
+    // Collect activity IDs to fetch ratings from (current + original if exists)
+    const activityIdsToFetch = [new mongoose.Types.ObjectId(activityId)];
+    if (activityObj.originalActivityId) {
+      activityIdsToFetch.push(
+        new mongoose.Types.ObjectId(activityObj.originalActivityId),
+      );
+    }
+
+    // Get all ratings/reviews for this activity and original activity (if re-occurred)
     const ratings = await this.ratingModel
       .find({
-        activityId: new mongoose.Types.ObjectId(activityId),
+        activityId: { $in: activityIdsToFetch },
         deleted_at: null,
       })
       .populate('memberId', 'name email profilePhoto')
@@ -237,8 +300,6 @@ export class ActivityService {
       totalReviews > 0
         ? ratings.reduce((sum, r) => sum + r.rating, 0) / totalReviews
         : 0;
-
-    const activityObj = activity.toObject();
 
     // Get booking count for this activity (only CONFIRMED bookings)
     const bookedCount = await this.bookingModel.countDocuments({
@@ -719,6 +780,12 @@ export class ActivityService {
         );
       }
 
+      // Determine the original activity ID
+      // If the activity being re-occurred already has an originalActivityId, use that
+      // Otherwise, use the current activity's ID as the original
+      const originalActivityId =
+        originalActivity.originalActivityId || originalActivity._id;
+
       // Create a new activity based on the original one
       const newActivity = await this.activityModel.create({
         hostId: originalActivity.hostId,
@@ -734,6 +801,7 @@ export class ActivityService {
         additionalInformation: originalActivity.additionalInformation,
         picture: originalActivity.picture,
         status: ActivityStatus.ACTIVE, // New activity starts as active
+        originalActivityId: originalActivityId, // Link to original activity for ratings
         created_at: new Date(),
         updated_at: new Date(),
       });
