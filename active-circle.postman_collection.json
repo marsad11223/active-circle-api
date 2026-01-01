@@ -1924,6 +1924,127 @@
 							"response": []
 						}
 					]
+				},
+				{
+					"name": "Admin",
+					"item": [
+						{
+							"name": "Get All Members",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/users/admin/members?page=1&limit=10&search=&sortBy=created_at&sortOrder=desc",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"users",
+										"admin",
+										"members"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "1",
+											"description": "Page number (default: 1)"
+										},
+										{
+											"key": "limit",
+											"value": "10",
+											"description": "Items per page (default: 10)"
+										},
+										{
+											"key": "search",
+											"value": "",
+											"description": "Search in name or email",
+											"disabled": true
+										},
+										{
+											"key": "sortBy",
+											"value": "created_at",
+											"description": "Sort by: name, email, created_at, lastLogin"
+										},
+										{
+											"key": "sortOrder",
+											"value": "desc",
+											"description": "Sort order: asc or desc"
+										}
+									]
+								},
+								"description": "Get paginated list of all members (users except admins). Admin only. Filters: search (name/email), sortBy, sortOrder, page, limit."
+							},
+							"response": []
+						},
+						{
+							"name": "Get All Hosts",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/users/admin/hosts?page=1&limit=10&search=&sortBy=created_at&sortOrder=desc",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"users",
+										"admin",
+										"hosts"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "1",
+											"description": "Page number (default: 1)"
+										},
+										{
+											"key": "limit",
+											"value": "10",
+											"description": "Items per page (default: 10)"
+										},
+										{
+											"key": "search",
+											"value": "",
+											"description": "Search in name or email",
+											"disabled": true
+										},
+										{
+											"key": "sortBy",
+											"value": "created_at",
+											"description": "Sort by: name, email, created_at, lastLogin"
+										},
+										{
+											"key": "sortOrder",
+											"value": "desc",
+											"description": "Sort order: asc or desc"
+										}
+									]
+								},
+								"description": "Get paginated list of all hosts (users with role = host, subscription true or false). Admin only. Filters: search (name/email), sortBy, sortOrder, page, limit."
+							},
+							"response": []
+						}
+					]
 				}
 			]
 		}

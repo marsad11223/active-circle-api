@@ -17,6 +17,11 @@ import { MailerService } from '@nestjs-modules/mailer';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { contactUsToAdmin } from 'src/utils/email-templates';
+import {
+  AdminListUsersDto,
+  UserSortBy,
+  SortOrder,
+} from './dto/admin-list-users.dto';
 
 @Injectable()
 export class UsersService {
@@ -336,6 +341,165 @@ export class UsersService {
       ) {
         throw err;
       }
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  /**
+   * Get paginated list of all members (users except admins)
+   * Admin only
+   */
+  async getAllMembers(filters: AdminListUsersDto): Promise<{
+    users: any[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    try {
+      const page = filters.page || 1;
+      const limit = filters.limit || 10;
+      const skip = (page - 1) * limit;
+
+      // Build query - exclude superAdmin
+      const query: any = {
+        role: { $ne: Role.superAdmin },
+        deleted_at: null,
+      };
+
+      // Search filter (name or email)
+      if (filters.search) {
+        query.$or = [
+          { name: { $regex: filters.search, $options: 'i' } },
+          { email: { $regex: filters.search, $options: 'i' } },
+        ];
+      }
+
+      // Build sort
+      const sortBy = filters.sortBy || UserSortBy.CREATED_AT;
+      const sortOrder = filters.sortOrder === SortOrder.ASC ? 1 : -1;
+      const sort: any = {};
+      sort[sortBy] = sortOrder;
+
+      // Get total count
+      const total = await this.userModel.countDocuments(query);
+
+      // Get paginated users
+      const users = await this.userModel
+        .find(query)
+        .select('-password')
+        .sort(sort)
+        .skip(skip)
+        .limit(limit);
+
+      // Format response
+      const formattedUsers = users.map((user) => {
+        const userObj = user.toObject();
+        return {
+          _id: userObj._id,
+          name: userObj.name,
+          email: userObj.email,
+          role: userObj.role,
+          grantRole: userObj.grantRole,
+          address: userObj.address,
+          phoneNumber: userObj.phoneNumber,
+          profilePhoto: userObj.profilePhoto,
+          hasActiveSubscription: userObj.hasActiveSubscription || false,
+          interests: userObj.interests || [],
+          radius: userObj.radius || 10,
+          created_at: userObj.created_at,
+          updated_at: userObj.updated_at,
+          lastLogin: userObj.lastLogin,
+        };
+      });
+
+      return {
+        users: formattedUsers,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      };
+    } catch (err) {
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  /**
+   * Get paginated list of all hosts (users with role = host, subscription true or false)
+   * Admin only
+   */
+  async getAllHosts(filters: AdminListUsersDto): Promise<{
+    users: any[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    try {
+      const page = filters.page || 1;
+      const limit = filters.limit || 10;
+      const skip = (page - 1) * limit;
+
+      // Build query - only hosts
+      const query: any = {
+        role: Role.host,
+        deleted_at: null,
+      };
+
+      // Search filter (name or email)
+      if (filters.search) {
+        query.$or = [
+          { name: { $regex: filters.search, $options: 'i' } },
+          { email: { $regex: filters.search, $options: 'i' } },
+        ];
+      }
+
+      // Build sort
+      const sortBy = filters.sortBy || UserSortBy.CREATED_AT;
+      const sortOrder = filters.sortOrder === SortOrder.ASC ? 1 : -1;
+      const sort: any = {};
+      sort[sortBy] = sortOrder;
+
+      // Get total count
+      const total = await this.userModel.countDocuments(query);
+
+      // Get paginated hosts
+      const users = await this.userModel
+        .find(query)
+        .select('-password')
+        .sort(sort)
+        .skip(skip)
+        .limit(limit);
+
+      // Format response
+      const formattedUsers = users.map((user) => {
+        const userObj = user.toObject();
+        return {
+          _id: userObj._id,
+          name: userObj.name,
+          email: userObj.email,
+          role: userObj.role,
+          grantRole: userObj.grantRole,
+          address: userObj.address,
+          phoneNumber: userObj.phoneNumber,
+          profilePhoto: userObj.profilePhoto,
+          hasActiveSubscription: userObj.hasActiveSubscription || false,
+          stripeCustomerId: userObj.stripeCustomerId || null,
+          created_at: userObj.created_at,
+          updated_at: userObj.updated_at,
+          lastLogin: userObj.lastLogin,
+        };
+      });
+
+      return {
+        users: formattedUsers,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      };
+    } catch (err) {
       throw new BadRequestException(err.message);
     }
   }

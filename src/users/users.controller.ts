@@ -17,6 +17,8 @@ import { GetUser } from 'src/auth/GetUser.Decorator';
 import { ContactUsDto } from './dto/contact-us.dto';
 import { ToggleFavoriteDto } from './dto/toggle-favorite.dto';
 import { IsAdmin, canAccessResource } from 'src/utils/helper';
+import { AdminListUsersDto } from './dto/admin-list-users.dto';
+import { Query } from '@nestjs/common';
 
 @Controller('users')
 export class UsersController {
@@ -85,6 +87,24 @@ export class UsersController {
   getFavoriteActivities(@GetUser() user: any) {
     // Members can view their favorites
     return this.usersService.getFavoriteActivities(user._id.toString());
+  }
+
+  // Admin endpoints - Must be before :id route to avoid route conflicts
+  @UseGuards(AuthGuard('jwt'))
+  @Get('admin/members')
+  getAllMembers(
+    @Query() filters: AdminListUsersDto,
+    @GetUser() user: User,
+  ) {
+    IsAdmin(user);
+    return this.usersService.getAllMembers(filters);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('admin/hosts')
+  getAllHosts(@Query() filters: AdminListUsersDto, @GetUser() user: User) {
+    IsAdmin(user);
+    return this.usersService.getAllHosts(filters);
   }
 
   @UseGuards(AuthGuard('jwt'))
