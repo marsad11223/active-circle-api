@@ -340,3 +340,4 @@ export function passwordChangedSuccessfully(data: {
     </div>
   `;
 }
+

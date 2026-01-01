@@ -95,6 +95,7 @@ export class ActivityService {
 
   /**
    * Helper method to get booking count for activities
+   * Only counts CONFIRMED bookings (not PENDING requests)
    */
   private async getBookingCounts(
     activityIds: mongoose.Types.ObjectId[],
@@ -103,7 +104,7 @@ export class ActivityService {
       {
         $match: {
           activityId: { $in: activityIds },
-          status: { $in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
+          status: BookingStatus.CONFIRMED,
           deleted_at: null,
         },
       },
@@ -219,10 +220,10 @@ export class ActivityService {
 
     const activityObj = activity.toObject();
 
-    // Get booking count for this activity
+    // Get booking count for this activity (only CONFIRMED bookings)
     const bookedCount = await this.bookingModel.countDocuments({
       activityId: new mongoose.Types.ObjectId(activityId),
-      status: { $in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
+      status: BookingStatus.CONFIRMED,
       deleted_at: null,
     });
 

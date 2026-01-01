@@ -85,10 +85,10 @@ export class BookingService {
         );
       }
 
-      // Check if there are remaining seats available
+      // Check if there are remaining seats available (only count CONFIRMED bookings)
       const bookedCount = await this.bookingModel.countDocuments({
         activityId: new mongoose.Types.ObjectId(createBookingDto.activityId),
-        status: { $in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
+        status: BookingStatus.CONFIRMED,
         deleted_at: null,
       });
 
@@ -327,6 +327,26 @@ export class BookingService {
 
       if (booking.status !== BookingStatus.PENDING) {
         throw new BadRequestException('Only pending bookings can be approved');
+      }
+
+      // Check if accepting this booking would exceed maxParticipants
+      const activity = booking.activityId as any;
+      if (!activity) {
+        throw new NotFoundException('Activity not found');
+      }
+
+      // Count current confirmed bookings for this activity
+      const currentConfirmedCount = await this.bookingModel.countDocuments({
+        activityId: new mongoose.Types.ObjectId(activity._id || activity),
+        status: BookingStatus.CONFIRMED,
+        deleted_at: null,
+      });
+
+      // Check if accepting this booking would exceed maxParticipants
+      if (currentConfirmedCount >= activity.maxParticipants) {
+        throw new BadRequestException(
+          'Cannot approve booking. Activity is already fully booked.',
+        );
       }
 
       // If paid activity, capture the payment (release from escrow)
