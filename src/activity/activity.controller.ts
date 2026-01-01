@@ -78,6 +78,30 @@ export class ActivityController {
   }
 
   @UseGuards(AuthGuard('jwt'))
+  @Get('host/upcoming')
+  getUpcomingActivities(@GetUser() user: any) {
+    // Get upcoming activities for the current host (date >= today, status = ACTIVE)
+    return this.activityService.getUpcomingActivities(user._id.toString());
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post(':id/cancel')
+  cancelActivity(
+    @Param('id') id: string,
+    @Body() body: { cancelReason?: string },
+    @GetUser() user: any,
+  ) {
+    // Cancel an activity (host only)
+    // For paid activities: processes partial refund (fee - stripe fee)
+    // For free activities: skips refund process
+    return this.activityService.cancelActivity(
+      id,
+      user._id.toString(),
+      body.cancelReason,
+    );
+  }
+
+  @UseGuards(AuthGuard('jwt'))
   @Put(':id')
   update(
     @Param('id') id: string,

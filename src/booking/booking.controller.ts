@@ -77,6 +77,19 @@ export class BookingController {
   }
 
   @UseGuards(AuthGuard('jwt'))
+  @Get('host/activity/:activityId/members')
+  getActivityMembers(
+    @Param('activityId') activityId: string,
+    @GetUser() user: any,
+  ) {
+    // Get all members (confirmed + pending) for an activity
+    return this.bookingService.getActivityMembers(
+      activityId,
+      user._id.toString(),
+    );
+  }
+
+  @UseGuards(AuthGuard('jwt'))
   @Put('mark-attendance')
   markAttendance(
     @Body() markAttendanceDto: MarkAttendanceDto,

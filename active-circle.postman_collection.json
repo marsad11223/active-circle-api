@@ -253,1933 +253,1647 @@
 			]
 		},
 		{
-			"name": "subscription",
-			"item": []
-		},
-		{
-			"name": "users",
+			"name": "Member",
 			"item": [
 				{
-					"name": "getAll",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/users",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"users"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "create",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"name\": \"Marsad Ghanvi\",\n  \"email\": \"test@gmail.com\",\n  \"password\": \"12345678\",\n  \"role\": \"member\",\n  \"address\": \"123 Main Street, Cityville, Country\",\n  \"phoneNumber\": \"+1234567890\"\n}\n",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{base_url}}/users/create",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"users",
-								"create"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "update",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "PUT",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"name\": \"Marsad\",\n  \"email\": \"marsad11223@gmail.com\",\n  \"password\": \"12345678\",\n  \"address\": \"123 Main Street, Cityville, Country\",\n  \"phoneNumber\": \"+1234567890\",\n  \"profilePhoto\": \"sdfsd\"\n}\n",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{base_url}}/users/69495113224cb841bb304665",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"users",
-								"69495113224cb841bb304665"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "getOne",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/users/6942a60ac0b02150c0f246d0",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"users",
-								"6942a60ac0b02150c0f246d0"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "delete",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "DELETE",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/users/68c9458cee015b4a82377fc3",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"users",
-								"68c9458cee015b4a82377fc3"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "contactus",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"name\": \"Marsad\",\n    \"email\": \"\",\n    \"subject\": \"\",\n    \"body\":\"\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{base_url}}/users/contactUs",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"users",
-								"contactUs"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "toggle-role",
-					"event": [
+					"name": "Activities",
+					"item": [
 						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"var res = pm.response.json();",
-									"pm.collectionVariables.set('token', res.accessToken) ",
-									"",
-									"pm.test(\"Response status code is 201\", function () {",
-									"    pm.expect(pm.response.code).to.equal(201);",
-									"});",
-									"",
-									"",
-									"pm.test(\"Email is in a valid format\", function () {",
-									"    const responseData = pm.response.json();",
-									"    ",
-									"    pm.expect(responseData).to.be.an('object');",
-									"    pm.expect(responseData.data.email).to.match(/^[\\w-]+(\\.[\\w-]+)*@[\\w-]+(\\.[\\w-]+)*(\\.[a-z]{2,})$/, \"Email should be in a valid format\");",
-									"});",
-									"",
-									"",
-									"pm.test(\"Password should not be empty\", function () {",
-									"    const responseData = pm.response.json();",
-									"",
-									"    pm.expect(responseData).to.be.an('object');",
-									"    pm.expect(responseData.data.password).to.exist.and.to.not.be.empty;",
-									"});",
-									"",
-									"",
-									"pm.test(\"Verify that the access token is being saved in the collection variables\", function () {",
-									"    const responseData = pm.response.json();",
-									"    ",
-									"    console.log(responseData, 'responseData')",
-									"    pm.expect(responseData).to.have.property('accessToken');",
-									"    pm.expect(pm.collectionVariables.has('token')).to.be.true;",
-									"});",
-									""
-								],
-								"type": "text/javascript",
-								"packages": {},
-								"requests": {}
-							}
-						}
-					],
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
+							"name": "Browse Activities (Member)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/activities/browse/member?category=Sports&category=Outdoor Adventures&date=2024-01-22&price=paid",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"activities",
+										"browse",
+										"member"
+									],
+									"query": [
+										{
+											"key": "search",
+											"value": "",
+											"description": "Search in title and description",
+											"disabled": true
+										},
+										{
+											"key": "category",
+											"value": "Sports",
+											"description": "Filter by category (array - add multiple)"
+										},
+										{
+											"key": "category",
+											"value": "Outdoor Adventures",
+											"description": "Filter by category (array - add multiple)"
+										},
+										{
+											"key": "maxDistance",
+											"value": "",
+											"description": "Max distance in km (uses member's radius if not provided)",
+											"disabled": true
+										},
+										{
+											"key": "date",
+											"value": "2024-01-22",
+											"description": "Filter by date (ISO format)"
+										},
+										{
+											"key": "price",
+											"value": "paid",
+											"description": "Price filter: all, free, or paid"
+										},
+										{
+											"key": "minHostRating",
+											"value": "",
+											"description": "Minimum host rating (0-5)",
+											"disabled": true
+										}
+									]
 								}
-							]
+							},
+							"response": []
 						},
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{base_url}}/users/toggle-role",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"users",
-								"toggle-role"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "change-password",
-					"event": [
 						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"var res = pm.response.json();",
-									"pm.collectionVariables.set('token', res.accessToken) ",
-									"",
-									"pm.test(\"Response status code is 201\", function () {",
-									"    pm.expect(pm.response.code).to.equal(201);",
-									"});",
-									"",
-									"",
-									"pm.test(\"Email is in a valid format\", function () {",
-									"    const responseData = pm.response.json();",
-									"    ",
-									"    pm.expect(responseData).to.be.an('object');",
-									"    pm.expect(responseData.data.email).to.match(/^[\\w-]+(\\.[\\w-]+)*@[\\w-]+(\\.[\\w-]+)*(\\.[a-z]{2,})$/, \"Email should be in a valid format\");",
-									"});",
-									"",
-									"",
-									"pm.test(\"Password should not be empty\", function () {",
-									"    const responseData = pm.response.json();",
-									"",
-									"    pm.expect(responseData).to.be.an('object');",
-									"    pm.expect(responseData.data.password).to.exist.and.to.not.be.empty;",
-									"});",
-									"",
-									"",
-									"pm.test(\"Verify that the access token is being saved in the collection variables\", function () {",
-									"    const responseData = pm.response.json();",
-									"    ",
-									"    console.log(responseData, 'responseData')",
-									"    pm.expect(responseData).to.have.property('accessToken');",
-									"    pm.expect(pm.collectionVariables.has('token')).to.be.true;",
-									"});",
-									""
+							"name": "Get Activity by ID (Member)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/activities/member/{{activity_id}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"activities",
+										"member",
+										"{{activity_id}}"
+									]
+								},
+								"description": "Get activity by ID for authenticated members. Always includes booking status (isBooked, bookingStatus, bookingId)."
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Bookings",
+					"item": [
+						{
+							"name": "Create Booking",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
 								],
-								"type": "text/javascript",
-								"packages": {},
-								"requests": {}
-							}
-						}
-					],
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"activityId\": \"{{activity_id}}\",\n  \"paymentMethodId\": \"pm_card_visa\"\n}",
+									"description": "For paid activities, paymentMethodId is required. For free activities, paymentMethodId can be omitted."
+								},
+								"url": {
+									"raw": "{{base_url}}/bookings",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"bookings"
+									]
+								},
+								"description": "Create a booking for an activity. For paid activities, paymentMethodId is required. Payment will be authorized and held in escrow until host approves."
+							},
+							"response": []
 						},
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"oldPassword\": \"12345678\",\n    \"newPassword\": \".Hello1122\",\n    \"confirmPassword\": \".Hello1122\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
+						{
+							"name": "Get My Bookings",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/bookings/member/my-bookings?filter=all",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"bookings",
+										"member",
+										"my-bookings"
+									],
+									"query": [
+										{
+											"key": "filter",
+											"value": "all",
+											"description": "Filter bookings: upcoming (confirmed with future dates), pending, past (confirmed with past dates), cancelled, or all"
+										}
+									]
+								},
+								"description": "Get filtered bookings for the current member. Filter options: upcoming (confirmed bookings with future activity dates), pending (awaiting approval), past (confirmed bookings with past activity dates), cancelled, or all."
+							},
+							"response": []
 						},
-						"url": {
-							"raw": "{{base_url}}/auth/changePassword",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"auth",
-								"changePassword"
-							]
+						{
+							"name": "Cancel Booking",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"cancelReason\": \"Change of plans\"\n}",
+									"description": "Optional cancel reason"
+								},
+								"url": {
+									"raw": "{{base_url}}/bookings/member/{{booking_id}}/cancel",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"bookings",
+										"member",
+										"{{booking_id}}",
+										"cancel"
+									]
+								},
+								"description": "Member cancels their own confirmed booking. Refund policy: 48+ hours = 99% refund (1% fee), 24-48 hours = 49% refund (50% penalty + 1% fee), <24 hours = no refund. Free bookings are cancelled immediately."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Payment History",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/bookings/member/payment-history",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"bookings",
+										"member",
+										"payment-history"
+									]
+								},
+								"description": "Get payment history with summary statistics for the current member."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Invoice Details",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/bookings/member/invoice/{{booking_id}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"bookings",
+										"member",
+										"invoice",
+										"{{booking_id}}"
+									]
+								},
+								"description": "Get detailed invoice information for a specific booking."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Booking by ID",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/bookings/{{booking_id}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"bookings",
+										"{{booking_id}}"
+									]
+								},
+								"description": "Get booking details by ID."
+							},
+							"response": []
 						}
-					},
-					"response": []
+					]
 				},
 				{
-					"name": "Toggle Favorite Activity",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
+					"name": "Ratings",
+					"item": [
+						{
+							"name": "Create Rating",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"bookingId\": \"{{booking_id}}\",\n  \"rating\": 5,\n  \"review\": \"Great activity! Had a wonderful time.\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/ratings",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"ratings"
+									]
+								},
+								"description": "Member rates and reviews a past activity. Rating must be 1-5 stars."
+							},
+							"response": []
+						},
+						{
+							"name": "Get My Ratings",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/ratings/member/my-ratings",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"ratings",
+										"member",
+										"my-ratings"
+									]
 								}
-							]
+							},
+							"response": []
 						},
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"activityId\": \"activity_id_here\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
+						{
+							"name": "Get Reviews Dashboard",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/ratings/member/dashboard",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"ratings",
+										"member",
+										"dashboard"
+									]
 								}
-							}
-						},
-						"url": {
-							"raw": "{{base_url}}/users/favorites/toggle",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"users",
-								"favorites",
-								"toggle"
-							]
-						},
-						"description": "Add or remove an activity from favorites. If activity is already favorited, it will be removed. If not favorited, it will be added."
-					},
-					"response": []
+							},
+							"response": []
+						}
+					]
 				},
 				{
-					"name": "Get Favorite Activities",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
+					"name": "Messages",
+					"item": [
+						{
+							"name": "Send Message to Host",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"activityId\": \"{{activity_id}}\",\n  \"subject\": \"Question about Morning Yoga Session\",\n  \"content\": \"Hi! I'm interested in joining your Morning Yoga Session.\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/messages/send",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"messages",
+										"send"
+									]
 								}
-							]
+							},
+							"response": []
 						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/users/favorites",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"users",
-								"favorites"
-							]
+						{
+							"name": "Get Inbox",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/messages/inbox",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"messages",
+										"inbox"
+									]
+								}
+							},
+							"response": []
 						},
-						"description": "Get all favorite activities for the current member (authenticated user). Returns array of activities with full details including host information."
-					},
-					"response": []
+						{
+							"name": "Get Conversations",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/messages/conversations",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"messages",
+										"conversations"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Users",
+					"item": [
+						{
+							"name": "Toggle Favorite Activity",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"activityId\": \"activity_id_here\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/users/favorites/toggle",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"users",
+										"favorites",
+										"toggle"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Favorite Activities",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/users/favorites",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"users",
+										"favorites"
+									]
+								}
+							},
+							"response": []
+						}
+					]
 				}
 			]
 		},
 		{
-			"name": "upload file",
+			"name": "Host",
 			"item": [
 				{
-					"name": "upload",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "formdata",
-							"formdata": [
-								{
-									"key": "file",
-									"type": "file",
-									"src": "/Users/marsadghanvi/Desktop/Screenshot 2025-12-25 at 6.34.32 PM.png"
+					"name": "Activities",
+					"item": [
+						{
+							"name": "Create Activity",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"title\": \"Morning Yoga Session\",\n  \"description\": \"Join us for a rejuvenating morning yoga session in the park. All levels welcome!\",\n  \"category\": [\"Wellness & Mindfulness\", \"Sports & Fitness\"],\n  \"location\": \"Springfield Park\",\n  \"date\": \"2024-12-28T00:00:00.000Z\",\n  \"time\": \"08:00\",\n  \"maxParticipants\": 20,\n  \"price\": 15,\n  \"recurring\": \"one-time\",\n  \"additionalInformation\": \"Please bring your own yoga mat and water bottle.\",\n  \"picture\": \"https://example.com/yoga-image.jpg\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/activities",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"activities"
+									]
 								}
-							]
+							},
+							"response": []
 						},
-						"url": {
-							"raw": "{{base_url}}/cloudinary/upload",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"cloudinary",
-								"upload"
-							]
+						{
+							"name": "Get My Activities",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/activities/host/my-activities",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"activities",
+										"host",
+										"my-activities"
+									]
+								},
+								"description": "Get all activities created by the current host (all statuses)."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Upcoming Activities",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/activities/host/upcoming",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"activities",
+										"host",
+										"upcoming"
+									]
+								},
+								"description": "Get upcoming activities for the current host (date >= today, status = ACTIVE). Sorted by date ascending (earliest first)."
+							},
+							"response": []
+						},
+						{
+							"name": "Update Activity",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"title\": \"Updated Yoga Session\",\n  \"category\": [\"Wellness & Mindfulness\"],\n  \"maxParticipants\": 25,\n  \"price\": 20\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/activities/{{activity_id}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"activities",
+										"{{activity_id}}"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Activity",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/activities/{{activity_id}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"activities",
+										"{{activity_id}}"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Cancel Activity",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"cancelReason\": \"Due to unforeseen circumstances, we need to cancel this activity.\"\n}",
+									"description": "Optional cancel reason"
+								},
+								"url": {
+									"raw": "{{base_url}}/activities/{{activity_id}}/cancel",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"activities",
+										"{{activity_id}}",
+										"cancel"
+									]
+								},
+								"description": "Cancel an activity. For paid activities: processes partial refund (fee - stripe fee) to all confirmed bookings. For free activities: skips refund process. All members (confirmed and pending) will be notified via email. Activity status will be set to CANCELLED."
+							},
+							"response": []
+						},
+						{
+							"name": "Mark Activity as Completed",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/activities/{{activity_id}}/complete",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"activities",
+										"{{activity_id}}",
+										"complete"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Re-occur Activity",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"date\": \"2024-12-30\",\n  \"time\": \"10:00\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/activities/{{activity_id}}/reoccur",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"activities",
+										"{{activity_id}}",
+										"reoccur"
+									]
+								}
+							},
+							"response": []
 						}
-					},
-					"response": []
+					]
+				},
+				{
+					"name": "Bookings",
+					"item": [
+						{
+							"name": "Get Pending Bookings",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/bookings/host/pending",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"bookings",
+										"host",
+										"pending"
+									]
+								},
+								"description": "Get all pending bookings for the current host."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Activity Members",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/bookings/host/activity/{{activity_id}}/members",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"bookings",
+										"host",
+										"activity",
+										"{{activity_id}}",
+										"members"
+									]
+								},
+								"description": "Get all members (confirmed + pending) for an activity. Returns: activity details, total attendees, confirmed count, pending count, max participants, and list of all members with their booking status."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Activity Bookings for Attendance",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/bookings/host/activity/{{activity_id}}/attendance",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"bookings",
+										"host",
+										"activity",
+										"{{activity_id}}",
+										"attendance"
+									]
+								},
+								"description": "Get all confirmed bookings for a specific activity (for marking attendance)."
+							},
+							"response": []
+						},
+						{
+							"name": "Approve Booking",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{}"
+								},
+								"url": {
+									"raw": "{{base_url}}/bookings/{{booking_id}}/approve",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"bookings",
+										"{{booking_id}}",
+										"approve"
+									]
+								},
+								"description": "Host approves a pending booking. Checks if activity has remaining seats before approving. For paid activities, payment will be captured."
+							},
+							"response": []
+						},
+						{
+							"name": "Decline Booking",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"declineReason\": \"Activity is fully booked\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/bookings/{{booking_id}}/decline",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"bookings",
+										"{{booking_id}}",
+										"decline"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Host Dashboard",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/bookings/host/dashboard?status=all&activityId=",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"bookings",
+										"host",
+										"dashboard"
+									],
+									"query": [
+										{
+											"key": "status",
+											"value": "all",
+											"description": "Filter by status: pending, confirmed, cancelled, or all"
+										},
+										{
+											"key": "activityId",
+											"value": "",
+											"description": "Optional: Filter by specific activity ID"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Mark Attendance",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"bookingId\": \"{{booking_id}}\",\n  \"attendanceStatus\": \"present\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/bookings/mark-attendance",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"bookings",
+										"mark-attendance"
+									]
+								},
+								"description": "Mark attendance for a booking. attendanceStatus can be 'present' or 'absent'."
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Ratings",
+					"item": [
+						{
+							"name": "Get Reviews Dashboard",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/ratings/host/dashboard",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"ratings",
+										"host",
+										"dashboard"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get All Reviews",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/ratings/host/reviews",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"ratings",
+										"host",
+										"reviews"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Reviews by Activity",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/ratings/host/reviews?activityId={{activity_id}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"ratings",
+										"host",
+										"reviews"
+									],
+									"query": [
+										{
+											"key": "activityId",
+											"value": "{{activity_id}}",
+											"description": "Optional: Filter reviews by activity ID"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Reply to Review",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"ratingId\": \"{{rating_id}}\",\n  \"reply\": \"Thank you for your feedback!\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/ratings/host/reply",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"ratings",
+										"host",
+										"reply"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Messages",
+					"item": [
+						{
+							"name": "Reply to Message",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"messageId\": \"{{message_id}}\",\n  \"content\": \"Hi! Yes, this session is perfect for beginners.\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/messages/reply",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"messages",
+										"reply"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Broadcast Message",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"activityId\": \"{{activity_id}}\",\n  \"broadcastType\": \"reminder\",\n  \"subject\": \"Reminder: Morning Yoga Session Tomorrow\",\n  \"content\": \"This is a friendly reminder that our Morning Yoga Session is scheduled for tomorrow.\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/messages/broadcast",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"messages",
+										"broadcast"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Inbox",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/messages/inbox",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"messages",
+										"inbox"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Broadcast Messages",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/messages/host/broadcasts?activityId={{activity_id}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"messages",
+										"host",
+										"broadcasts"
+									],
+									"query": [
+										{
+											"key": "activityId",
+											"value": "{{activity_id}}",
+											"description": "Optional: Filter broadcasts by activity ID"
+										}
+									]
+								}
+							},
+							"response": []
+						}
+					]
 				}
 			]
 		},
 		{
-			"name": "Activities",
+			"name": "Public",
 			"item": [
 				{
-					"name": "Create Activity",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
+					"name": "Activities",
+					"item": [
+						{
+							"name": "Get All Activities",
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/activities",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"activities"
+									]
 								}
-							]
+							},
+							"response": []
 						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"title\": \"Morning Yoga Session\",\n  \"description\": \"Join us for a rejuvenating morning yoga session in the park. All levels welcome!\",\n  \"category\": [\"Wellness & Mindfulness\", \"Sports & Fitness\"],\n  \"location\": \"Springfield Park\",\n  \"date\": \"2024-12-28T00:00:00.000Z\",\n  \"time\": \"08:00\",\n  \"maxParticipants\": 20,\n  \"price\": 15,\n  \"recurring\": \"one-time\",\n  \"additionalInformation\": \"Please bring your own yoga mat and water bottle. We will meet at the main entrance.\",\n  \"picture\": \"https://example.com/yoga-image.jpg\"\n}"
+						{
+							"name": "Browse Activities",
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/activities/browse?search=yoga&category=Wellness & Mindfulness&date=2024-01-20&price=free",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"activities",
+										"browse"
+									],
+									"query": [
+										{
+											"key": "search",
+											"value": "yoga",
+											"description": "Search in title and description"
+										},
+										{
+											"key": "category",
+											"value": "Wellness & Mindfulness",
+											"description": "Filter by category (can add multiple)"
+										},
+										{
+											"key": "date",
+											"value": "2024-01-20",
+											"description": "Filter by date (ISO format)"
+										},
+										{
+											"key": "price",
+											"value": "free",
+											"description": "Price filter: all, free, or paid"
+										}
+									]
+								}
+							},
+							"response": []
 						},
-						"url": {
-							"raw": "{{base_url}}/activities",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"activities"
-							]
+						{
+							"name": "Get Activity by ID",
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/activities/{{activity_id}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"activities",
+										"{{activity_id}}"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Activity Ratings",
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/ratings/activity/{{activity_id}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"ratings",
+										"activity",
+										"{{activity_id}}"
+									]
+								}
+							},
+							"response": []
 						}
-					},
-					"response": []
-				},
-				{
-					"name": "Get All Activities",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/activities",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"activities"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Browse Activities (Public)",
-					"request": {
-						"auth": {
-							"type": "noauth"
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/activities/browse?search=yoga&category=Wellness & Mindfulness&category=Sports & Fitness&maxDistance=10&date=2024-01-20&price=free&minHostRating=4",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"activities",
-								"browse"
-							],
-							"query": [
-								{
-									"key": "search",
-									"value": "yoga",
-									"description": "Search in title and description"
-								},
-								{
-									"key": "category",
-									"value": "Wellness & Mindfulness",
-									"description": "Filter by category (can add multiple)"
-								},
-								{
-									"key": "category",
-									"value": "Sports & Fitness",
-									"description": "Filter by category (array - add multiple)"
-								},
-								{
-									"key": "maxDistance",
-									"value": "10",
-									"description": "Max distance in km"
-								},
-								{
-									"key": "date",
-									"value": "2024-01-20",
-									"description": "Filter by date (ISO format)"
-								},
-								{
-									"key": "price",
-									"value": "free",
-									"description": "Price filter: all, free, or paid"
-								},
-								{
-									"key": "minHostRating",
-									"value": "4",
-									"description": "Minimum host rating (0-5)"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Browse Activities (Member)",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/activities/browse/member?category=Sports&category=Outdoor Adventures&date=2024-01-22&price=paid",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"activities",
-								"browse",
-								"member"
-							],
-							"query": [
-								{
-									"key": "search",
-									"value": "",
-									"description": "Search in title and description",
-									"disabled": true
-								},
-								{
-									"key": "category",
-									"value": "Sports",
-									"description": "Filter by category (array - add multiple)"
-								},
-								{
-									"key": "category",
-									"value": "Outdoor Adventures",
-									"description": "Filter by category (array - add multiple)"
-								},
-								{
-									"key": "maxDistance",
-									"value": "",
-									"description": "Max distance in km (uses member's radius if not provided)",
-									"disabled": true
-								},
-								{
-									"key": "date",
-									"value": "2024-01-22",
-									"description": "Filter by date (ISO format)"
-								},
-								{
-									"key": "price",
-									"value": "paid",
-									"description": "Price filter: all, free, or paid"
-								},
-								{
-									"key": "minHostRating",
-									"value": "",
-									"description": "Minimum host rating (0-5)",
-									"disabled": true
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Get Activity by ID (Public)",
-					"request": {
-						"auth": {
-							"type": "noauth"
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/activities/{{activity_id}}",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"activities",
-								"{{activity_id}}"
-							]
-						},
-						"description": "Get activity by ID (public endpoint). Works for both authenticated and unauthenticated users. If authenticated, includes booking status (isBooked, bookingStatus, bookingId)."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Activity by ID (Authenticated)",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/activities/{{activity_id}}",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"activities",
-								"{{activity_id}}"
-							]
-						},
-						"description": "Get activity by ID with authentication. Includes booking status (isBooked, bookingStatus, bookingId) if member has booked the activity. Same endpoint as public version, but with authentication token."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Activity by ID (Member Endpoint)",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/activities/member/{{activity_id}}",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"activities",
-								"member",
-								"{{activity_id}}"
-							]
-						},
-						"description": "Get activity by ID for authenticated members. Always includes booking status (isBooked, bookingStatus, bookingId). Alternative endpoint specifically for members."
-					},
-					"response": []
-				},
-				{
-					"name": "Get My Activities (Host)",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/activities/host/my-activities",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"activities",
-								"host",
-								"my-activities"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Update Activity",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"title\": \"Updated Yoga Session\",\n  \"category\": [\"Wellness & Mindfulness\", \"Sports & Fitness\"],\n  \"maxParticipants\": 25,\n  \"price\": 20\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/activities/694d36f6119028136c257858",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"activities",
-								"694d36f6119028136c257858"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Delete Activity",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "DELETE",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/activities/694d36f6119028136c257858",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"activities",
-								"694d36f6119028136c257858"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Mark Activity as Completed",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/activities/{{activity_id}}/complete",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"activities",
-								"{{activity_id}}",
-								"complete"
-							],
-							"variable": [
-								{
-									"key": "activity_id",
-									"value": "{{activity_id}}",
-									"description": "Activity ID to mark as completed"
-								}
-							]
-						},
-						"description": "Mark an activity as completed (held). Only the host who created the activity (or superAdmin) can mark it as completed. Previous bookings remain with the original activity."
-					},
-					"response": []
-				},
-				{
-					"name": "Re-occur Activity",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"date\": \"2024-12-30\",\n  \"time\": \"10:00\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/activities/{{activity_id}}/reoccur",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"activities",
-								"{{activity_id}}",
-								"reoccur"
-							],
-							"variable": [
-								{
-									"key": "activity_id",
-									"value": "{{activity_id}}",
-									"description": "Activity ID to re-occur"
-								}
-							]
-						},
-						"description": "Re-occur an activity with new date and time. Creates a new activity based on the original one with the same details (title, description, category, location, maxParticipants, price, etc.) but with new date and time. Previous bookings remain with the original activity. Only the host who created the activity (or superAdmin) can re-occur it."
-					},
-					"response": []
+					]
 				}
 			]
 		},
 		{
-			"name": "booking",
+			"name": "General",
 			"item": [
 				{
-					"name": "Create Booking",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"activityId\": \"{{activity_id}}\",\n  \"paymentMethodId\": \"pm_card_visa\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/bookings",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"bookings"
-							]
-						},
-						"description": "Create a booking for an activity. For paid activities, paymentMethodId is required. Payment will be authorized and held in escrow until host approves."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Member Bookings",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/bookings/member/my-bookings?filter=all",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"bookings",
-								"member",
-								"my-bookings"
-							],
-							"query": [
-								{
-									"key": "filter",
-									"value": "all",
-									"description": "Filter bookings: upcoming (confirmed with future dates), pending, past (confirmed with past dates), cancelled, or all"
-								}
-							]
-						},
-						"description": "Get filtered bookings for the current member. Filter options: upcoming (confirmed bookings with future activity dates), pending (awaiting approval), past (confirmed bookings with past activity dates), cancelled, or all."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Payment History",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/bookings/member/payment-history",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"bookings",
-								"member",
-								"payment-history"
-							]
-						},
-						"description": "Get payment history with summary statistics for the current member. Returns: summary (totalActivities, paidActivities, freeActivities) and paymentHistory array with all bookings (excluding cancelled), including activity details, host info, booking/activity dates, type (Paid/Free), status, amount, invoice number, and payment intent ID."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Invoice Details",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/bookings/member/invoice/{{booking_id}}",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"bookings",
-								"member",
-								"invoice",
-								"{{booking_id}}"
-							]
-						},
-						"description": "Get detailed invoice information for a specific booking. Returns invoice number, transaction ID, date, activity details, host info, member info, activity fee, payment method (card brand and last 4 digits from Stripe), total paid, payment status, and booking status. Fetches payment method details from Stripe using payment intent ID."
-					},
-					"response": []
-				},
-				{
-					"name": "Cancel Booking by Member",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"cancelReason\": \"Change of plans\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/bookings/member/{{booking_id}}/cancel",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"bookings",
-								"member",
-								"{{booking_id}}",
-								"cancel"
-							]
-						},
-						"description": "Member cancels their own confirmed booking. Refund policy: 48+ hours = 99% refund (1% fee), 24-48 hours = 49% refund (50% penalty + 1% fee), <24 hours = no refund. Free bookings are cancelled immediately."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Host Pending Bookings",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/bookings/host/pending",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"bookings",
-								"host",
-								"pending"
-							]
-						},
-						"description": "Get all pending bookings for the current host (authenticated user)."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Booking by ID",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/bookings/{{booking_id}}",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"bookings",
-								"{{booking_id}}"
-							]
-						},
-						"description": "Get booking details by ID. Member, host, or superAdmin can view their own/related bookings."
-					},
-					"response": []
-				},
-				{
-					"name": "Approve Booking",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{}"
-						},
-						"url": {
-							"raw": "{{base_url}}/bookings/{{booking_id}}/approve",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"bookings",
-								"{{booking_id}}",
-								"approve"
-							]
-						},
-						"description": "Host approves a pending booking. For paid activities, payment will be captured (released from escrow) and transferred to host."
-					},
-					"response": []
-				},
-				{
-					"name": "Decline Booking",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"declineReason\": \"Activity is fully booked\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/bookings/{{booking_id}}/decline",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"bookings",
-								"{{booking_id}}",
-								"decline"
-							]
-						},
-						"description": "Host declines a pending booking. For paid activities, payment authorization will be cancelled (no charge to member)."
-					},
-					"response": []
-				},
-				{
-					"name": "Host Dashboard",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/bookings/host/dashboard?status=all&activityId=",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"bookings",
-								"host",
-								"dashboard"
-							],
-							"query": [
-								{
-									"key": "status",
-									"value": "all",
-									"description": "Filter by status: pending, confirmed, cancelled, or all"
+					"name": "users",
+					"item": [
+						{
+							"name": "getAll",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
 								},
-								{
-									"key": "activityId",
-									"value": "",
-									"description": "Optional: Filter by specific activity ID. Leave empty for all activities."
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/users",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"users"
+									]
 								}
-							]
+							},
+							"response": []
 						},
-						"description": "Get host dashboard data with booking counts and filtered results. Query params: status (pending/confirmed/cancelled/all) and activityId (optional)."
-					},
-					"response": []
+						{
+							"name": "update",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PUT",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"Marsad\",\n  \"email\": \"marsad11223@gmail.com\",\n  \"address\": \"123 Main Street\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/users/{{user_id}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"users",
+										"{{user_id}}"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "contactus",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"Marsad\",\n    \"email\": \"test@example.com\",\n    \"subject\": \"Question\",\n    \"body\":\"Hello\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/users/contactUs",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"users",
+										"contactUs"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "toggle-role",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/users/toggle-role",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"users",
+										"toggle-role"
+									]
+								}
+							},
+							"response": []
+						}
+					]
 				},
 				{
-					"name": "Get Activity Bookings for Attendance",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
+					"name": "upload file",
+					"item": [
+						{
+							"name": "upload",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "file",
+											"type": "file",
+											"src": []
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/cloudinary/upload",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"cloudinary",
+										"upload"
+									]
 								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/bookings/host/activity/{{activity_id}}/attendance",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"bookings",
-								"host",
-								"activity",
-								"{{activity_id}}",
-								"attendance"
-							]
-						},
-						"description": "Get all confirmed bookings for a specific activity (for marking attendance). Only returns bookings for activities owned by the host."
-					},
-					"response": []
-				},
-				{
-					"name": "Mark Attendance",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"bookingId\": \"{{booking_id}}\",\n  \"attendanceStatus\": \"present\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/bookings/mark-attendance",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"bookings",
-								"mark-attendance"
-							]
-						},
-						"description": "Mark attendance for a booking. attendanceStatus can be 'present' or 'absent'. Only works for confirmed bookings owned by the host."
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "rating",
-			"item": [
-				{
-					"name": "Create Rating",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"bookingId\": \"{{booking_id}}\",\n  \"rating\": 5,\n  \"review\": \"Great activity! Had a wonderful time.\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/ratings",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"ratings"
-							]
-						},
-						"description": "Member rates and reviews a past activity. Rating must be 1-5 stars. Only confirmed bookings for past activities can be rated. One rating per booking."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Activity Ratings",
-					"request": {
-						"auth": {
-							"type": "noauth"
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/ratings/activity/{{activity_id}}",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"ratings",
-								"activity",
-								"{{activity_id}}"
-							]
-						},
-						"description": "Get all ratings for an activity (public endpoint). Returns average rating, total ratings count, and list of ratings."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Member Ratings",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/ratings/member/my-ratings",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"ratings",
-								"member",
-								"my-ratings"
-							]
-						},
-						"description": "Get all ratings given by the current member (authenticated user)."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Member Reviews Dashboard",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/ratings/member/dashboard",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"ratings",
-								"member",
-								"dashboard"
-							]
-						},
-						"description": "Get reviews dashboard data for member including: rating history (average rating, total reviews, rating distribution), activities to review (past activities without ratings), and past reviews (already submitted reviews)."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Host Reviews Dashboard",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/ratings/host/dashboard",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"ratings",
-								"host",
-								"dashboard"
-							]
-						},
-						"description": "Get host reviews dashboard with summary stats: average rating, total reviews, rating distribution (1-5 stars), response rate (%), and pending responses count."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Host Reviews (All Activities)",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/ratings/host/reviews",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"ratings",
-								"host",
-								"reviews"
-							]
-						},
-						"description": "Get all reviews for host's activities. Returns average rating, total reviews, and full reviews array with member and activity details. Includes hostReply if host has replied."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Host Reviews (By Activity ID)",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/ratings/host/reviews?activityId={{activity_id}}",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"ratings",
-								"host",
-								"reviews"
-							],
-							"query": [
-								{
-									"key": "activityId",
-									"value": "{{activity_id}}",
-									"description": "Optional: Filter reviews by activity ID. If not provided, returns all host's reviews."
-								}
-							]
-						},
-						"description": "Get reviews for a specific activity. If activityId is provided, returns reviews for that activity only. Otherwise returns all host's reviews. Includes hostReply if host has replied."
-					},
-					"response": []
-				},
-				{
-					"name": "Reply to Review",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"ratingId\": \"{{rating_id}}\",\n  \"reply\": \"Thank you for your feedback! We're glad you enjoyed the session.\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{base_url}}/ratings/host/reply",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"ratings",
-								"host",
-								"reply"
-							]
-						},
-						"description": "Host can reply to a member's review. One-time reply only - member cannot reply back. Requires ratingId and reply text. Host can only reply to reviews for their own activities."
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "messages",
-			"item": [
-				{
-					"name": "Send Message (Member to Host)",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"activityId\": \"{{activity_id}}\",\n  \"subject\": \"Question about Morning Yoga Session\",\n  \"content\": \"Hi! I'm interested in joining your Morning Yoga Session. I'm a complete beginner - will this be suitable for me? Also, do I need to bring my own mat?\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{base_url}}/messages/send",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"messages",
-								"send"
-							]
-						},
-						"description": "Member can send a message to host about an activity. Email will be sent to host and message saved in DB."
-					},
-					"response": []
-				},
-				{
-					"name": "Reply to Message (Host to Member)",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"messageId\": \"{{message_id}}\",\n  \"content\": \"Hi! Yes, this session is perfect for beginners. We provide all mats and equipment, so you don't need to bring anything. Looking forward to seeing you!\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{base_url}}/messages/reply",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"messages",
-								"reply"
-							]
-						},
-						"description": "Host can reply to a member's message. Email will be sent to member and reply saved in DB."
-					},
-					"response": []
-				},
-				{
-					"name": "Broadcast Message (Host to All Booked Members)",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"activityId\": \"{{activity_id}}\",\n  \"broadcastType\": \"reminder\",\n  \"subject\": \"Reminder: Morning Yoga Session Tomorrow\",\n  \"content\": \"This is a friendly reminder that our Morning Yoga Session is scheduled for tomorrow at 10:00 AM. Please arrive 10 minutes early. See you there!\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{base_url}}/messages/broadcast",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"messages",
-								"broadcast"
-							]
-						},
-						"description": "Host can broadcast a message to all confirmed/pending booked members of an activity. Broadcast types: reminder, event_cancel, general_info. Email will be sent to all members and messages saved in DB."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Inbox",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/messages/inbox",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"messages",
-								"inbox"
-							]
-						},
-						"description": "Get all messages received by the current user (inbox). For host: shows messages from members. For member: shows messages from host (replies and broadcasts). Returns messages with sender, activity, parent message (if reply), and seen status."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Sent Messages",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/messages/sent",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"messages",
-								"sent"
-							]
-						},
-						"description": "Get all messages sent by the current user. Shows messages you have sent to others."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Conversations",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/messages/conversations",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"messages",
-								"conversations"
-							]
-						},
-						"description": "Get all conversations (grouped messages) for the current user. Shows both sent and received messages grouped by activity and conversation partner. Each conversation includes: activity details, conversation partner info, all messages in thread, unread count, and last message timestamp. Sorted by last message time (most recent first)."
-					},
-					"response": []
-				},
-				{
-					"name": "Mark Message as Seen",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "PUT",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/messages/{{message_id}}/seen",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"messages",
-								"{{message_id}}",
-								"seen"
-							]
-						},
-						"description": "Mark a message as seen. Updates isSeen to true and sets seenAt timestamp."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Unread Count",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/messages/unread-count",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"messages",
-								"unread-count"
-							]
-						},
-						"description": "Get count of unread messages for the current user."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Host Broadcast Messages (All)",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/messages/host/broadcasts",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"messages",
-								"host",
-								"broadcasts"
-							]
-						},
-						"description": "Get all broadcast messages sent by the host. Returns unique broadcasts grouped by activity, subject, and timestamp. Includes sentTo count (number of members who received the broadcast)."
-					},
-					"response": []
-				},
-				{
-					"name": "Get Host Broadcast Messages (By Activity)",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/messages/host/broadcasts?activityId={{activity_id}}",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"messages",
-								"host",
-								"broadcasts"
-							],
-							"query": [
-								{
-									"key": "activityId",
-									"value": "{{activity_id}}",
-									"description": "Optional: Filter broadcasts by activity ID"
-								}
-							]
-						},
-						"description": "Get broadcast messages for a specific activity. If activityId is provided, returns broadcasts for that activity only. Otherwise returns all host's broadcasts."
-					},
-					"response": []
+							},
+							"response": []
+						}
+					]
 				}
 			]
 		}
@@ -2220,6 +1934,31 @@
 		{
 			"key": "base_prod",
 			"value": ""
+		},
+		{
+			"key": "activity_id",
+			"value": "",
+			"description": "Activity ID for testing"
+		},
+		{
+			"key": "booking_id",
+			"value": "",
+			"description": "Booking ID for testing"
+		},
+		{
+			"key": "user_id",
+			"value": "",
+			"description": "User ID for testing"
+		},
+		{
+			"key": "rating_id",
+			"value": "",
+			"description": "Rating ID for testing"
+		},
+		{
+			"key": "message_id",
+			"value": "",
+			"description": "Message ID for testing"
 		}
 	]
 }

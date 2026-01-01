@@ -7,16 +7,29 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Activity } from 'src/schemas/activity.schema';
 import { Rating } from 'src/schemas/rating.schema';
-import { Booking, BookingStatus } from 'src/schemas/booking.schema';
+import {
+  Booking,
+  BookingStatus,
+  PaymentStatus,
+} from 'src/schemas/booking.schema';
 import mongoose, { Model } from 'mongoose';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
 import { BrowseActivitiesDto, PriceFilter } from './dto/browse-activities.dto';
 import { User, Role } from 'src/schemas/user.schema';
 import { RecurringType, ActivityStatus } from 'src/schemas/activity.schema';
+import { ConfigService } from '@nestjs/config';
+import Stripe from 'stripe';
+import { MailerService } from '@nestjs-modules/mailer';
+import {
+  activityCancelledFreeToMember,
+  activityCancelledWithRefundToMember,
+} from 'src/utils/email-templates';
 
 @Injectable()
 export class ActivityService {
+  private stripe: Stripe;
+
   constructor(
     @InjectModel(Activity.name)
     private readonly activityModel: Model<Activity>,
@@ -26,7 +39,14 @@ export class ActivityService {
     private readonly ratingModel: Model<Rating>,
     @InjectModel(Booking.name)
     private readonly bookingModel: Model<Booking>,
-  ) {}
+    private configService: ConfigService,
+    private readonly mailerService: MailerService,
+  ) {
+    const stripeSecretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
+    if (stripeSecretKey) {
+      this.stripe = new Stripe(stripeSecretKey);
+    }
+  }
 
   async create(
     createActivityDto: CreateActivityDto,
@@ -719,6 +739,314 @@ export class ActivityService {
       });
 
       return newActivity;
+    } catch (err) {
+      if (
+        err instanceof NotFoundException ||
+        err instanceof ForbiddenException ||
+        err instanceof BadRequestException
+      ) {
+        throw err;
+      }
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  async getUpcomingActivities(hostId: string): Promise<any[]> {
+    try {
+      const isValidID = mongoose.isValidObjectId(hostId);
+      if (!isValidID) {
+        throw new BadRequestException('Invalid host ID');
+      }
+
+      const now = new Date();
+      now.setHours(0, 0, 0, 0); // Start of today
+
+      // Get upcoming activities (date >= today and status = ACTIVE)
+      const activities = await this.activityModel
+        .find({
+          hostId: new mongoose.Types.ObjectId(hostId),
+          deleted_at: null,
+          status: ActivityStatus.ACTIVE,
+          date: { $gte: now },
+        })
+        .populate('hostId', 'name email profilePhoto')
+        .sort({ date: 1 }); // Sort by date ascending (earliest first)
+
+      return this.addRatingsToActivities(activities);
+    } catch (err) {
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  async cancelActivity(
+    id: string,
+    userId: string,
+    cancelReason?: string,
+  ): Promise<{ message: string; refundsProcessed: number }> {
+    try {
+      const activity = await this.activityModel.findOne({
+        _id: id,
+        deleted_at: null,
+      });
+
+      if (!activity) {
+        throw new NotFoundException('Activity not found');
+      }
+
+      // Check if user is the host who created the activity or superAdmin
+      const activityHostId = (activity.hostId as any).toString();
+      const user = await this.userModel.findById(userId);
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      const isSuperAdmin = user.role === Role.superAdmin;
+      const isActivityHost = activityHostId === userId;
+
+      if (!isSuperAdmin && !isActivityHost) {
+        throw new ForbiddenException('You can only cancel your own activities');
+      }
+
+      // Check if activity is already cancelled or completed
+      if (activity.status === ActivityStatus.CANCELLED) {
+        throw new BadRequestException('Activity is already cancelled');
+      }
+
+      if (activity.status === ActivityStatus.COMPLETED) {
+        throw new BadRequestException('Cannot cancel a completed activity');
+      }
+
+      // Mark activity as cancelled
+      activity.status = ActivityStatus.CANCELLED;
+      activity.updated_at = new Date();
+      await activity.save();
+
+      // Get all confirmed bookings for this activity
+      const confirmedBookings = await this.bookingModel.find({
+        activityId: new mongoose.Types.ObjectId(id),
+        status: BookingStatus.CONFIRMED,
+        deleted_at: null,
+      });
+
+      // Get all pending bookings for this activity
+      const pendingBookings = await this.bookingModel.find({
+        activityId: new mongoose.Types.ObjectId(id),
+        status: BookingStatus.PENDING,
+        deleted_at: null,
+      });
+
+      // Process refunds for paid activities
+      let refundsProcessed = 0;
+      const isPaidActivity = (activity.price || 0) > 0;
+
+      if (isPaidActivity) {
+        // Process refunds for confirmed bookings
+        for (const booking of confirmedBookings) {
+          if (booking.amount > 0 && booking.paymentIntentId) {
+            try {
+              // Calculate refund amount (fee - stripe fee)
+              // Stripe fee: 2.9% + 30 cents
+              const stripeFeePercentage = 0.029;
+              const stripeFeeFixed = 30; // 30 cents
+              const originalAmountCents = Math.round(booking.amount * 100);
+              const stripeFee =
+                Math.round(originalAmountCents * stripeFeePercentage) +
+                stripeFeeFixed;
+              const refundAmount = Math.max(0, originalAmountCents - stripeFee);
+
+              if (refundAmount > 0 && this.stripe) {
+                // Get charge ID from booking or payment intent
+                let chargeId = booking.stripeChargeId;
+                if (!chargeId && booking.paymentIntentId) {
+                  try {
+                    const paymentIntent =
+                      await this.stripe.paymentIntents.retrieve(
+                        booking.paymentIntentId,
+                      );
+                    chargeId = paymentIntent.latest_charge as string;
+                  } catch (err) {
+                    console.error('Error retrieving payment intent:', err);
+                  }
+                }
+
+                if (chargeId) {
+                  try {
+                    // Create partial refund
+                    const refund = await this.stripe.refunds.create({
+                      charge: chargeId,
+                      amount: refundAmount,
+                      reason: 'requested_by_customer',
+                      metadata: {
+                        bookingId: (booking._id as any).toString(),
+                        activityId: id,
+                        type: 'activity_cancelled_by_host',
+                      },
+                    });
+
+                    // Update booking
+                    booking.status = BookingStatus.CANCELLED;
+                    booking.paymentStatus = PaymentStatus.REFUNDED;
+                    booking.stripeRefundId = refund.id;
+                    booking.declineReason =
+                      cancelReason || 'Activity cancelled by host';
+                    booking.updated_at = new Date();
+                    await booking.save();
+
+                    refundsProcessed++;
+
+                    // Send email notification
+                    const member = await this.userModel.findById(
+                      booking.memberId,
+                    );
+                    if (member) {
+                      const emailsEnabled =
+                        this.configService.get<string>('EMAILS_ENABLED') ===
+                        'true';
+                      if (emailsEnabled) {
+                        try {
+                          const activityDate = new Date(activity.date);
+                          await this.mailerService.sendMail({
+                            to: member.email,
+                            subject: 'Activity Cancelled - Refund Processed',
+                            html: activityCancelledWithRefundToMember({
+                              memberName: member.name,
+                              memberEmail: member.email,
+                              activityTitle: activity.title,
+                              activityDate: activityDate.toLocaleDateString(
+                                'en-US',
+                                {
+                                  weekday: 'long',
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric',
+                                },
+                              ),
+                              cancelReason: cancelReason,
+                              originalAmount: booking.amount,
+                              refundAmount: refundAmount,
+                              refundId: refund.id,
+                            }),
+                          });
+                        } catch (emailError: any) {
+                          console.error(
+                            'Error sending cancellation email:',
+                            emailError,
+                          );
+                        }
+                      }
+                    }
+                  } catch (refundError: any) {
+                    console.error(
+                      `Error processing refund for booking ${(booking._id as any).toString()}:`,
+                      refundError.message,
+                    );
+                  }
+                }
+              }
+            } catch (refundError: any) {
+              console.error(
+                `Error processing refund for booking ${(booking._id as any).toString()}:`,
+                refundError.message,
+              );
+              // Continue with other bookings even if one fails
+            }
+          }
+        }
+
+        // Cancel pending bookings (no refund needed as payment wasn't captured)
+        for (const booking of pendingBookings) {
+          if (booking.amount > 0 && booking.paymentIntentId && this.stripe) {
+            try {
+              // Cancel the payment intent (release authorization)
+              await this.stripe.paymentIntents.cancel(booking.paymentIntentId);
+            } catch (cancelError: any) {
+              console.error(
+                `Error cancelling payment intent for booking ${(booking._id as any).toString()}:`,
+                cancelError.message,
+              );
+            }
+          }
+
+          booking.status = BookingStatus.CANCELLED;
+          booking.declineReason = cancelReason || 'Activity cancelled by host';
+          booking.updated_at = new Date();
+          await booking.save();
+
+          // Send email notification for free activity cancellation
+          const member = await this.userModel.findById(booking.memberId);
+          if (member) {
+            const emailsEnabled =
+              this.configService.get<string>('EMAILS_ENABLED') === 'true';
+            if (emailsEnabled) {
+              try {
+                const activityDate = new Date(activity.date);
+                await this.mailerService.sendMail({
+                  to: member.email,
+                  subject: 'Activity Cancelled',
+                  html: activityCancelledFreeToMember({
+                    memberName: member.name,
+                    memberEmail: member.email,
+                    activityTitle: activity.title,
+                    activityDate: activityDate.toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    }),
+                    cancelReason: cancelReason,
+                  }),
+                });
+              } catch (emailError: any) {
+                console.error('Error sending cancellation email:', emailError);
+              }
+            }
+          }
+        }
+      } else {
+        // Free activity - just cancel all bookings and send emails
+        const allBookings = [...confirmedBookings, ...pendingBookings];
+        for (const booking of allBookings) {
+          booking.status = BookingStatus.CANCELLED;
+          booking.declineReason = cancelReason || 'Activity cancelled by host';
+          booking.updated_at = new Date();
+          await booking.save();
+
+          // Send email notification
+          const member = await this.userModel.findById(booking.memberId);
+          if (member) {
+            const emailsEnabled =
+              this.configService.get<string>('EMAILS_ENABLED') === 'true';
+            if (emailsEnabled) {
+              try {
+                const activityDate = new Date(activity.date);
+                await this.mailerService.sendMail({
+                  to: member.email,
+                  subject: 'Activity Cancelled',
+                  html: activityCancelledFreeToMember({
+                    memberName: member.name,
+                    memberEmail: member.email,
+                    activityTitle: activity.title,
+                    activityDate: activityDate.toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    }),
+                    cancelReason: cancelReason,
+                  }),
+                });
+              } catch (emailError: any) {
+                console.error('Error sending cancellation email:', emailError);
+              }
+            }
+          }
+        }
+      }
+
+      return {
+        message: 'Activity cancelled successfully',
+        refundsProcessed: refundsProcessed,
+      };
     } catch (err) {
       if (
         err instanceof NotFoundException ||

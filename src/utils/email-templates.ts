@@ -341,3 +341,64 @@ export function passwordChangedSuccessfully(data: {
   `;
 }
 
+/**
+ * Activity Cancelled by Host (Free Activity - to Member)
+ */
+export function activityCancelledFreeToMember(data: {
+  memberName: string;
+  memberEmail: string;
+  activityTitle: string;
+  activityDate: string;
+  cancelReason?: string;
+}): string {
+  const { memberName, memberEmail, activityTitle, activityDate, cancelReason } =
+    data;
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>Activity Cancelled</h2>
+      <p>Hello ${memberName || memberEmail},</p>
+      <p>We regret to inform you that the activity <strong>${activityTitle}</strong> scheduled for ${activityDate} has been cancelled by the host.</p>
+      ${cancelReason ? `<p><strong>Reason:</strong> ${cancelReason}</p>` : ''}
+      <p>We apologize for any inconvenience this may cause.</p>
+    </div>
+  `;
+}
+
+/**
+ * Activity Cancelled by Host (Paid Activity - to Member with Refund)
+ */
+export function activityCancelledWithRefundToMember(data: {
+  memberName: string;
+  memberEmail: string;
+  activityTitle: string;
+  activityDate: string;
+  cancelReason?: string;
+  originalAmount: number;
+  refundAmount: number;
+  refundId: string;
+}): string {
+  const {
+    memberName,
+    memberEmail,
+    activityTitle,
+    activityDate,
+    cancelReason,
+    originalAmount,
+    refundAmount,
+    refundId,
+  } = data;
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>Activity Cancelled</h2>
+      <p>Hello ${memberName || memberEmail},</p>
+      <p>We regret to inform you that the activity <strong>${activityTitle}</strong> scheduled for ${activityDate} has been cancelled by the host.</p>
+      ${cancelReason ? `<p><strong>Reason:</strong> ${cancelReason}</p>` : ''}
+      <p><strong>Refund Details:</strong></p>
+      <p>Original Amount: $${originalAmount.toFixed(2)}</p>
+      <p>Refund Amount: $${(refundAmount / 100).toFixed(2)}</p>
+      <p>Refund will be processed to your original payment method within 5-10 business days.</p>
+      <p>Refund ID: ${refundId}</p>
+      <p>We apologize for any inconvenience this may cause.</p>
+    </div>
+  `;
+}

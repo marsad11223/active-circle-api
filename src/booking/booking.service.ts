@@ -1541,4 +1541,115 @@ export class BookingService {
       throw new BadRequestException(err.message);
     }
   }
+
+  /**
+   * Get all members (confirmed + pending) for an activity
+   * Used by host to view attendee list
+   */
+  async getActivityMembers(
+    activityId: string,
+    hostId: string,
+  ): Promise<{
+    activity: any;
+    totalAttendees: number;
+    confirmed: number;
+    pending: number;
+    maxParticipants: number;
+    members: any[];
+  }> {
+    try {
+      const isValidActivityId = mongoose.isValidObjectId(activityId);
+      const isValidHostId = mongoose.isValidObjectId(hostId);
+
+      if (!isValidActivityId) {
+        throw new BadRequestException('Invalid activity ID');
+      }
+      if (!isValidHostId) {
+        throw new BadRequestException('Invalid host ID');
+      }
+
+      // Verify activity exists and belongs to host
+      const activity = await this.activityModel.findById(activityId);
+      if (!activity) {
+        throw new NotFoundException('Activity not found');
+      }
+
+      // Check if host owns this activity
+      let activityHostId: string;
+      if (
+        activity.hostId &&
+        typeof activity.hostId === 'object' &&
+        '_id' in activity.hostId
+      ) {
+        activityHostId = (activity.hostId as any)._id.toString();
+      } else {
+        activityHostId = (activity.hostId as any).toString();
+      }
+
+      if (activityHostId !== hostId) {
+        throw new ForbiddenException(
+          'You can only view members for your own activities',
+        );
+      }
+
+      // Get all bookings (confirmed and pending) for this activity
+      const bookings = await this.bookingModel
+        .find({
+          activityId: new mongoose.Types.ObjectId(activityId),
+          hostId: new mongoose.Types.ObjectId(hostId),
+          status: { $in: [BookingStatus.CONFIRMED, BookingStatus.PENDING] },
+          deleted_at: null,
+        })
+        .populate('memberId', 'name email profilePhoto')
+        .sort({ created_at: -1 });
+
+      const confirmedCount = bookings.filter(
+        (b) => b.status === BookingStatus.CONFIRMED,
+      ).length;
+      const pendingCount = bookings.filter(
+        (b) => b.status === BookingStatus.PENDING,
+      ).length;
+
+      // Format member data
+      const members = bookings.map((booking) => {
+        const member = booking.memberId as any;
+        return {
+          _id: booking._id,
+          member: {
+            _id: member?._id || member,
+            name: member?.name || '',
+            email: member?.email || '',
+            profilePhoto: member?.profilePhoto || null,
+          },
+          status: booking.status,
+          bookedOn: booking.created_at,
+          amount: booking.amount,
+        };
+      });
+
+      return {
+        activity: {
+          _id: activity._id,
+          title: activity.title,
+          date: activity.date,
+          time: activity.time,
+          location: activity.location,
+        },
+        totalAttendees: bookings.length,
+        confirmed: confirmedCount,
+        pending: pendingCount,
+        maxParticipants: activity.maxParticipants,
+        members: members,
+      };
+    } catch (err) {
+      if (
+        err instanceof NotFoundException ||
+        err instanceof BadRequestException ||
+        err instanceof ForbiddenException
+      ) {
+        throw err;
+      }
+      throw new BadRequestException(err.message);
+    }
+  }
 }

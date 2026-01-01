@@ -7,6 +7,7 @@ import { User, UserSchema } from 'src/schemas/user.schema';
 import { Rating, RatingSchema } from 'src/schemas/rating.schema';
 import { Booking, BookingSchema } from 'src/schemas/booking.schema';
 import { AuthModule } from 'src/auth/auth.module';
+import { MailerModule } from '@nestjs-modules/mailer';
 
 @Module({
   imports: [
@@ -17,10 +18,10 @@ import { AuthModule } from 'src/auth/auth.module';
       { name: Booking.name, schema: BookingSchema },
     ]),
     forwardRef(() => AuthModule),
+    MailerModule,
   ],
   controllers: [ActivityController],
   providers: [ActivityService],
   exports: [ActivityService],
 })
 export class ActivityModule {}
-
