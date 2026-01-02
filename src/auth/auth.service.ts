@@ -81,7 +81,12 @@ export class AuthService {
       };
 
       // Set permanent role to 'host' if user has active subscription
-      if (user.hasActiveSubscription && user.role !== Role.host) {
+      // Exclude superAdmin from role changes - superAdmin role should never be modified
+      if (
+        user.hasActiveSubscription &&
+        user.role !== Role.host &&
+        user.role !== Role.superAdmin
+      ) {
         updateData.role = Role.host;
       }
 

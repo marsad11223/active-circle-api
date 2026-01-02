@@ -1944,7 +1944,7 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{base_url}}/users/admin/members?page=1&limit=10&search=&sortBy=created_at&sortOrder=desc",
+									"raw": "{{base_url}}/users/admin/members?page=1&limit=10&search=&sortBy=created_at&sortOrder=desc&hasSubscription=all",
 									"host": [
 										"{{base_url}}"
 									],
@@ -1979,10 +1979,15 @@
 											"key": "sortOrder",
 											"value": "desc",
 											"description": "Sort order: asc or desc"
+										},
+										{
+											"key": "hasSubscription",
+											"value": "all",
+											"description": "Filter by subscription status: true (active subscription), false (no subscription), or all (default: all)"
 										}
 									]
 								},
-								"description": "Get paginated list of all members (users except admins). Admin only. Filters: search (name/email), sortBy, sortOrder, page, limit."
+								"description": "Get paginated list of all members (users except admins). Admin only. Filters: search (name/email), sortBy, sortOrder, page, limit, hasSubscription (true/false/all)."
 							},
 							"response": []
 						},
@@ -2002,7 +2007,7 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{base_url}}/users/admin/hosts?page=1&limit=10&search=&sortBy=created_at&sortOrder=desc",
+									"raw": "{{base_url}}/users/admin/hosts?page=1&limit=10&search=&sortBy=created_at&sortOrder=desc&hasSubscription=all",
 									"host": [
 										"{{base_url}}"
 									],
@@ -2037,10 +2042,15 @@
 											"key": "sortOrder",
 											"value": "desc",
 											"description": "Sort order: asc or desc"
+										},
+										{
+											"key": "hasSubscription",
+											"value": "all",
+											"description": "Filter by subscription status: true (active subscription), false (no subscription), or all (default: all)"
 										}
 									]
 								},
-								"description": "Get paginated list of all hosts (users with role = host, subscription true or false). Admin only. Filters: search (name/email), sortBy, sortOrder, page, limit."
+								"description": "Get paginated list of all hosts (users with role = host, subscription true or false). Admin only. Filters: search (name/email), sortBy, sortOrder, page, limit, hasSubscription (true/false/all)."
 							},
 							"response": []
 						}

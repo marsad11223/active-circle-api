@@ -21,6 +21,7 @@ import {
   AdminListUsersDto,
   UserSortBy,
   SortOrder,
+  HasSubscription,
 } from './dto/admin-list-users.dto';
 
 @Injectable()
@@ -367,6 +368,12 @@ export class UsersService {
         deleted_at: null,
       };
 
+      // Subscription filter
+      const hasSubscriptionFilter = filters.hasSubscription || HasSubscription.ALL;
+      if (hasSubscriptionFilter !== HasSubscription.ALL) {
+        query.hasActiveSubscription = hasSubscriptionFilter === HasSubscription.TRUE;
+      }
+
       // Search filter (name or email)
       if (filters.search) {
         query.$or = [
@@ -446,6 +453,12 @@ export class UsersService {
         role: Role.host,
         deleted_at: null,
       };
+
+      // Subscription filter
+      const hasSubscriptionFilter = filters.hasSubscription || HasSubscription.ALL;
+      if (hasSubscriptionFilter !== HasSubscription.ALL) {
+        query.hasActiveSubscription = hasSubscriptionFilter === HasSubscription.TRUE;
+      }
 
       // Search filter (name or email)
       if (filters.search) {

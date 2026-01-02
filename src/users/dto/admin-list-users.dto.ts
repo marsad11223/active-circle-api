@@ -13,6 +13,12 @@ export enum SortOrder {
   DESC = 'desc',
 }
 
+export enum HasSubscription {
+  TRUE = 'true',
+  FALSE = 'false',
+  ALL = 'all',
+}
+
 export class AdminListUsersDto {
   @IsOptional()
   @Type(() => Number)
@@ -37,5 +43,9 @@ export class AdminListUsersDto {
   @IsOptional()
   @IsEnum(SortOrder)
   sortOrder?: SortOrder = SortOrder.DESC;
+
+  @IsOptional()
+  @IsEnum(HasSubscription)
+  hasSubscription?: HasSubscription = HasSubscription.ALL; // Filter by subscription status: true, false, or all
 }
 
