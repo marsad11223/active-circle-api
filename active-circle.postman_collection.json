@@ -2053,6 +2053,162 @@
 								"description": "Get paginated list of all hosts (users with role = host, subscription true or false). Admin only. Filters: search (name/email), sortBy, sortOrder, page, limit, hasSubscription (true/false/all)."
 							},
 							"response": []
+						},
+						{
+							"name": "Get All Activities",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/activities/admin/all?page=1&limit=10&search=&timeFilter=all&status=all&sortBy=date&sortOrder=desc",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"activities",
+										"admin",
+										"all"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "1",
+											"description": "Page number (default: 1)"
+										},
+										{
+											"key": "limit",
+											"value": "10",
+											"description": "Items per page (default: 10)"
+										},
+										{
+											"key": "search",
+											"value": "",
+											"description": "Search by title, description, location, or host name",
+											"disabled": true
+										},
+										{
+											"key": "timeFilter",
+											"value": "all",
+											"description": "Filter by time: all, upcoming, past (default: all)"
+										},
+										{
+											"key": "status",
+											"value": "all",
+											"description": "Filter by status: all, active, completed, cancelled (default: all)"
+										},
+										{
+											"key": "sortBy",
+											"value": "date",
+											"description": "Sort by: date, title, price, maxParticipants, created_at (default: date)"
+										},
+										{
+											"key": "sortOrder",
+											"value": "desc",
+											"description": "Sort order: asc or desc (default: desc - Latest to Oldest)"
+										}
+									]
+								},
+								"description": "Get paginated list of all activities for admin. Admin only. Filters: search (title/description/location/host name), timeFilter (all/upcoming/past), status (all/active/completed/cancelled), sortBy, sortOrder, page, limit. Returns activities with host details, attendance, reviews & ratings, and earnings."
+							},
+							"response": []
+						},
+						{
+							"name": "Get All Bookings",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/bookings/admin/all?page=1&limit=10&search=&status=&paymentStatus=&attendanceStatus=&startDate=&endDate=&sortBy=created_at&sortOrder=desc",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"bookings",
+										"admin",
+										"all"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "1",
+											"description": "Page number (default: 1)"
+										},
+										{
+											"key": "limit",
+											"value": "10",
+											"description": "Items per page (default: 10)"
+										},
+										{
+											"key": "search",
+											"value": "",
+											"description": "Search by member name, activity title, or host name",
+											"disabled": true
+										},
+										{
+											"key": "status",
+											"value": "",
+											"description": "Filter by booking status: pending, confirmed, cancelled",
+											"disabled": true
+										},
+										{
+											"key": "paymentStatus",
+											"value": "",
+											"description": "Filter by payment status: pending, paid, refunded, transferred",
+											"disabled": true
+										},
+										{
+											"key": "attendanceStatus",
+											"value": "",
+											"description": "Filter by attendance status: pending, present, absent",
+											"disabled": true
+										},
+										{
+											"key": "startDate",
+											"value": "",
+											"description": "Filter bookings by activity date (from date) - ISO date string",
+											"disabled": true
+										},
+										{
+											"key": "endDate",
+											"value": "",
+											"description": "Filter bookings by activity date (to date) - ISO date string",
+											"disabled": true
+										},
+										{
+											"key": "sortBy",
+											"value": "created_at",
+											"description": "Sort by: created_at, amount, activityDate (default: created_at)"
+										},
+										{
+											"key": "sortOrder",
+											"value": "desc",
+											"description": "Sort order: asc or desc (default: desc - Latest to Oldest)"
+										}
+									]
+								},
+								"description": "Get paginated list of all bookings for admin. Admin only. Filters: search (member name/activity title/host name), status (pending/confirmed/cancelled), paymentStatus (pending/paid/refunded/transferred), attendanceStatus (pending/present/absent), startDate, endDate (activity date range), sortBy, sortOrder, page, limit. Returns bookings with member, host, and activity details."
+							},
+							"response": []
 						}
 					]
 				},

@@ -17,6 +17,7 @@ import { Rating } from 'src/schemas/rating.schema';
 import mongoose, { Model } from 'mongoose';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
+import { AdminListBookingsDto, BookingSortBy, SortOrder } from './dto/admin-list-bookings.dto';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { MailerService } from '@nestjs-modules/mailer';
@@ -1649,6 +1650,263 @@ export class BookingService {
       ) {
         throw err;
       }
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  /**
+   * Get paginated list of all bookings for admin
+   * Supports search, filters, and sorting
+   */
+  async getAllBookingsForAdmin(
+    filters: AdminListBookingsDto,
+  ): Promise<{
+    bookings: any[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    try {
+      const page = filters.page || 1;
+      const limit = filters.limit || 10;
+      const skip = (page - 1) * limit;
+
+      // Build base query
+      const query: any = {
+        deleted_at: null,
+      };
+
+      // Status filter
+      if (filters.status) {
+        query.status = filters.status;
+      }
+
+      // Payment status filter
+      if (filters.paymentStatus !== undefined) {
+        if (filters.paymentStatus === null) {
+          // Filter for free activities (paymentStatus is null)
+          query.paymentStatus = null;
+        } else {
+          query.paymentStatus = filters.paymentStatus;
+        }
+      }
+
+      // Attendance status filter
+      if (filters.attendanceStatus) {
+        query.attendanceStatus = filters.attendanceStatus;
+      }
+
+      // Date range filter (activity date)
+      let activityDateFilter: any = null;
+      if (filters.startDate || filters.endDate) {
+        activityDateFilter = {};
+        if (filters.startDate) {
+          const startDate = new Date(filters.startDate);
+          startDate.setHours(0, 0, 0, 0);
+          activityDateFilter.$gte = startDate;
+        }
+        if (filters.endDate) {
+          const endDate = new Date(filters.endDate);
+          endDate.setHours(23, 59, 59, 999);
+          activityDateFilter.$lte = endDate;
+        }
+      }
+
+      // Search filter (member name, activity title, host name)
+      if (filters.search) {
+        // Find matching members
+        const matchingMembers = await this.userModel.find({
+          name: { $regex: filters.search, $options: 'i' },
+          deleted_at: null,
+        });
+        const matchingMemberIds = matchingMembers.map((member) => member._id);
+
+        // Find matching hosts
+        const matchingHosts = await this.userModel.find({
+          name: { $regex: filters.search, $options: 'i' },
+          deleted_at: null,
+        });
+        const matchingHostIds = matchingHosts.map((host) => host._id);
+
+        // Find matching activities
+        const matchingActivities = await this.activityModel.find({
+          $or: [
+            { title: { $regex: filters.search, $options: 'i' } },
+            { description: { $regex: filters.search, $options: 'i' } },
+            { location: { $regex: filters.search, $options: 'i' } },
+          ],
+          deleted_at: null,
+        });
+        const matchingActivityIds = matchingActivities.map((activity) => activity._id);
+
+        // Build search conditions
+        const searchConditions: any[] = [];
+
+        if (matchingMemberIds.length > 0) {
+          searchConditions.push({ memberId: { $in: matchingMemberIds } });
+        }
+
+        if (matchingHostIds.length > 0) {
+          searchConditions.push({ hostId: { $in: matchingHostIds } });
+        }
+
+        if (matchingActivityIds.length > 0) {
+          searchConditions.push({ activityId: { $in: matchingActivityIds } });
+        }
+
+        if (searchConditions.length > 0) {
+          query.$or = searchConditions;
+        } else {
+          // No matches found, return empty result
+          query._id = { $in: [] };
+        }
+      }
+
+      // Build sort
+      const sortBy = filters.sortBy || BookingSortBy.CREATED_AT;
+      const sortOrder = filters.sortOrder === SortOrder.ASC ? 1 : -1;
+      const sort: any = {};
+
+      // Handle special case for activity date sorting
+      if (sortBy === BookingSortBy.ACTIVITY_DATE) {
+        // We'll sort after populating activities
+        sort.created_at = sortOrder; // Temporary sort
+      } else {
+        sort[sortBy] = sortOrder;
+      }
+
+      // Get paginated bookings
+      let bookings = await this.bookingModel
+        .find(query)
+        .populate('memberId', 'name email profilePhoto')
+        .populate('hostId', 'name email profilePhoto')
+        .populate('activityId', 'title description location date time picture category maxParticipants price status')
+        .sort(sort)
+        .skip(skip)
+        .limit(limit);
+
+      // Filter by activity date if specified (after populating)
+      if (activityDateFilter) {
+        bookings = bookings.filter((booking) => {
+          const activity = booking.activityId as any;
+          if (!activity || !activity.date) return false;
+          const activityDate = new Date(activity.date);
+          if (activityDateFilter.$gte && activityDate < activityDateFilter.$gte) {
+            return false;
+          }
+          if (activityDateFilter.$lte && activityDate > activityDateFilter.$lte) {
+            return false;
+          }
+          return true;
+        });
+      }
+
+      // Get total count - need to account for activity date filter
+      let total: number;
+      if (activityDateFilter) {
+        // Use aggregation pipeline to filter by activity date efficiently
+        const matchStage: any = { ...query };
+        
+        const lookupStage = {
+          $lookup: {
+            from: 'activities',
+            localField: 'activityId',
+            foreignField: '_id',
+            as: 'activity',
+          },
+        };
+        
+        const unwindStage = { $unwind: { path: '$activity', preserveNullAndEmptyArrays: false } };
+        
+        const activityDateMatch: any = {};
+        if (activityDateFilter.$gte) {
+          activityDateMatch['activity.date'] = { $gte: activityDateFilter.$gte };
+        }
+        if (activityDateFilter.$lte) {
+          if (activityDateMatch['activity.date']) {
+            activityDateMatch['activity.date'].$lte = activityDateFilter.$lte;
+          } else {
+            activityDateMatch['activity.date'] = { $lte: activityDateFilter.$lte };
+          }
+        }
+        
+        const countResult = await this.bookingModel.aggregate([
+          { $match: matchStage },
+          lookupStage,
+          unwindStage,
+          { $match: activityDateMatch },
+          { $count: 'total' },
+        ]);
+        
+        total = countResult.length > 0 ? countResult[0].total : 0;
+      } else {
+        total = await this.bookingModel.countDocuments(query);
+      }
+
+      // Sort by activity date if requested (after filtering)
+      if (sortBy === BookingSortBy.ACTIVITY_DATE) {
+        bookings.sort((a, b) => {
+          const activityA = a.activityId as any;
+          const activityB = b.activityId as any;
+          const dateA = activityA?.date ? new Date(activityA.date).getTime() : 0;
+          const dateB = activityB?.date ? new Date(activityB.date).getTime() : 0;
+          return sortOrder === 1 ? dateA - dateB : dateB - dateA;
+        });
+      }
+
+      // Format booking data
+      const formattedBookings = bookings.map((booking) => {
+        const member = booking.memberId as any;
+        const host = booking.hostId as any;
+        const activity = booking.activityId as any;
+
+        return {
+          _id: booking._id,
+          member: {
+            _id: member?._id || member,
+            name: member?.name || '',
+            email: member?.email || '',
+            profilePhoto: member?.profilePhoto || null,
+          },
+          host: {
+            _id: host?._id || host,
+            name: host?.name || '',
+            email: host?.email || '',
+            profilePhoto: host?.profilePhoto || null,
+          },
+          activity: {
+            _id: activity?._id || activity,
+            title: activity?.title || '',
+            description: activity?.description || '',
+            location: activity?.location || '',
+            date: activity?.date || null,
+            time: activity?.time || '',
+            picture: activity?.picture || null,
+            category: activity?.category || [],
+            maxParticipants: activity?.maxParticipants || 0,
+            price: activity?.price || 0,
+            status: activity?.status || null,
+          },
+          status: booking.status,
+          paymentStatus: booking.paymentStatus || null,
+          attendanceStatus: booking.attendanceStatus || AttendanceStatus.PENDING,
+          amount: booking.amount || 0,
+          invoiceNumber: booking.invoiceNumber || null,
+          declineReason: booking.declineReason || null,
+          created_at: booking.created_at,
+          updated_at: booking.updated_at,
+        };
+      });
+
+      return {
+        bookings: formattedBookings,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      };
+    } catch (err) {
       throw new BadRequestException(err.message);
     }
   }

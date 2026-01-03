@@ -17,6 +17,13 @@ import mongoose, { Model } from 'mongoose';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
 import { BrowseActivitiesDto, PriceFilter } from './dto/browse-activities.dto';
+import {
+  AdminListActivitiesDto,
+  ActivitySortBy,
+  SortOrder,
+  ActivityTimeFilter,
+  ActivityStatusFilter,
+} from './dto/admin-list-activities.dto';
 import { User, Role } from 'src/schemas/user.schema';
 import { RecurringType, ActivityStatus } from 'src/schemas/activity.schema';
 import { ConfigService } from '@nestjs/config';
@@ -1271,6 +1278,273 @@ export class ActivityService {
       });
 
       return activitiesWithDetails;
+    } catch (err) {
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  /**
+   * Get paginated list of all activities for admin
+   * Supports search, filters, and sorting
+   */
+  async getAllActivitiesForAdmin(
+    filters: AdminListActivitiesDto,
+  ): Promise<{
+    activities: any[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    try {
+      const page = filters.page || 1;
+      const limit = filters.limit || 10;
+      const skip = (page - 1) * limit;
+
+      // Build base query
+      const query: any = {
+        deleted_at: null,
+      };
+
+      // Time filter (upcoming, past, or all)
+      const now = new Date();
+      now.setHours(0, 0, 0, 0); // Start of today
+      const timeFilter = filters.timeFilter || ActivityTimeFilter.ALL;
+      const statusFilter = filters.status || ActivityStatusFilter.ALL;
+
+      // Build date and status query based on time filter and status filter
+      if (timeFilter === ActivityTimeFilter.UPCOMING) {
+        // Upcoming: date >= today
+        query.date = { $gte: now };
+        // Apply status filter if specified
+        if (statusFilter !== ActivityStatusFilter.ALL) {
+          query.status = statusFilter;
+        } else {
+          // Default to active for upcoming if no status filter
+          query.status = ActivityStatus.ACTIVE;
+        }
+      } else if (timeFilter === ActivityTimeFilter.PAST) {
+        // Past: date < today OR status = COMPLETED
+        if (statusFilter !== ActivityStatusFilter.ALL) {
+          // If status filter is specified, combine with date filter
+          if (statusFilter === ActivityStatusFilter.COMPLETED) {
+            // Completed activities can be any date
+            query.status = ActivityStatus.COMPLETED;
+          } else {
+            // For active or cancelled, check date
+            query.date = { $lt: now };
+            query.status = statusFilter;
+          }
+        } else {
+          // No status filter: show completed or active with past date
+          query.$or = [
+            { status: ActivityStatus.COMPLETED },
+            {
+              status: ActivityStatus.ACTIVE,
+              date: { $lt: now },
+            },
+          ];
+        }
+      } else {
+        // timeFilter === ALL
+        // Apply status filter if specified
+        if (statusFilter !== ActivityStatusFilter.ALL) {
+          query.status = statusFilter;
+        }
+        // If both are ALL, no additional filters (show all activities)
+      }
+
+      // Search filter (title and host name)
+      if (filters.search) {
+        // First, find host IDs that match the search
+        const matchingHosts = await this.userModel.find({
+          name: { $regex: filters.search, $options: 'i' },
+          deleted_at: null,
+        });
+        const matchingHostIds = matchingHosts.map((host) => host._id);
+
+        // Build search conditions
+        const searchConditions: any[] = [
+          { title: { $regex: filters.search, $options: 'i' } },
+          { description: { $regex: filters.search, $options: 'i' } },
+          { location: { $regex: filters.search, $options: 'i' } },
+        ];
+
+        if (matchingHostIds.length > 0) {
+          searchConditions.push({ hostId: { $in: matchingHostIds } });
+        }
+
+        // If query already has $or (from past activities filter), we need to combine
+        if (query.$or) {
+          // Combine existing $or with search conditions using $and
+          query.$and = [
+            { $or: query.$or },
+            { $or: searchConditions },
+          ];
+          delete query.$or;
+        } else {
+          // No existing $or, just add search conditions
+          query.$or = searchConditions;
+        }
+      }
+
+      // Build sort
+      const sortBy = filters.sortBy || ActivitySortBy.DATE;
+      const sortOrder = filters.sortOrder === SortOrder.ASC ? 1 : -1;
+      const sort: any = {};
+      sort[sortBy] = sortOrder;
+
+      // Get total count
+      const total = await this.activityModel.countDocuments(query);
+
+      // Get paginated activities
+      const activities = await this.activityModel
+        .find(query)
+        .populate('hostId', 'name email profilePhoto')
+        .sort(sort)
+        .skip(skip)
+        .limit(limit);
+
+      if (activities.length === 0) {
+        return {
+          activities: [],
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+        };
+      }
+
+      const activityIds = activities.map((activity) => activity._id);
+
+      // Get all confirmed bookings for these activities
+      const allBookings = await this.bookingModel.find({
+        activityId: { $in: activityIds },
+        status: BookingStatus.CONFIRMED,
+        deleted_at: null,
+      });
+
+      // Get all ratings for these activities (including original activities if re-occurred)
+      const allActivityIdsForRatings = [...activityIds];
+      activities.forEach((activity) => {
+        const activityObj = activity.toObject();
+        if (activityObj.originalActivityId) {
+          allActivityIdsForRatings.push(
+            new mongoose.Types.ObjectId(activityObj.originalActivityId),
+          );
+        }
+      });
+
+      const allRatings = await this.ratingModel.find({
+        activityId: { $in: allActivityIdsForRatings },
+        deleted_at: null,
+      });
+
+      // Create maps for quick lookup
+      const bookingsByActivity = new Map();
+      const ratingsByActivity = new Map();
+
+      allBookings.forEach((booking) => {
+        const activityId = (booking.activityId as any).toString();
+        if (!bookingsByActivity.has(activityId)) {
+          bookingsByActivity.set(activityId, []);
+        }
+        bookingsByActivity.get(activityId).push(booking);
+      });
+
+      // Group ratings by activity (including original activity ratings)
+      activities.forEach((activity) => {
+        const activityId = (activity._id as any).toString();
+        const activityObj = activity.toObject();
+        const activityIdsToCheck = [activityId];
+        if (activityObj.originalActivityId) {
+          activityIdsToCheck.push(activityObj.originalActivityId.toString());
+        }
+        const activityRatings = allRatings.filter((rating) => {
+          const ratingActivityId = (rating.activityId as any).toString();
+          return activityIdsToCheck.includes(ratingActivityId);
+        });
+        ratingsByActivity.set(activityId, activityRatings);
+      });
+
+      // Build detailed activity data
+      const activitiesWithDetails = activities.map((activity) => {
+        const activityId = (activity._id as any).toString();
+        const bookings = bookingsByActivity.get(activityId) || [];
+        const ratings = ratingsByActivity.get(activityId) || [];
+
+        // Calculate attendance breakdown
+        const presentCount = bookings.filter(
+          (b) => b.attendanceStatus === AttendanceStatus.PRESENT,
+        ).length;
+        const absentCount = bookings.filter(
+          (b) => b.attendanceStatus === AttendanceStatus.ABSENT,
+        ).length;
+        const pendingCount = bookings.filter(
+          (b) =>
+            !b.attendanceStatus ||
+            b.attendanceStatus === AttendanceStatus.PENDING,
+        ).length;
+
+        // Calculate earnings for this activity
+        const earningsGenerated = bookings.reduce(
+          (sum, booking) => sum + (booking.amount || 0),
+          0,
+        );
+
+        // Calculate average rating for this activity
+        const activityAverageRating =
+          ratings.length > 0
+            ? ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length
+            : 0;
+
+        const activityObj = activity.toObject();
+        const host = activityObj.hostId as any;
+
+        return {
+          _id: activity._id,
+          title: activity.title,
+          description: activity.description,
+          category: activity.category,
+          location: activity.location,
+          date: activity.date,
+          time: activity.time,
+          picture: activity.picture,
+          maxParticipants: activity.maxParticipants,
+          price: activity.price || 0,
+          status: activity.status,
+          hostId: activity.hostId,
+          hostDetails: {
+            _id: host?._id || host,
+            name: host?.name || '',
+            email: host?.email || '',
+            profilePhoto: host?.profilePhoto || null,
+          },
+          attendance: {
+            total: bookings.length,
+            attended: presentCount,
+            noShow: absentCount,
+            pending: pendingCount,
+            summary: `${presentCount}/${bookings.length} attended`,
+          },
+          reviewsAndRatings: {
+            averageRating: Math.round(activityAverageRating * 10) / 10,
+            totalReviews: ratings.length,
+            summary: `${Math.round(activityAverageRating * 10) / 10}/5 (${ratings.length} review${ratings.length !== 1 ? 's' : ''})`,
+          },
+          earningsGenerated: earningsGenerated,
+          created_at: activity.created_at,
+          updated_at: activity.updated_at,
+        };
+      });
+
+      return {
+        activities: activitiesWithDetails,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      };
     } catch (err) {
       throw new BadRequestException(err.message);
     }

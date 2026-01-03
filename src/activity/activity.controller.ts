@@ -15,8 +15,11 @@ import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
 import { BrowseActivitiesDto } from './dto/browse-activities.dto';
 import { ReoccurActivityDto } from './dto/reoccur-activity.dto';
+import { AdminListActivitiesDto } from './dto/admin-list-activities.dto';
 import { GetUser } from 'src/auth/GetUser.Decorator';
 import { OptionalJwtAuthGuard } from 'src/auth/optional-jwt.guard';
+import { IsAdmin } from 'src/utils/helper';
+import { User } from 'src/schemas/user.schema';
 
 @Controller('activities')
 export class ActivityController {
@@ -153,5 +156,16 @@ export class ActivityController {
       reoccurActivityDto.time,
       user._id.toString(),
     );
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('admin/all')
+  getAllActivitiesForAdmin(
+    @Query() filters: AdminListActivitiesDto,
+    @GetUser() user: User,
+  ) {
+    // Admin only endpoint - get paginated list of all activities with filters
+    IsAdmin(user);
+    return this.activityService.getAllActivitiesForAdmin(filters);
   }
 }

@@ -16,7 +16,10 @@ import { HostDashboardDto } from './dto/host-dashboard.dto';
 import { MarkAttendanceDto } from './dto/mark-attendance.dto';
 import { MemberBookingsDto } from './dto/member-bookings.dto';
 import { CancelBookingDto } from './dto/cancel-booking.dto';
+import { AdminListBookingsDto } from './dto/admin-list-bookings.dto';
 import { GetUser } from 'src/auth/GetUser.Decorator';
+import { IsAdmin } from 'src/utils/helper';
+import { User } from 'src/schemas/user.schema';
 
 @Controller('bookings')
 export class BookingController {
@@ -159,5 +162,16 @@ export class BookingController {
   getBookingById(@Param('id') id: string, @GetUser() user: any) {
     // Get booking details (member, host, or superAdmin can view)
     return this.bookingService.getBookingById(id, user._id.toString());
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('admin/all')
+  getAllBookingsForAdmin(
+    @Query() filters: AdminListBookingsDto,
+    @GetUser() user: User,
+  ) {
+    // Admin only endpoint - get paginated list of all bookings with filters
+    IsAdmin(user);
+    return this.bookingService.getAllBookingsForAdmin(filters);
   }
 }
