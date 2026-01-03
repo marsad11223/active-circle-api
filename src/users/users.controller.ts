@@ -92,10 +92,7 @@ export class UsersController {
   // Admin endpoints - Must be before :id route to avoid route conflicts
   @UseGuards(AuthGuard('jwt'))
   @Get('admin/members')
-  getAllMembers(
-    @Query() filters: AdminListUsersDto,
-    @GetUser() user: User,
-  ) {
+  getAllMembers(@Query() filters: AdminListUsersDto, @GetUser() user: User) {
     IsAdmin(user);
     return this.usersService.getAllMembers(filters);
   }

@@ -12,6 +12,7 @@ import { BookingModule } from './booking/booking.module';
 import { RatingModule } from './rating/rating.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { MessageModule } from './message/message.module';
+import { PayoutModule } from './payout/payout.module';
 
 import { MailerModule } from '@nestjs-modules/mailer';
 import { APP_PIPE } from '@nestjs/core';
@@ -26,6 +27,7 @@ import { APP_PIPE } from '@nestjs/core';
     RatingModule,
     CloudinaryModule,
     MessageModule,
+    PayoutModule,
 
     ConfigModule.forRoot({ isGlobal: true }),
     MailerModule.forRoot({

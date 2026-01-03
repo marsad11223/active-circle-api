@@ -2055,6 +2055,426 @@
 							"response": []
 						}
 					]
+				},
+				{
+					"name": "Payouts",
+					"item": [
+						{
+							"name": "Host",
+							"item": [
+								{
+									"name": "Get Earnings Summary",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{token}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{base_url}}/payouts/host/earnings-summary",
+											"host": [
+												"{{base_url}}"
+											],
+											"path": [
+												"payouts",
+												"host",
+												"earnings-summary"
+											]
+										},
+										"description": "Get host earnings summary: total earnings, pending payouts, total paid out, and available balance."
+									},
+									"response": []
+								},
+								{
+									"name": "Get Transactions",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{token}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{base_url}}/payouts/host/transactions?page=1&limit=10",
+											"host": [
+												"{{base_url}}"
+											],
+											"path": [
+												"payouts",
+												"host",
+												"transactions"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "1",
+													"description": "Page number (default: 1)"
+												},
+												{
+													"key": "limit",
+													"value": "10",
+													"description": "Items per page (default: 10)"
+												}
+											]
+										},
+										"description": "Get host transaction history (bookings that generated earnings) with pagination."
+									},
+									"response": []
+								},
+								{
+									"name": "Create Withdrawal Request",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{token}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"amount\": 50.00\n}",
+											"description": "Amount to withdraw (must be less than or equal to available balance)"
+										},
+										"url": {
+											"raw": "{{base_url}}/payouts/host/withdrawal-request",
+											"host": [
+												"{{base_url}}"
+											],
+											"path": [
+												"payouts",
+												"host",
+												"withdrawal-request"
+											]
+										},
+										"description": "Create a withdrawal request. Host must have a payment method added first."
+									},
+									"response": []
+								},
+								{
+									"name": "Get Withdrawal Requests",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{token}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{base_url}}/payouts/host/withdrawal-requests",
+											"host": [
+												"{{base_url}}"
+											],
+											"path": [
+												"payouts",
+												"host",
+												"withdrawal-requests"
+											]
+										},
+										"description": "Get all withdrawal requests for the current host."
+									},
+									"response": []
+								},
+								{
+									"name": "Get Payout History",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{token}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{base_url}}/payouts/host/payout-history",
+											"host": [
+												"{{base_url}}"
+											],
+											"path": [
+												"payouts",
+												"host",
+												"payout-history"
+											]
+										},
+										"description": "Get payout history for the current host (all withdrawal requests with their status)."
+									},
+									"response": []
+								},
+								{
+									"name": "Add Payment Method",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{token}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "POST",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"paymentMethodId\": \"pm_1234567890abcdef\"\n}",
+											"description": "Stripe payment method ID (card or bank account)"
+										},
+										"url": {
+											"raw": "{{base_url}}/payouts/host/payment-methods",
+											"host": [
+												"{{base_url}}"
+											],
+											"path": [
+												"payouts",
+												"host",
+												"payment-methods"
+											]
+										},
+										"description": "Add a payment method (Stripe payment method ID) for receiving payouts."
+									},
+									"response": []
+								},
+								{
+									"name": "Get Payment Methods",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{token}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{base_url}}/payouts/host/payment-methods",
+											"host": [
+												"{{base_url}}"
+											],
+											"path": [
+												"payouts",
+												"host",
+												"payment-methods"
+											]
+										},
+										"description": "Get all payment methods for the current host."
+									},
+									"response": []
+								},
+								{
+									"name": "Delete Payment Method",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{token}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "DELETE",
+										"header": [],
+										"url": {
+											"raw": "{{base_url}}/payouts/host/payment-methods/:paymentMethodId",
+											"host": [
+												"{{base_url}}"
+											],
+											"path": [
+												"payouts",
+												"host",
+												"payment-methods",
+												":paymentMethodId"
+											]
+										},
+										"description": "Delete a payment method. Replace :paymentMethodId with the Stripe payment method ID."
+									},
+									"response": []
+								}
+							]
+						},
+						{
+							"name": "Admin",
+							"item": [
+								{
+									"name": "Get All Withdrawal Requests",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{token}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{base_url}}/payouts/admin/withdrawal-requests?page=1&limit=10&status=",
+											"host": [
+												"{{base_url}}"
+											],
+											"path": [
+												"payouts",
+												"admin",
+												"withdrawal-requests"
+											],
+											"query": [
+												{
+													"key": "page",
+													"value": "1",
+													"description": "Page number (default: 1)"
+												},
+												{
+													"key": "limit",
+													"value": "10",
+													"description": "Items per page (default: 10)"
+												},
+												{
+													"key": "status",
+													"value": "",
+													"description": "Filter by status: pending, approved, completed, rejected, failed (optional)",
+													"disabled": true
+												}
+											]
+										},
+										"description": "Get all withdrawal requests. Admin only. Can filter by status."
+									},
+									"response": []
+								},
+								{
+									"name": "Approve Withdrawal Request",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{token}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "PUT",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{}",
+											"description": "Empty body for approval. Admin approves and processes Stripe payment."
+										},
+										"url": {
+											"raw": "{{base_url}}/payouts/admin/withdrawal-requests/:payoutId/approve",
+											"host": [
+												"{{base_url}}"
+											],
+											"path": [
+												"payouts",
+												"admin",
+												"withdrawal-requests",
+												":payoutId",
+												"approve"
+											]
+										},
+										"description": "Approve a withdrawal request. Admin only. Processes Stripe transfer to host (amount - Stripe fee). Replace :payoutId with the payout ID."
+									},
+									"response": []
+								},
+								{
+									"name": "Reject Withdrawal Request",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{token}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "PUT",
+										"header": [
+											{
+												"key": "Content-Type",
+												"value": "application/json"
+											}
+										],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n  \"rejectionReason\": \"Insufficient funds or invalid request\"\n}",
+											"description": "Rejection reason is required"
+										},
+										"url": {
+											"raw": "{{base_url}}/payouts/admin/withdrawal-requests/:payoutId/reject",
+											"host": [
+												"{{base_url}}"
+											],
+											"path": [
+												"payouts",
+												"admin",
+												"withdrawal-requests",
+												":payoutId",
+												"reject"
+											]
+										},
+										"description": "Reject a withdrawal request. Admin only. Requires rejection reason. Replace :payoutId with the payout ID."
+									},
+									"response": []
+								}
+							]
+						}
+					]
 				}
 			]
 		}

@@ -4,6 +4,7 @@ import { Elements } from '@stripe/react-stripe-js';
 import Login from './components/Login';
 import SubscriptionManager from './components/SubscriptionManager';
 import BookingTest from './components/BookingTest';
+import HostDashboard from './components/HostDashboard';
 import './App.css';
 
 const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY);
@@ -11,7 +12,7 @@ const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY);
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token') || '');
   const [user, setUser] = useState(null);
-  const [activeView, setActiveView] = useState('booking'); // 'booking' or 'subscription'
+  const [activeView, setActiveView] = useState('booking'); // 'booking', 'subscription', or 'host-dashboard'
 
   useEffect(() => {
     if (token) {
@@ -67,6 +68,14 @@ function App() {
                     >
                       Subscription
                     </button>
+                    {(user?.role === 'host' || user?.grantRole === 'host') && (
+                      <button
+                        className={activeView === 'host-dashboard' ? 'active' : ''}
+                        onClick={() => setActiveView('host-dashboard')}
+                      >
+                        Host Dashboard
+                      </button>
+                    )}
                   </div>
                 )}
                 <button onClick={handleLogout} className="btn-logout">
@@ -82,6 +91,10 @@ function App() {
         ) : activeView === 'booking' ? (
           <Elements stripe={stripePromise}>
             <BookingTest token={token} user={user} />
+          </Elements>
+        ) : activeView === 'host-dashboard' ? (
+          <Elements stripe={stripePromise}>
+            <HostDashboard token={token} user={user} />
           </Elements>
         ) : (
           <Elements stripe={stripePromise}>

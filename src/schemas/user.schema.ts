@@ -88,6 +88,34 @@ export class User {
     default: [],
   })
   favoriteActivities?: mongoose.Types.ObjectId[]; // Array of favorite activity IDs (only for members)
+
+  // Payment methods for payouts (host only)
+  @Prop({
+    type: [
+      {
+        id: { type: String, required: false },
+        type: { type: String, required: false },
+        last4: { type: String, required: false },
+        brand: { type: String, required: false },
+        isDefault: { type: Boolean, default: false },
+        isVerified: { type: Boolean, default: false },
+        stripePaymentMethodId: { type: String, required: false },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
+    default: [],
+    _id: false, // Disable _id for subdocuments
+  })
+  paymentMethods?: Array<{
+    id?: string;
+    type?: string;
+    last4?: string;
+    brand?: string;
+    isDefault?: boolean;
+    isVerified?: boolean;
+    stripePaymentMethodId?: string;
+    createdAt?: Date;
+  }>;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
