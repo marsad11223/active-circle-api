@@ -36,7 +36,9 @@ export class PayoutController {
     if (user.role !== Role.host) {
       throw new ForbiddenException('Only hosts can access this endpoint');
     }
-    return this.payoutService.getHostEarningsSummary(user._id.toString());
+    return this.payoutService.getHostEarningsSummary(
+      (user as any)._id.toString(),
+    );
   }
 
   /**
@@ -56,7 +58,7 @@ export class PayoutController {
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 10;
     return this.payoutService.getHostTransactions(
-      user._id.toString(),
+      (user as any)._id.toString(),
       pageNum,
       limitNum,
     );
@@ -76,7 +78,7 @@ export class PayoutController {
       throw new ForbiddenException('Only hosts can create withdrawal requests');
     }
     return this.payoutService.createWithdrawalRequest(
-      user._id.toString(),
+      (user as any)._id.toString(),
       createWithdrawalRequestDto,
     );
   }
@@ -91,7 +93,9 @@ export class PayoutController {
     if (user.role !== Role.host) {
       throw new ForbiddenException('Only hosts can access this endpoint');
     }
-    return this.payoutService.getHostWithdrawalRequests(user._id.toString());
+    return this.payoutService.getHostWithdrawalRequests(
+      (user as any)._id.toString(),
+    );
   }
 
   /**
@@ -104,7 +108,9 @@ export class PayoutController {
     if (user.role !== Role.host) {
       throw new ForbiddenException('Only hosts can access this endpoint');
     }
-    return this.payoutService.getHostPayoutHistory(user._id.toString());
+    return this.payoutService.getHostPayoutHistory(
+      (user as any)._id.toString(),
+    );
   }
 
   /**
@@ -121,7 +127,7 @@ export class PayoutController {
       throw new ForbiddenException('Only hosts can add payment methods');
     }
     return this.payoutService.addPaymentMethod(
-      user._id.toString(),
+      (user as any)._id.toString(),
       addPaymentMethodDto,
     );
   }
@@ -136,7 +142,7 @@ export class PayoutController {
     if (user.role !== Role.host) {
       throw new ForbiddenException('Only hosts can access this endpoint');
     }
-    return this.payoutService.getPaymentMethods(user._id.toString());
+    return this.payoutService.getPaymentMethods((user as any)._id.toString());
   }
 
   /**
@@ -153,7 +159,7 @@ export class PayoutController {
       throw new ForbiddenException('Only hosts can delete payment methods');
     }
     return this.payoutService.deletePaymentMethod(
-      user._id.toString(),
+      (user as any)._id.toString(),
       paymentMethodId,
     );
   }
@@ -196,7 +202,7 @@ export class PayoutController {
     IsAdmin(user);
     return this.payoutService.approveWithdrawalRequest(
       payoutId,
-      user._id.toString(),
+      (user as any)._id.toString(),
       approvePayoutDto,
     );
   }
@@ -215,9 +221,8 @@ export class PayoutController {
     IsAdmin(user);
     return this.payoutService.rejectWithdrawalRequest(
       payoutId,
-      user._id.toString(),
+      (user as any)._id.toString(),
       approvePayoutDto,
     );
   }
 }
-
