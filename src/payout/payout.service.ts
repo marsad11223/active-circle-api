@@ -6,7 +6,11 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Payout, PayoutStatus } from 'src/schemas/payout.schema';
-import { Booking, BookingStatus, PaymentStatus } from 'src/schemas/booking.schema';
+import {
+  Booking,
+  BookingStatus,
+  PaymentStatus,
+} from 'src/schemas/booking.schema';
 import { User, Role } from 'src/schemas/user.schema';
 import { Model } from 'mongoose';
 import mongoose from 'mongoose';
@@ -95,11 +99,23 @@ export class PayoutService {
       deleted_at: null,
     });
 
-    // Calculate total earnings (all confirmed paid bookings)
-    const totalEarnings = completedBookings.reduce(
-      (sum, booking) => sum + (booking.amount || 0),
-      0,
-    );
+    // Calculate Stripe fee: 2.9% + 30 cents (0.30)
+    const stripeFeePercentage = 0.029; // 2.9%
+    const stripeFeeFixed = 0.3; // 30 cents
+
+    // Calculate total earnings (booking amount - Stripe fee for each booking)
+    const totalEarnings = completedBookings.reduce((sum, booking) => {
+      const bookingAmount = booking.amount || 0;
+      if (bookingAmount === 0) {
+        // Free activities have no fee
+        return sum;
+      }
+      // Calculate Stripe fee for this booking
+      const stripeFee = bookingAmount * stripeFeePercentage + stripeFeeFixed;
+      // Host earnings = booking amount - Stripe fee
+      const hostEarnings = bookingAmount - stripeFee;
+      return sum + hostEarnings;
+    }, 0);
 
     // Get pending payout requests
     const pendingPayouts = await this.payoutModel.find({
@@ -129,7 +145,8 @@ export class PayoutService {
 
     // Available balance = total earnings - pending payouts - total paid out
     // We use requestedAmount for both pending and completed to correctly reflect available balance
-    const availableBalance = totalEarnings - pendingPayoutsAmount - totalPaidOut;
+    const availableBalance =
+      totalEarnings - pendingPayoutsAmount - totalPaidOut;
 
     return {
       totalEarnings,
@@ -173,14 +190,43 @@ export class PayoutService {
       .skip(skip)
       .limit(limit);
 
+    // Calculate Stripe fee: 2.9% + 30 cents (0.30)
+    const stripeFeePercentage = 0.029; // 2.9%
+    const stripeFeeFixed = 0.3; // 30 cents
+
     const transactions = bookings.map((booking) => {
       const bookingObj = booking.toObject();
+      const bookingAmount = booking.amount || 0;
+
+      // Calculate Stripe fee for this booking
+      let stripeFee = 0;
+      let hostEarnings = 0;
+      if (bookingAmount > 0) {
+        stripeFee = bookingAmount * stripeFeePercentage + stripeFeeFixed;
+        stripeFee = Math.round(stripeFee * 100) / 100; // Round to 2 decimals
+        hostEarnings = bookingAmount - stripeFee;
+        hostEarnings = Math.round(hostEarnings * 100) / 100; // Round to 2 decimals
+      }
+
       return {
         _id: bookingObj._id,
         activity: bookingObj.activityId,
         member: bookingObj.memberId,
-        amount: bookingObj.amount,
-        earnings: bookingObj.amount, // Full amount is earnings (no platform fee for now)
+        amount: bookingAmount,
+        stripeFee: stripeFee,
+        earnings: hostEarnings, // Amount after Stripe fee deduction
+        paymentStatus: bookingObj.paymentStatus,
+        attendanceStatus: bookingObj.attendanceStatus,
+        createdAt: bookingObj.created_at,
+        bookingDate: bookingObj.created_at,
+      };
+      return {
+        _id: bookingObj._id,
+        activity: bookingObj.activityId,
+        member: bookingObj.memberId,
+        amount: bookingAmount,
+        stripeFee: stripeFee,
+        earnings: hostEarnings, // Amount after Stripe fee deduction
         paymentStatus: bookingObj.paymentStatus,
         attendanceStatus: bookingObj.attendanceStatus,
         createdAt: bookingObj.created_at,
@@ -214,8 +260,7 @@ export class PayoutService {
     }
 
     // Check if host has bank accounts
-    const hasBankAccounts =
-      host.bankAccounts && host.bankAccounts.length > 0;
+    const hasBankAccounts = host.bankAccounts && host.bankAccounts.length > 0;
     if (!hasBankAccounts) {
       throw new BadRequestException(
         'Please add a bank account before requesting withdrawal',
@@ -319,7 +364,7 @@ export class PayoutService {
     const payoutsWithBankDetails = payouts.map((payout) => {
       const payoutObj = payout.toObject();
       const host = payoutObj.hostId as any;
-      
+
       // Find the bank account used for this withdrawal
       let bankAccount = null;
       if (host?.bankAccounts && payoutObj.bankAccountId) {
@@ -368,14 +413,14 @@ export class PayoutService {
       throw new NotFoundException('Host not found');
     }
 
-      // Get bank account
-      const bankAccount = host.bankAccounts?.find(
-        (ba) => ba.id === payout.bankAccountId,
-      );
+    // Get bank account
+    const bankAccount = host.bankAccounts?.find(
+      (ba) => ba.id === payout.bankAccountId,
+    );
 
-      if (!bankAccount) {
-        throw new BadRequestException('Host bank account not found');
-      }
+    if (!bankAccount) {
+      throw new BadRequestException('Host bank account not found');
+    }
 
     try {
       // Calculate Stripe fee (typically 2.9% + 30 cents for card payments)
@@ -603,4 +648,3 @@ export class PayoutService {
     return host.bankAccounts || [];
   }
 }
-
