@@ -2578,13 +2578,13 @@
 										],
 										"body": {
 											"mode": "raw",
-											"raw": "{\n  \"iban\": \"GB82WEST12345698765432\",\n  \"bankName\": \"HSBC Bank\",\n  \"accountHolderName\": \"John Doe\",\n  \"accountNumber\": \"12345678\",\n  \"swiftCode\": \"HSBCGB2L\",\n  \"routingNumber\": \"\",\n  \"address\": \"123 Main Street\",\n  \"city\": \"London\",\n  \"country\": \"United Kingdom\",\n  \"postalCode\": \"SW1A 1AA\"\n}",
+											"raw": "{\n  \"bankName\": \"HSBC Bank\",\n  \"accountHolderName\": \"John Doe\",\n  \"iban\": \"GB82WEST12345698765432\",\n  \"swiftCode\": \"HSBCGB2L\",\n  \"accountNumber\": \"12345678\",\n  \"routingNumber\": \"\",\n  \"address\": \"123 Main Street\",\n  \"city\": \"London\",\n  \"country\": \"United Kingdom\",\n  \"postalCode\": \"SW1A 1AA\"\n}",
 											"options": {
 												"raw": {
 													"language": "json"
 												}
 											},
-											"description": "iban (required): IBAN number. bankName (required): Bank name. accountHolderName (required): Account holder name. Other fields are optional."
+											"description": "Required: bankName, accountHolderName, swiftCode. Either iban OR accountNumber (at least one required). Optional: routingNumber, address, city, country, postalCode."
 										},
 										"url": {
 											"raw": "{{base_url}}/payouts/host/bank-accounts",
@@ -2597,7 +2597,7 @@
 												"bank-accounts"
 											]
 										},
-										"description": "Add a bank account for receiving payouts. Hosts can add multiple bank accounts. Required fields: iban, bankName, accountHolderName. Optional fields: accountNumber, swiftCode, routingNumber, address, city, country, postalCode."
+										"description": "Add a bank account for receiving payouts. Hosts can add multiple bank accounts. Required: bankName, accountHolderName, swiftCode. Either IBAN or Account Number (at least one required). Optional: routingNumber, address, city, country, postalCode."
 									},
 									"response": []
 								},

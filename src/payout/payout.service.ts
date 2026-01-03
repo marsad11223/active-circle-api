@@ -506,6 +506,13 @@ export class PayoutService {
     }
 
     try {
+      // Validate that either IBAN or accountNumber is provided
+      if (!addBankAccountDto.iban && !addBankAccountDto.accountNumber) {
+        throw new BadRequestException(
+          'Either IBAN or Account Number is required',
+        );
+      }
+
       // Initialize bankAccounts array if it doesn't exist
       if (!host.bankAccounts) {
         host.bankAccounts = [];
@@ -520,11 +527,11 @@ export class PayoutService {
       // Add bank account
       const newBankAccount = {
         id: bankAccountId,
-        iban: addBankAccountDto.iban,
+        iban: addBankAccountDto.iban || undefined,
         bankName: addBankAccountDto.bankName,
         accountHolderName: addBankAccountDto.accountHolderName,
         accountNumber: addBankAccountDto.accountNumber || undefined,
-        swiftCode: addBankAccountDto.swiftCode || undefined,
+        swiftCode: addBankAccountDto.swiftCode,
         routingNumber: addBankAccountDto.routingNumber || undefined,
         address: addBankAccountDto.address || undefined,
         city: addBankAccountDto.city || undefined,

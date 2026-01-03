@@ -1,44 +1,46 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
 
 export class AddBankAccountDto {
   @IsNotEmpty()
   @IsString()
-  iban: string; // IBAN (International Bank Account Number)
+  bankName: string; // Bank name (required)
 
   @IsNotEmpty()
   @IsString()
-  bankName: string; // Bank name
+  accountHolderName: string; // Account holder name (required)
+
+  @ValidateIf((o) => !o.accountNumber)
+  @IsNotEmpty({ message: 'Either IBAN or Account Number is required' })
+  @IsString()
+  iban?: string; // IBAN (required if accountNumber is not provided)
+
+  @ValidateIf((o) => !o.iban)
+  @IsNotEmpty({ message: 'Either IBAN or Account Number is required' })
+  @IsString()
+  accountNumber?: string; // Account number (required if IBAN is not provided)
 
   @IsNotEmpty()
   @IsString()
-  accountHolderName: string; // Account holder name
+  swiftCode: string; // SWIFT/BIC code (required)
 
   @IsOptional()
   @IsString()
-  accountNumber?: string; // Account number (optional, some countries use IBAN only)
+  routingNumber?: string; // Routing number (optional, for US banks)
 
   @IsOptional()
   @IsString()
-  swiftCode?: string; // SWIFT/BIC code
+  address?: string; // Bank address (optional)
 
   @IsOptional()
   @IsString()
-  routingNumber?: string; // Routing number (for US banks)
+  city?: string; // City (optional)
 
   @IsOptional()
   @IsString()
-  address?: string; // Bank address
+  country?: string; // Country (optional)
 
   @IsOptional()
   @IsString()
-  city?: string; // City
-
-  @IsOptional()
-  @IsString()
-  country?: string; // Country
-
-  @IsOptional()
-  @IsString()
-  postalCode?: string; // Postal code
+  postalCode?: string; // Postal code (optional)
 }
 

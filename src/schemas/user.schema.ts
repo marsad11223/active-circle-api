@@ -94,11 +94,11 @@ export class User {
     type: [
       {
         id: { type: String, required: true },
-        iban: { type: String, required: true },
+        iban: { type: String, required: false }, // Optional - either IBAN or accountNumber required
         bankName: { type: String, required: true },
         accountHolderName: { type: String, required: true },
-        accountNumber: { type: String, required: false },
-        swiftCode: { type: String, required: false },
+        accountNumber: { type: String, required: false }, // Optional - either IBAN or accountNumber required
+        swiftCode: { type: String, required: true }, // Required
         routingNumber: { type: String, required: false },
         address: { type: String, required: false },
         city: { type: String, required: false },
@@ -113,11 +113,11 @@ export class User {
   })
   bankAccounts?: Array<{
     id: string;
-    iban: string;
+    iban?: string; // Optional - either IBAN or accountNumber required
     bankName: string;
     accountHolderName: string;
-    accountNumber?: string;
-    swiftCode?: string;
+    accountNumber?: string; // Optional - either IBAN or accountNumber required
+    swiftCode: string; // Required
     routingNumber?: string;
     address?: string;
     city?: string;
