@@ -14,7 +14,8 @@ import { AuthGuard } from '@nestjs/passport';
 import { PayoutService } from './payout.service';
 import { CreateWithdrawalRequestDto } from './dto/create-withdrawal-request.dto';
 import { ApprovePayoutDto } from './dto/approve-payout.dto';
-import { AddPaymentMethodDto } from './dto/add-payment-method.dto';
+import { RejectPayoutDto } from './dto/reject-payout.dto';
+import { AddBankAccountDto } from './dto/add-bank-account.dto';
 import { GetUser } from 'src/auth/GetUser.Decorator';
 import { User, Role } from 'src/schemas/user.schema';
 import { IsAdmin } from 'src/utils/helper';
@@ -61,6 +62,21 @@ export class PayoutController {
       (user as any)._id.toString(),
       pageNum,
       limitNum,
+    );
+  }
+
+  /**
+   * Get withdrawal request preparation data
+   * GET /payouts/host/withdrawal-request/prepare
+   */
+  @UseGuards(AuthGuard('jwt'))
+  @Get('host/withdrawal-request/prepare')
+  async getWithdrawalRequestPreparation(@GetUser() user: User) {
+    if (user.role !== Role.host) {
+      throw new ForbiddenException('Only hosts can access this endpoint');
+    }
+    return await this.payoutService.getWithdrawalRequestPreparation(
+      (user as any)._id.toString(),
     );
   }
 
@@ -114,53 +130,55 @@ export class PayoutController {
   }
 
   /**
-   * Add payment method
-   * POST /payouts/host/payment-methods
+   * Add bank account
+   * POST /payouts/host/bank-accounts
    */
   @UseGuards(AuthGuard('jwt'))
-  @Post('host/payment-methods')
-  async addPaymentMethod(
+  @Post('host/bank-accounts')
+  async addBankAccount(
     @GetUser() user: User,
-    @Body() addPaymentMethodDto: AddPaymentMethodDto,
+    @Body() addBankAccountDto: AddBankAccountDto,
   ) {
     if (user.role !== Role.host) {
-      throw new ForbiddenException('Only hosts can add payment methods');
+      throw new ForbiddenException('Only hosts can add bank accounts');
     }
-    return this.payoutService.addPaymentMethod(
+    return await this.payoutService.addBankAccount(
       (user as any)._id.toString(),
-      addPaymentMethodDto,
+      addBankAccountDto,
     );
   }
 
   /**
-   * Get payment methods
-   * GET /payouts/host/payment-methods
+   * Get bank accounts
+   * GET /payouts/host/bank-accounts
    */
   @UseGuards(AuthGuard('jwt'))
-  @Get('host/payment-methods')
-  async getPaymentMethods(@GetUser() user: User) {
+  @Get('host/bank-accounts')
+  async getBankAccounts(@GetUser() user: User) {
     if (user.role !== Role.host) {
       throw new ForbiddenException('Only hosts can access this endpoint');
     }
-    return this.payoutService.getPaymentMethods((user as any)._id.toString());
+    return await this.payoutService.getBankAccounts(
+      (user as any)._id.toString(),
+    );
   }
 
   /**
-   * Delete payment method
-   * DELETE /payouts/host/payment-methods/:paymentMethodId
+   * Delete bank account
+   * DELETE /payouts/host/bank-accounts/:bankAccountId
    */
   @UseGuards(AuthGuard('jwt'))
-  @Delete('host/payment-methods/:paymentMethodId')
-  async deletePaymentMethod(
+  @Delete('host/bank-accounts/:bankAccountId')
+  async deleteBankAccount(
     @GetUser() user: User,
-    @Param('paymentMethodId') paymentMethodId: string,
+    @Param('bankAccountId') bankAccountId: string,
   ) {
     if (user.role !== Role.host) {
-      throw new ForbiddenException('Only hosts can delete payment methods');
+      throw new ForbiddenException('Only hosts can delete bank accounts');
     }
-    return this.payoutService.deletePaymentMethod(
+    return await this.payoutService.deleteBankAccount(
       (user as any)._id.toString(),
-      paymentMethodId,
+      bankAccountId,
     );
   }
 
@@ -216,13 +234,13 @@ export class PayoutController {
   async rejectWithdrawalRequest(
     @GetUser() user: User,
     @Param('payoutId') payoutId: string,
-    @Body() approvePayoutDto: ApprovePayoutDto,
+    @Body() rejectPayoutDto: RejectPayoutDto,
   ) {
     IsAdmin(user);
     return this.payoutService.rejectWithdrawalRequest(
       payoutId,
       (user as any)._id.toString(),
-      approvePayoutDto,
+      rejectPayoutDto,
     );
   }
 }

@@ -89,31 +89,41 @@ export class User {
   })
   favoriteActivities?: mongoose.Types.ObjectId[]; // Array of favorite activity IDs (only for members)
 
-  // Payment methods for payouts (host only)
+  // Bank accounts for payouts (host only)
   @Prop({
     type: [
       {
-        id: { type: String, required: false },
-        type: { type: String, required: false },
-        last4: { type: String, required: false },
-        brand: { type: String, required: false },
+        id: { type: String, required: true },
+        iban: { type: String, required: true },
+        bankName: { type: String, required: true },
+        accountHolderName: { type: String, required: true },
+        accountNumber: { type: String, required: false },
+        swiftCode: { type: String, required: false },
+        routingNumber: { type: String, required: false },
+        address: { type: String, required: false },
+        city: { type: String, required: false },
+        country: { type: String, required: false },
+        postalCode: { type: String, required: false },
         isDefault: { type: Boolean, default: false },
-        isVerified: { type: Boolean, default: false },
-        stripePaymentMethodId: { type: String, required: false },
         createdAt: { type: Date, default: Date.now },
       },
     ],
     default: [],
     _id: false, // Disable _id for subdocuments
   })
-  paymentMethods?: Array<{
-    id?: string;
-    type?: string;
-    last4?: string;
-    brand?: string;
+  bankAccounts?: Array<{
+    id: string;
+    iban: string;
+    bankName: string;
+    accountHolderName: string;
+    accountNumber?: string;
+    swiftCode?: string;
+    routingNumber?: string;
+    address?: string;
+    city?: string;
+    country?: string;
+    postalCode?: string;
     isDefault?: boolean;
-    isVerified?: boolean;
-    stripePaymentMethodId?: string;
     createdAt?: Date;
   }>;
 }

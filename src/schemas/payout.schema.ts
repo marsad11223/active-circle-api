@@ -36,10 +36,16 @@ export class Payout extends Document {
   stripePayoutId?: string; // Stripe Payout ID (if using Stripe Connect)
 
   @Prop({ required: false })
-  paymentMethodId?: string; // Payment method ID (Stripe account/bank account)
+  bankAccountId?: string; // Bank account ID selected by host for this withdrawal
 
   @Prop({ required: false })
   rejectionReason?: string; // Reason if rejected by admin
+
+  @Prop({ required: false })
+  approvalScreenshot?: string; // Screenshot URL when admin approves (required for approval)
+
+  @Prop({ required: false })
+  approvalReason?: string; // Optional reason when admin approves
 
   @Prop({ required: false })
   failureReason?: string; // Reason if payment failed
@@ -70,4 +76,3 @@ export class Payout extends Document {
 }
 
 export const PayoutSchema = SchemaFactory.createForClass(Payout);
-

@@ -1,8 +1,11 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class ApprovePayoutDto {
+  @IsNotEmpty()
+  @IsString()
+  screenshot: string; // Screenshot URL (required for approval)
+
   @IsOptional()
   @IsString()
-  rejectionReason?: string; // Required if rejecting
+  reason?: string; // Optional reason for approval
 }
-

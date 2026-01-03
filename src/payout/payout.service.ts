@@ -12,7 +12,8 @@ import { Model } from 'mongoose';
 import mongoose from 'mongoose';
 import { CreateWithdrawalRequestDto } from './dto/create-withdrawal-request.dto';
 import { ApprovePayoutDto } from './dto/approve-payout.dto';
-import { AddPaymentMethodDto } from './dto/add-payment-method.dto';
+import { RejectPayoutDto } from './dto/reject-payout.dto';
+import { AddBankAccountDto } from './dto/add-bank-account.dto';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 
@@ -36,6 +37,44 @@ export class PayoutService {
       );
     }
     this.stripe = new Stripe(stripeSecretKey);
+  }
+
+  /**
+   * Get withdrawal request preparation data
+   * Returns available balance and bank accounts for selection
+   */
+  async getWithdrawalRequestPreparation(hostId: string): Promise<{
+    availableBalance: number;
+    bankAccounts: any[];
+    hasPendingRequest: boolean;
+  }> {
+    const host = await this.userModel.findById(hostId);
+    if (!host) {
+      throw new NotFoundException('Host not found');
+    }
+
+    if (host.role !== Role.host) {
+      throw new ForbiddenException('Only hosts can access this endpoint');
+    }
+
+    // Get available balance
+    const earningsSummary = await this.getHostEarningsSummary(hostId);
+
+    // Get bank accounts
+    const bankAccounts = host.bankAccounts || [];
+
+    // Check for existing pending requests
+    const existingPending = await this.payoutModel.findOne({
+      hostId: new mongoose.Types.ObjectId(hostId),
+      status: { $in: [PayoutStatus.PENDING, PayoutStatus.APPROVED] },
+      deleted_at: null,
+    });
+
+    return {
+      availableBalance: earningsSummary.availableBalance,
+      bankAccounts: bankAccounts,
+      hasPendingRequest: !!existingPending,
+    };
   }
 
   /**
@@ -81,12 +120,15 @@ export class PayoutService {
       deleted_at: null,
     });
 
+    // Total paid out should use requestedAmount (what host requested), not netAmount
+    // Fees are deducted from the payout, but the host's balance reflects what they requested
     const totalPaidOut = completedPayouts.reduce(
-      (sum, payout) => sum + (payout.netAmount || payout.requestedAmount || 0),
+      (sum, payout) => sum + (payout.requestedAmount || 0),
       0,
     );
 
     // Available balance = total earnings - pending payouts - total paid out
+    // We use requestedAmount for both pending and completed to correctly reflect available balance
     const availableBalance = totalEarnings - pendingPayoutsAmount - totalPaidOut;
 
     return {
@@ -171,12 +213,12 @@ export class PayoutService {
       throw new ForbiddenException('Only hosts can create withdrawal requests');
     }
 
-    // Check if host has a payment method
-    const hasPaymentMethod =
-      host.paymentMethods && host.paymentMethods.length > 0;
-    if (!hasPaymentMethod) {
+    // Check if host has bank accounts
+    const hasBankAccounts =
+      host.bankAccounts && host.bankAccounts.length > 0;
+    if (!hasBankAccounts) {
       throw new BadRequestException(
-        'Please add a payment method before requesting withdrawal',
+        'Please add a bank account before requesting withdrawal',
       );
     }
 
@@ -206,13 +248,13 @@ export class PayoutService {
       );
     }
 
-    // Get default payment method
-    const defaultPaymentMethod = host.paymentMethods?.find(
-      (pm) => pm.isDefault,
-    ) || host.paymentMethods?.[0];
+    // Get selected bank account
+    const selectedBankAccount = host.bankAccounts?.find(
+      (ba) => ba.id === createWithdrawalRequestDto.bankAccountId,
+    );
 
-    if (!defaultPaymentMethod) {
-      throw new BadRequestException('No payment method found');
+    if (!selectedBankAccount) {
+      throw new BadRequestException('Bank account not found');
     }
 
     // Create withdrawal request
@@ -220,7 +262,7 @@ export class PayoutService {
       hostId: new mongoose.Types.ObjectId(hostId),
       requestedAmount: createWithdrawalRequestDto.amount,
       status: PayoutStatus.PENDING,
-      paymentMethodId: defaultPaymentMethod.stripePaymentMethodId,
+      bankAccountId: createWithdrawalRequestDto.bankAccountId,
       requestedAt: new Date(),
     });
 
@@ -267,14 +309,33 @@ export class PayoutService {
 
     const payouts = await this.payoutModel
       .find(query)
-      .populate('hostId', 'name email profilePhoto')
+      .populate('hostId', 'name email profilePhoto bankAccounts')
       .populate('approvedBy', 'name email')
       .sort({ created_at: -1 })
       .skip(skip)
       .limit(limit);
 
+    // Add bank account details to each payout
+    const payoutsWithBankDetails = payouts.map((payout) => {
+      const payoutObj = payout.toObject();
+      const host = payoutObj.hostId as any;
+      
+      // Find the bank account used for this withdrawal
+      let bankAccount = null;
+      if (host?.bankAccounts && payoutObj.bankAccountId) {
+        bankAccount = host.bankAccounts.find(
+          (ba: any) => ba.id === payoutObj.bankAccountId,
+        );
+      }
+
+      return {
+        ...payoutObj,
+        bankAccount: bankAccount || null,
+      };
+    });
+
     return {
-      payouts,
+      payouts: payoutsWithBankDetails,
       total,
       page,
       limit,
@@ -307,14 +368,14 @@ export class PayoutService {
       throw new NotFoundException('Host not found');
     }
 
-    // Get payment method
-    const paymentMethod = host.paymentMethods?.find(
-      (pm) => pm.stripePaymentMethodId === payout.paymentMethodId,
-    );
+      // Get bank account
+      const bankAccount = host.bankAccounts?.find(
+        (ba) => ba.id === payout.bankAccountId,
+      );
 
-    if (!paymentMethod || !paymentMethod.stripePaymentMethodId) {
-      throw new BadRequestException('Host payment method not found');
-    }
+      if (!bankAccount) {
+        throw new BadRequestException('Host bank account not found');
+      }
 
     try {
       // Calculate Stripe fee (typically 2.9% + 30 cents for card payments)
@@ -331,6 +392,8 @@ export class PayoutService {
       payout.netAmount = Math.round(netAmount * 100) / 100;
       payout.approvedBy = new mongoose.Types.ObjectId(adminId);
       payout.approvedAt = new Date();
+      payout.approvalScreenshot = approvePayoutDto.screenshot; // Required screenshot
+      payout.approvalReason = approvePayoutDto.reason || undefined; // Optional reason
       await payout.save();
 
       // Process Stripe transfer
@@ -391,7 +454,7 @@ export class PayoutService {
   async rejectWithdrawalRequest(
     payoutId: string,
     adminId: string,
-    approvePayoutDto: ApprovePayoutDto,
+    rejectPayoutDto: RejectPayoutDto,
   ): Promise<Payout> {
     const payout = await this.payoutModel.findById(payoutId);
     if (!payout) {
@@ -404,12 +467,8 @@ export class PayoutService {
       );
     }
 
-    if (!approvePayoutDto.rejectionReason) {
-      throw new BadRequestException('Rejection reason is required');
-    }
-
     payout.status = PayoutStatus.REJECTED;
-    payout.rejectionReason = approvePayoutDto.rejectionReason;
+    payout.rejectionReason = rejectPayoutDto.reason; // Required reason
     payout.approvedBy = new mongoose.Types.ObjectId(adminId);
     payout.approvedAt = new Date();
     await payout.save();
@@ -431,11 +490,11 @@ export class PayoutService {
   }
 
   /**
-   * Add payment method for host
+   * Add bank account for host
    */
-  async addPaymentMethod(
+  async addBankAccount(
     hostId: string,
-    addPaymentMethodDto: AddPaymentMethodDto,
+    addBankAccountDto: AddBankAccountDto,
   ): Promise<User> {
     const host = await this.userModel.findById(hostId);
     if (!host) {
@@ -443,82 +502,56 @@ export class PayoutService {
     }
 
     if (host.role !== Role.host) {
-      throw new ForbiddenException('Only hosts can add payment methods');
+      throw new ForbiddenException('Only hosts can add bank accounts');
     }
 
     try {
-      // Retrieve payment method from Stripe to get details
-      const paymentMethod = await this.stripe.paymentMethods.retrieve(
-        addPaymentMethodDto.paymentMethodId,
-      );
-
-      if (!paymentMethod) {
-        throw new BadRequestException('Invalid payment method');
+      // Initialize bankAccounts array if it doesn't exist
+      if (!host.bankAccounts) {
+        host.bankAccounts = [];
       }
 
-      // Extract payment method details
-      const paymentMethodData: any = {
-        id: paymentMethod.id,
-        type: paymentMethod.type,
-        stripePaymentMethodId: paymentMethod.id,
+      // Generate unique ID for bank account
+      const bankAccountId = `bank_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Set as default if it's the first bank account
+      const isDefault = host.bankAccounts.length === 0;
+
+      // Add bank account
+      const newBankAccount = {
+        id: bankAccountId,
+        iban: addBankAccountDto.iban,
+        bankName: addBankAccountDto.bankName,
+        accountHolderName: addBankAccountDto.accountHolderName,
+        accountNumber: addBankAccountDto.accountNumber || undefined,
+        swiftCode: addBankAccountDto.swiftCode || undefined,
+        routingNumber: addBankAccountDto.routingNumber || undefined,
+        address: addBankAccountDto.address || undefined,
+        city: addBankAccountDto.city || undefined,
+        country: addBankAccountDto.country || undefined,
+        postalCode: addBankAccountDto.postalCode || undefined,
+        isDefault: isDefault,
         createdAt: new Date(),
-        isVerified: true, // Assuming Stripe payment methods are verified
       };
 
-      // Get last4 and brand based on type
-      if (paymentMethod.type === 'card' && paymentMethod.card) {
-        paymentMethodData.last4 = paymentMethod.card.last4;
-        paymentMethodData.brand = paymentMethod.card.brand;
-      } else if (paymentMethod.type === 'us_bank_account' && paymentMethod.us_bank_account) {
-        paymentMethodData.last4 = paymentMethod.us_bank_account.last4;
-        paymentMethodData.brand = paymentMethod.us_bank_account.bank_name || 'Bank Account';
-      }
-
-      // Initialize paymentMethods array if it doesn't exist
-      if (!host.paymentMethods) {
-        host.paymentMethods = [];
-      }
-
-      // Set as default if it's the first payment method
-      if (host.paymentMethods.length === 0) {
-        paymentMethodData.isDefault = true;
-      } else {
-        paymentMethodData.isDefault = false;
-      }
-
-      // Add payment method - ensure all fields are properly set
-      const newPaymentMethod = {
-        id: paymentMethodData.id || paymentMethod.id,
-        type: paymentMethodData.type || paymentMethod.type,
-        last4: paymentMethodData.last4 || '',
-        brand: paymentMethodData.brand || '',
-        isDefault: paymentMethodData.isDefault || false,
-        isVerified: paymentMethodData.isVerified || true,
-        stripePaymentMethodId: paymentMethodData.stripePaymentMethodId || paymentMethod.id,
-        createdAt: paymentMethodData.createdAt || new Date(),
-      };
-
-      host.paymentMethods.push(newPaymentMethod);
-      host.markModified('paymentMethods'); // Mark the array as modified
+      host.bankAccounts.push(newBankAccount);
+      host.markModified('bankAccounts'); // Mark the array as modified
       await host.save();
 
       return host;
     } catch (error: any) {
-      if (error.code === 'resource_missing') {
-        throw new BadRequestException('Payment method not found in Stripe');
-      }
       throw new BadRequestException(
-        `Error adding payment method: ${error.message}`,
+        `Error adding bank account: ${error.message}`,
       );
     }
   }
 
   /**
-   * Delete payment method
+   * Delete bank account
    */
-  async deletePaymentMethod(
+  async deleteBankAccount(
     hostId: string,
-    paymentMethodId: string,
+    bankAccountId: string,
   ): Promise<User> {
     const host = await this.userModel.findById(hostId);
     if (!host) {
@@ -526,23 +559,23 @@ export class PayoutService {
     }
 
     if (host.role !== Role.host) {
-      throw new ForbiddenException('Only hosts can delete payment methods');
+      throw new ForbiddenException('Only hosts can delete bank accounts');
     }
 
-    if (!host.paymentMethods || host.paymentMethods.length === 0) {
-      throw new BadRequestException('No payment methods found');
+    if (!host.bankAccounts || host.bankAccounts.length === 0) {
+      throw new BadRequestException('No bank accounts found');
     }
 
-    // Remove payment method
-    host.paymentMethods = host.paymentMethods.filter(
-      (pm) => pm.stripePaymentMethodId !== paymentMethodId,
+    // Remove bank account
+    host.bankAccounts = host.bankAccounts.filter(
+      (ba) => ba.id !== bankAccountId,
     );
 
     // If we deleted the default, set the first one as default
-    if (host.paymentMethods.length > 0) {
-      const hadDefault = host.paymentMethods.some((pm) => pm.isDefault);
+    if (host.bankAccounts.length > 0) {
+      const hadDefault = host.bankAccounts.some((ba) => ba.isDefault);
       if (!hadDefault) {
-        host.paymentMethods[0].isDefault = true;
+        host.bankAccounts[0].isDefault = true;
       }
     }
 
@@ -552,15 +585,15 @@ export class PayoutService {
   }
 
   /**
-   * Get payment methods for host
+   * Get bank accounts for host
    */
-  async getPaymentMethods(hostId: string): Promise<any[]> {
+  async getBankAccounts(hostId: string): Promise<any[]> {
     const host = await this.userModel.findById(hostId);
     if (!host) {
       throw new NotFoundException('Host not found');
     }
 
-    return host.paymentMethods || [];
+    return host.bankAccounts || [];
   }
 }
 

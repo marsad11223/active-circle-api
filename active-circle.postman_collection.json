@@ -2421,6 +2421,37 @@
 									"response": []
 								},
 								{
+									"name": "Get Withdrawal Request Preparation",
+									"request": {
+										"auth": {
+											"type": "bearer",
+											"bearer": [
+												{
+													"key": "token",
+													"value": "{{token}}",
+													"type": "string"
+												}
+											]
+										},
+										"method": "GET",
+										"header": [],
+										"url": {
+											"raw": "{{base_url}}/payouts/host/withdrawal-request/prepare",
+											"host": [
+												"{{base_url}}"
+											],
+											"path": [
+												"payouts",
+												"host",
+												"withdrawal-request",
+												"prepare"
+											]
+										},
+										"description": "Get withdrawal request preparation data. Returns available balance, list of bank accounts for selection, and whether there's a pending request. Use this before creating a withdrawal request to show bank accounts to the host."
+									},
+									"response": []
+								},
+								{
 									"name": "Create Withdrawal Request",
 									"request": {
 										"auth": {
@@ -2442,8 +2473,13 @@
 										],
 										"body": {
 											"mode": "raw",
-											"raw": "{\n  \"amount\": 50.00\n}",
-											"description": "Amount to withdraw (must be less than or equal to available balance)"
+											"raw": "{\n  \"amount\": 50.00,\n  \"bankAccountId\": \"bank_1234567890\"\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											},
+											"description": "amount (required): Amount to withdraw (must be less than or equal to available balance). bankAccountId (required): ID of the bank account to use for withdrawal."
 										},
 										"url": {
 											"raw": "{{base_url}}/payouts/host/withdrawal-request",
@@ -2456,7 +2492,7 @@
 												"withdrawal-request"
 											]
 										},
-										"description": "Create a withdrawal request. Host must have a payment method added first."
+										"description": "Create a withdrawal request. First call GET /payouts/host/withdrawal-request/prepare to get available balance and bank accounts. Then select a bankAccountId from the list and create the withdrawal request with amount and selected bankAccountId."
 									},
 									"response": []
 								},
@@ -2521,7 +2557,7 @@
 									"response": []
 								},
 								{
-									"name": "Add Payment Method",
+									"name": "Add Bank Account",
 									"request": {
 										"auth": {
 											"type": "bearer",
@@ -2542,26 +2578,31 @@
 										],
 										"body": {
 											"mode": "raw",
-											"raw": "{\n  \"paymentMethodId\": \"pm_1234567890abcdef\"\n}",
-											"description": "Stripe payment method ID (card or bank account)"
+											"raw": "{\n  \"iban\": \"GB82WEST12345698765432\",\n  \"bankName\": \"HSBC Bank\",\n  \"accountHolderName\": \"John Doe\",\n  \"accountNumber\": \"12345678\",\n  \"swiftCode\": \"HSBCGB2L\",\n  \"routingNumber\": \"\",\n  \"address\": \"123 Main Street\",\n  \"city\": \"London\",\n  \"country\": \"United Kingdom\",\n  \"postalCode\": \"SW1A 1AA\"\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											},
+											"description": "iban (required): IBAN number. bankName (required): Bank name. accountHolderName (required): Account holder name. Other fields are optional."
 										},
 										"url": {
-											"raw": "{{base_url}}/payouts/host/payment-methods",
+											"raw": "{{base_url}}/payouts/host/bank-accounts",
 											"host": [
 												"{{base_url}}"
 											],
 											"path": [
 												"payouts",
 												"host",
-												"payment-methods"
+												"bank-accounts"
 											]
 										},
-										"description": "Add a payment method (Stripe payment method ID) for receiving payouts."
+										"description": "Add a bank account for receiving payouts. Hosts can add multiple bank accounts. Required fields: iban, bankName, accountHolderName. Optional fields: accountNumber, swiftCode, routingNumber, address, city, country, postalCode."
 									},
 									"response": []
 								},
 								{
-									"name": "Get Payment Methods",
+									"name": "Get Bank Accounts",
 									"request": {
 										"auth": {
 											"type": "bearer",
@@ -2576,22 +2617,22 @@
 										"method": "GET",
 										"header": [],
 										"url": {
-											"raw": "{{base_url}}/payouts/host/payment-methods",
+											"raw": "{{base_url}}/payouts/host/bank-accounts",
 											"host": [
 												"{{base_url}}"
 											],
 											"path": [
 												"payouts",
 												"host",
-												"payment-methods"
+												"bank-accounts"
 											]
 										},
-										"description": "Get all payment methods for the current host."
+										"description": "Get all bank accounts for the current host."
 									},
 									"response": []
 								},
 								{
-									"name": "Delete Payment Method",
+									"name": "Delete Bank Account",
 									"request": {
 										"auth": {
 											"type": "bearer",
@@ -2606,18 +2647,18 @@
 										"method": "DELETE",
 										"header": [],
 										"url": {
-											"raw": "{{base_url}}/payouts/host/payment-methods/:paymentMethodId",
+											"raw": "{{base_url}}/payouts/host/bank-accounts/:bankAccountId",
 											"host": [
 												"{{base_url}}"
 											],
 											"path": [
 												"payouts",
 												"host",
-												"payment-methods",
-												":paymentMethodId"
+												"bank-accounts",
+												":bankAccountId"
 											]
 										},
-										"description": "Delete a payment method. Replace :paymentMethodId with the Stripe payment method ID."
+										"description": "Delete a bank account. Replace :bankAccountId with the bank account ID."
 									},
 									"response": []
 								}
@@ -2670,7 +2711,7 @@
 												}
 											]
 										},
-										"description": "Get all withdrawal requests. Admin only. Can filter by status."
+										"description": "Get all withdrawal requests. Admin only. Can filter by status. Returns withdrawal requests with host details and bank account information (IBAN, bank name, account holder, etc.)."
 									},
 									"response": []
 								},
@@ -2696,8 +2737,13 @@
 										],
 										"body": {
 											"mode": "raw",
-											"raw": "{}",
-											"description": "Empty body for approval. Admin approves and processes Stripe payment."
+											"raw": "{\n  \"screenshot\": \"https://example.com/screenshot.jpg\",\n  \"reason\": \"Payment processed successfully\"\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											},
+											"description": "screenshot (required): Screenshot URL of the payment proof. reason (optional): Optional reason for approval."
 										},
 										"url": {
 											"raw": "{{base_url}}/payouts/admin/withdrawal-requests/:payoutId/approve",
@@ -2712,7 +2758,7 @@
 												"approve"
 											]
 										},
-										"description": "Approve a withdrawal request. Admin only. Processes Stripe transfer to host (amount - Stripe fee). Replace :payoutId with the payout ID."
+										"description": "Approve a withdrawal request. Admin only. Requires screenshot (required) and optional reason. Processes Stripe transfer to host (amount - Stripe fee). Replace :payoutId with the payout ID."
 									},
 									"response": []
 								},
@@ -2738,8 +2784,13 @@
 										],
 										"body": {
 											"mode": "raw",
-											"raw": "{\n  \"rejectionReason\": \"Insufficient funds or invalid request\"\n}",
-											"description": "Rejection reason is required"
+											"raw": "{\n  \"reason\": \"Insufficient funds or invalid request\"\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											},
+											"description": "reason (required): Reason for rejecting the withdrawal request."
 										},
 										"url": {
 											"raw": "{{base_url}}/payouts/admin/withdrawal-requests/:payoutId/reject",
@@ -2754,7 +2805,7 @@
 												"reject"
 											]
 										},
-										"description": "Reject a withdrawal request. Admin only. Requires rejection reason. Replace :payoutId with the payout ID."
+										"description": "Reject a withdrawal request. Admin only. Requires reason (required). Replace :payoutId with the payout ID."
 									},
 									"response": []
 								}
