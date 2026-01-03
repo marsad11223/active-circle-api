@@ -11,6 +11,7 @@ import {
   BookingStatus,
   PaymentStatus,
 } from 'src/schemas/booking.schema';
+import { Activity, ActivityStatus } from 'src/schemas/activity.schema';
 import { User, Role } from 'src/schemas/user.schema';
 import { Model } from 'mongoose';
 import mongoose from 'mongoose';
@@ -30,6 +31,8 @@ export class PayoutService {
     private readonly payoutModel: Model<Payout>,
     @InjectModel(Booking.name)
     private readonly bookingModel: Model<Booking>,
+    @InjectModel(Activity.name)
+    private readonly activityModel: Model<Activity>,
     @InjectModel(User.name)
     private readonly userModel: Model<User>,
     private configService: ConfigService,
@@ -92,30 +95,45 @@ export class PayoutService {
     availableBalance: number;
   }> {
     // Get all completed bookings for this host where payment was transferred
-    const completedBookings = await this.bookingModel.find({
-      hostId: new mongoose.Types.ObjectId(hostId),
-      status: BookingStatus.CONFIRMED,
-      paymentStatus: { $in: [PaymentStatus.PAID, PaymentStatus.TRANSFERRED] },
-      deleted_at: null,
-    });
+    // AND the activity is completed
+    const completedBookings = await this.bookingModel
+      .find({
+        hostId: new mongoose.Types.ObjectId(hostId),
+        status: BookingStatus.CONFIRMED,
+        paymentStatus: { $in: [PaymentStatus.PAID, PaymentStatus.TRANSFERRED] },
+        deleted_at: null,
+      })
+      .populate('activityId', 'status');
+
+    // Filter bookings where activity is completed
+    const bookingsWithCompletedActivities = completedBookings.filter(
+      (booking) => {
+        const activity = booking.activityId as any;
+        return activity && activity.status === ActivityStatus.COMPLETED;
+      },
+    );
 
     // Calculate Stripe fee: 2.9% + 30 cents (0.30)
     const stripeFeePercentage = 0.029; // 2.9%
     const stripeFeeFixed = 0.3; // 30 cents
 
     // Calculate total earnings (booking amount - Stripe fee for each booking)
-    const totalEarnings = completedBookings.reduce((sum, booking) => {
-      const bookingAmount = booking.amount || 0;
-      if (bookingAmount === 0) {
-        // Free activities have no fee
-        return sum;
-      }
-      // Calculate Stripe fee for this booking
-      const stripeFee = bookingAmount * stripeFeePercentage + stripeFeeFixed;
-      // Host earnings = booking amount - Stripe fee
-      const hostEarnings = bookingAmount - stripeFee;
-      return sum + hostEarnings;
-    }, 0);
+    // Only for bookings where activity is completed
+    const totalEarnings = bookingsWithCompletedActivities.reduce(
+      (sum, booking) => {
+        const bookingAmount = booking.amount || 0;
+        if (bookingAmount === 0) {
+          // Free activities have no fee
+          return sum;
+        }
+        // Calculate Stripe fee for this booking
+        const stripeFee = bookingAmount * stripeFeePercentage + stripeFeeFixed;
+        // Host earnings = booking amount - Stripe fee
+        const hostEarnings = bookingAmount - stripeFee;
+        return sum + hostEarnings;
+      },
+      0,
+    );
 
     // Get pending payout requests
     const pendingPayouts = await this.payoutModel.find({
@@ -172,7 +190,7 @@ export class PayoutService {
   }> {
     const skip = (page - 1) * limit;
 
-    // Get all bookings that generated earnings
+    // Get all bookings that generated earnings (only for completed activities)
     const query = {
       hostId: new mongoose.Types.ObjectId(hostId),
       status: BookingStatus.CONFIRMED,
@@ -180,21 +198,32 @@ export class PayoutService {
       deleted_at: null,
     };
 
-    const total = await this.bookingModel.countDocuments(query);
-
     const bookings = await this.bookingModel
       .find(query)
-      .populate('activityId', 'title picture date')
+      .populate('activityId', 'title picture date status')
       .populate('memberId', 'name email profilePhoto')
-      .sort({ created_at: -1 })
-      .skip(skip)
-      .limit(limit);
+      .sort({ created_at: -1 });
+
+    // Filter bookings where activity is completed
+    const bookingsWithCompletedActivities = bookings.filter((booking) => {
+      const activity = booking.activityId as any;
+      return activity && activity.status === ActivityStatus.COMPLETED;
+    });
+
+    // Get total count after filtering
+    const total = bookingsWithCompletedActivities.length;
+
+    // Apply pagination after filtering
+    const paginatedBookings = bookingsWithCompletedActivities.slice(
+      skip,
+      skip + limit,
+    );
 
     // Calculate Stripe fee: 2.9% + 30 cents (0.30)
     const stripeFeePercentage = 0.029; // 2.9%
     const stripeFeeFixed = 0.3; // 30 cents
 
-    const transactions = bookings.map((booking) => {
+    const transactions = paginatedBookings.map((booking) => {
       const bookingObj = booking.toObject();
       const bookingAmount = booking.amount || 0;
 
@@ -208,18 +237,6 @@ export class PayoutService {
         hostEarnings = Math.round(hostEarnings * 100) / 100; // Round to 2 decimals
       }
 
-      return {
-        _id: bookingObj._id,
-        activity: bookingObj.activityId,
-        member: bookingObj.memberId,
-        amount: bookingAmount,
-        stripeFee: stripeFee,
-        earnings: hostEarnings, // Amount after Stripe fee deduction
-        paymentStatus: bookingObj.paymentStatus,
-        attendanceStatus: bookingObj.attendanceStatus,
-        createdAt: bookingObj.created_at,
-        bookingDate: bookingObj.created_at,
-      };
       return {
         _id: bookingObj._id,
         activity: bookingObj.activityId,
