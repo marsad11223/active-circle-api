@@ -1862,13 +1862,27 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{base_url}}/users/{{user_id}}",
+									"raw": "{{base_url}}/users/{{user_id}}?includeRatings=&includePaymentHistory=",
 									"host": [
 										"{{base_url}}"
 									],
 									"path": [
 										"users",
 										"{{user_id}}"
+									],
+									"query": [
+										{
+											"key": "includeRatings",
+											"value": "",
+											"description": "Set to true to include member ratings in response",
+											"disabled": true
+										},
+										{
+											"key": "includePaymentHistory",
+											"value": "",
+											"description": "Set to true to include paymentHistory in response",
+											"disabled": true
+										}
 									]
 								},
 								"description": "Get user details by ID. SuperAdmin can view anyone, users can only view themselves."

@@ -106,9 +106,20 @@ export class UsersController {
 
   @UseGuards(AuthGuard('jwt'))
   @Get(':id')
-  findOne(@Param('id') id: string, @GetUser() user: User) {
+  findOne(
+    @Param('id') id: string,
+    @GetUser() user: User,
+    @Query('includeRatings') includeRatings?: string,
+    @Query('includePaymentHistory') includePaymentHistory?: string,
+  ) {
     // Check authorization: superAdmin can view anyone, users can only view themselves
     canAccessResource(user, id);
-    return this.usersService.findOne(id);
+
+    const options = {
+      includeRatings: includeRatings === 'true',
+      includePaymentHistory: includePaymentHistory === 'true',
+    };
+
+    return this.usersService.findOne(id, options);
   }
 }

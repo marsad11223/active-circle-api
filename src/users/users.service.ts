@@ -11,6 +11,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { User, Role } from 'src/schemas/user.schema';
 import { Activity } from 'src/schemas/activity.schema';
 import { Rating } from 'src/schemas/rating.schema';
+import { Booking } from 'src/schemas/booking.schema';
 import mongoose, { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { ContactUsDto } from './dto/contact-us.dto';
@@ -31,6 +32,7 @@ export class UsersService {
     @InjectModel(User.name) private readonly userModel: Model<User>,
     @InjectModel(Activity.name) private readonly activityModel: Model<Activity>,
     @InjectModel(Rating.name) private readonly ratingModel: Model<Rating>,
+    @InjectModel(Booking.name) private readonly bookingModel: Model<Booking>,
     private readonly mailerService: MailerService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
@@ -103,34 +105,42 @@ export class UsersService {
     }
   }
 
-  async findOne(id: string): Promise<any> {
+  async findOne(
+    id: string,
+    options?: { includeRatings?: boolean; includePaymentHistory?: boolean },
+  ): Promise<any> {
     try {
       const user = await this.findUser(id);
       if (!user) {
         throw new NotFoundException('User not found!');
       }
-
-      // Fetch ratings made by this member (if any)
-      let ratings: any[] = [];
-      try {
-        ratings = await this.ratingModel
-          .find({ memberId: new mongoose.Types.ObjectId(id), deleted_at: null })
-          .populate('activityId', 'title picture date')
-          .populate('hostId', 'name email profilePhoto')
-          .sort({ created_at: -1 });
-      } catch (ratingErr: any) {
-        // Ignore ratings errors but log
-        console.error(
-          'Error fetching member ratings:',
-          ratingErr.message || ratingErr,
-        );
-      }
+      const includeRatings = options?.includeRatings === true;
+      const includePaymentHistory = options?.includePaymentHistory === true;
 
       const userObj = (user as any).toObject ? (user as any).toObject() : user;
 
-      return {
-        ...userObj,
-        ratings: ratings.map((r) => {
+      const result: any = { ...userObj };
+
+      if (includeRatings) {
+        // Fetch ratings made by this member (if any)
+        let ratings: any[] = [];
+        try {
+          ratings = await this.ratingModel
+            .find({
+              memberId: new mongoose.Types.ObjectId(id),
+              deleted_at: null,
+            })
+            .populate('activityId', 'title picture date')
+            .populate('hostId', 'name email profilePhoto')
+            .sort({ created_at: -1 });
+        } catch (ratingErr: any) {
+          console.error(
+            'Error fetching member ratings:',
+            ratingErr.message || ratingErr,
+          );
+        }
+
+        result.ratings = ratings.map((r) => {
           const activity = r.activityId || null;
           const host = r.hostId || null;
           return {
@@ -156,8 +166,72 @@ export class UsersService {
             hostReply: r.hostReply || null,
             created_at: r.created_at,
           };
-        }),
-      };
+        });
+      }
+
+      if (includePaymentHistory) {
+        // Payment history: recent bookings for this member
+        let bookings: any[] = [];
+        try {
+          bookings = await this.bookingModel
+            .find({
+              memberId: new mongoose.Types.ObjectId(id),
+              deleted_at: null,
+            })
+            .populate('activityId')
+            .populate('hostId', 'name email profilePhoto')
+            .sort({ created_at: -1 });
+        } catch (bookingErr: any) {
+          console.error(
+            'Error fetching member bookings for payment history:',
+            bookingErr.message || bookingErr,
+          );
+        }
+
+        result.paymentHistory = bookings.map((booking) => {
+          const activity = booking.activityId;
+          const host = booking.hostId;
+
+          // Determine display status
+          let displayStatus = 'Completed';
+          if (booking.status === 'pending') displayStatus = 'Pending';
+          else if (booking.status === 'cancelled') displayStatus = 'Cancelled';
+          else if (booking.status === 'confirmed') {
+            if (activity && activity.date) {
+              const activityDate = new Date(activity.date);
+              const now = new Date();
+              displayStatus = activityDate > now ? 'Upcoming' : 'Completed';
+            }
+          }
+
+          return {
+            _id: booking._id,
+            activity: {
+              _id: activity?._id || activity,
+              title: activity?.title || '',
+              picture: activity?.picture || null,
+              date: activity?.date || null,
+              location: activity?.location || null,
+            },
+            host: {
+              _id: host?._id || host,
+              name: host?.name || '',
+              email: host?.email || '',
+              profilePhoto: host?.profilePhoto || null,
+            },
+            bookingDate: booking.created_at,
+            activityDate: (activity && activity.date) || null,
+            type: booking.amount > 0 ? 'Paid Activity' : 'Free Activity',
+            amount: booking.amount,
+            status: displayStatus,
+            paymentStatus: booking.paymentStatus || null,
+            invoiceNumber: booking.invoiceNumber || null,
+            paymentIntentId: booking.paymentIntentId || null,
+          };
+        });
+      }
+
+      return result;
     } catch (err) {
       throw new BadRequestException(err.message);
     }
