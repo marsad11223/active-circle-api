@@ -17,7 +17,11 @@ import { Rating } from 'src/schemas/rating.schema';
 import mongoose, { Model } from 'mongoose';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
-import { AdminListBookingsDto, BookingSortBy, SortOrder } from './dto/admin-list-bookings.dto';
+import {
+  AdminListBookingsDto,
+  BookingSortBy,
+  SortOrder,
+} from './dto/admin-list-bookings.dto';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { MailerService } from '@nestjs-modules/mailer';
@@ -1664,9 +1668,7 @@ export class BookingService {
    * Get paginated list of all bookings for admin
    * Supports search, filters, and sorting
    */
-  async getAllBookingsForAdmin(
-    filters: AdminListBookingsDto,
-  ): Promise<{
+  async getAllBookingsForAdmin(filters: AdminListBookingsDto): Promise<{
     bookings: any[];
     total: number;
     page: number;
@@ -1744,7 +1746,9 @@ export class BookingService {
           ],
           deleted_at: null,
         });
-        const matchingActivityIds = matchingActivities.map((activity) => activity._id);
+        const matchingActivityIds = matchingActivities.map(
+          (activity) => activity._id,
+        );
 
         // Build search conditions
         const searchConditions: any[] = [];
@@ -1787,7 +1791,10 @@ export class BookingService {
         .find(query)
         .populate('memberId', 'name email profilePhoto')
         .populate('hostId', 'name email profilePhoto')
-        .populate('activityId', 'title description location date time picture category maxParticipants price status')
+        .populate(
+          'activityId',
+          'title description location date time picture category maxParticipants price status',
+        )
         .sort(sort)
         .skip(skip)
         .limit(limit);
@@ -1798,10 +1805,16 @@ export class BookingService {
           const activity = booking.activityId as any;
           if (!activity || !activity.date) return false;
           const activityDate = new Date(activity.date);
-          if (activityDateFilter.$gte && activityDate < activityDateFilter.$gte) {
+          if (
+            activityDateFilter.$gte &&
+            activityDate < activityDateFilter.$gte
+          ) {
             return false;
           }
-          if (activityDateFilter.$lte && activityDate > activityDateFilter.$lte) {
+          if (
+            activityDateFilter.$lte &&
+            activityDate > activityDateFilter.$lte
+          ) {
             return false;
           }
           return true;
@@ -1813,7 +1826,7 @@ export class BookingService {
       if (activityDateFilter) {
         // Use aggregation pipeline to filter by activity date efficiently
         const matchStage: any = { ...query };
-        
+
         const lookupStage = {
           $lookup: {
             from: 'activities',
@@ -1822,21 +1835,27 @@ export class BookingService {
             as: 'activity',
           },
         };
-        
-        const unwindStage = { $unwind: { path: '$activity', preserveNullAndEmptyArrays: false } };
-        
+
+        const unwindStage = {
+          $unwind: { path: '$activity', preserveNullAndEmptyArrays: false },
+        };
+
         const activityDateMatch: any = {};
         if (activityDateFilter.$gte) {
-          activityDateMatch['activity.date'] = { $gte: activityDateFilter.$gte };
+          activityDateMatch['activity.date'] = {
+            $gte: activityDateFilter.$gte,
+          };
         }
         if (activityDateFilter.$lte) {
           if (activityDateMatch['activity.date']) {
             activityDateMatch['activity.date'].$lte = activityDateFilter.$lte;
           } else {
-            activityDateMatch['activity.date'] = { $lte: activityDateFilter.$lte };
+            activityDateMatch['activity.date'] = {
+              $lte: activityDateFilter.$lte,
+            };
           }
         }
-        
+
         const countResult = await this.bookingModel.aggregate([
           { $match: matchStage },
           lookupStage,
@@ -1844,7 +1863,7 @@ export class BookingService {
           { $match: activityDateMatch },
           { $count: 'total' },
         ]);
-        
+
         total = countResult.length > 0 ? countResult[0].total : 0;
       } else {
         total = await this.bookingModel.countDocuments(query);
@@ -1855,8 +1874,12 @@ export class BookingService {
         bookings.sort((a, b) => {
           const activityA = a.activityId as any;
           const activityB = b.activityId as any;
-          const dateA = activityA?.date ? new Date(activityA.date).getTime() : 0;
-          const dateB = activityB?.date ? new Date(activityB.date).getTime() : 0;
+          const dateA = activityA?.date
+            ? new Date(activityA.date).getTime()
+            : 0;
+          const dateB = activityB?.date
+            ? new Date(activityB.date).getTime()
+            : 0;
           return sortOrder === 1 ? dateA - dateB : dateB - dateA;
         });
       }
@@ -1896,7 +1919,8 @@ export class BookingService {
           },
           status: booking.status,
           paymentStatus: booking.paymentStatus || null,
-          attendanceStatus: booking.attendanceStatus || AttendanceStatus.PENDING,
+          attendanceStatus:
+            booking.attendanceStatus || AttendanceStatus.PENDING,
           amount: booking.amount || 0,
           invoiceNumber: booking.invoiceNumber || null,
           declineReason: booking.declineReason || null,
