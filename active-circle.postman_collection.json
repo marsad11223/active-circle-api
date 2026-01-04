@@ -2268,7 +2268,7 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{base_url}}/bookings/admin/all?page=1&limit=10&search=&status=&paymentStatus=&attendanceStatus=&startDate=&endDate=&sortBy=created_at&sortOrder=desc",
+									"raw": "{{base_url}}/bookings/admin/all?page=1&limit=10&search=&status=&paymentStatus=&memberId=&attendanceStatus=&startDate=&endDate=&sortBy=created_at&sortOrder=desc",
 									"host": [
 										"{{base_url}}"
 									],
@@ -2304,6 +2304,12 @@
 											"key": "paymentStatus",
 											"value": "",
 											"description": "Filter by payment status: pending, paid, refunded, transferred",
+											"disabled": true
+										},
+										{
+											"key": "memberId",
+											"value": "",
+											"description": "Filter by member ID to return bookings for a specific member",
 											"disabled": true
 										},
 										{

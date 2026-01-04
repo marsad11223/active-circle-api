@@ -1748,6 +1748,15 @@ export class BookingService {
         deleted_at: null,
       };
 
+      // Filter by member id if provided (admin wants bookings of a specific member)
+      if (filters.memberId) {
+        if (!mongoose.isValidObjectId(filters.memberId)) {
+          throw new BadRequestException('Invalid member ID');
+        }
+
+        query.memberId = new mongoose.Types.ObjectId(filters.memberId);
+      }
+
       // Status filter
       if (filters.status) {
         query.status = filters.status;

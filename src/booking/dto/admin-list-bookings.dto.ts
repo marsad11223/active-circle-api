@@ -1,6 +1,17 @@
-import { IsOptional, IsString, IsInt, Min, IsEnum, IsDateString } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsInt,
+  Min,
+  IsEnum,
+  IsDateString,
+} from 'class-validator';
 import { Type } from 'class-transformer';
-import { BookingStatus, PaymentStatus, AttendanceStatus } from 'src/schemas/booking.schema';
+import {
+  BookingStatus,
+  PaymentStatus,
+  AttendanceStatus,
+} from 'src/schemas/booking.schema';
 
 export enum BookingSortBy {
   CREATED_AT = 'created_at',
@@ -57,5 +68,8 @@ export class AdminListBookingsDto {
   @IsOptional()
   @IsEnum(SortOrder)
   sortOrder?: SortOrder = SortOrder.DESC; // Latest to Oldest by default
-}
 
+  @IsOptional()
+  @IsString()
+  memberId?: string; // Filter bookings by a specific member ID
+}
