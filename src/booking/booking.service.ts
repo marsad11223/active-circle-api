@@ -1027,6 +1027,69 @@ export class BookingService {
       }
 
       // Handle paid activities - refund logic
+      // For pending paid bookings: cancel the payment intent (release auth)
+      if (booking.status === BookingStatus.PENDING) {
+        if (!booking.paymentIntentId) {
+          throw new BadRequestException(
+            'Payment information not found for this booking',
+          );
+        }
+
+        try {
+          await this.stripe.paymentIntents.cancel(booking.paymentIntentId);
+          booking.paymentStatus = PaymentStatus.REFUNDED; // Authorization released
+        } catch (cancelError: any) {
+          // If payment is in an unexpected state, attempt refund as fallback
+          if (cancelError.code === 'payment_intent_unexpected_state') {
+            try {
+              await this.stripe.refunds.create({
+                payment_intent: booking.paymentIntentId,
+              });
+              booking.paymentStatus = PaymentStatus.REFUNDED;
+            } catch (refundError: any) {
+              throw new BadRequestException(
+                `Failed to process cancellation: ${refundError.message}`,
+              );
+            }
+          } else {
+            throw new BadRequestException(
+              `Failed to cancel payment: ${cancelError.message}`,
+            );
+          }
+        }
+
+        // Mark booking cancelled and save
+        booking.status = BookingStatus.CANCELLED;
+        booking.declineReason = cancelReason || 'Withdrawn by member';
+        booking.updated_at = new Date();
+        await booking.save();
+
+        // Send notification to member
+        const emailsEnabled =
+          this.configService.get<string>('EMAILS_ENABLED') === 'true';
+        const member = await this.userModel.findById(memberId);
+        if (member && emailsEnabled) {
+          try {
+            await this.mailerService.sendMail({
+              to: member.email,
+              subject: 'Booking Withdrawn',
+              html: bookingDeclinedToMember({
+                memberName: member.name,
+                memberEmail: member.email,
+                activityTitle: activity.title,
+                declineReason: cancelReason,
+                isPaid: true,
+              }),
+            });
+          } catch (emailError: any) {
+            console.error('Error sending withdrawal email:', emailError);
+          }
+        }
+
+        return booking;
+      }
+
+      // Now handle refunds for confirmed bookings
       if (!booking.paymentIntentId) {
         throw new BadRequestException(
           'Payment information not found for this booking',
