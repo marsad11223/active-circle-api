@@ -969,10 +969,13 @@ export class BookingService {
         throw new ForbiddenException('You can only cancel your own bookings');
       }
 
-      // Only allow cancellation for confirmed bookings
-      if (booking.status !== BookingStatus.CONFIRMED) {
+      // Allow members to cancel confirmed bookings or withdraw pending requests
+      if (
+        booking.status !== BookingStatus.CONFIRMED &&
+        booking.status !== BookingStatus.PENDING
+      ) {
         throw new BadRequestException(
-          'Only confirmed bookings can be cancelled',
+          'Only confirmed or pending bookings can be cancelled/withdrawn',
         );
       }
 
@@ -987,8 +990,9 @@ export class BookingService {
       const hoursUntilEvent =
         (activityDate.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-      // Handle free activities - immediate cancellation
+      // Handle free activities - immediate cancellation (applies to pending or confirmed)
       if (booking.amount === 0 || !booking.paymentStatus) {
+        const wasPending = booking.status === BookingStatus.PENDING;
         booking.status = BookingStatus.CANCELLED;
         booking.declineReason = cancelReason || 'Cancelled by member';
         booking.updated_at = new Date();
@@ -1002,7 +1006,7 @@ export class BookingService {
           try {
             await this.mailerService.sendMail({
               to: member.email,
-              subject: 'Booking Cancelled',
+              subject: wasPending ? 'Booking Withdrawn' : 'Booking Cancelled',
               html: bookingCancelledFreeToMember({
                 memberName: member.name,
                 memberEmail: member.email,
@@ -1067,7 +1071,9 @@ export class BookingService {
         );
       }
 
-      // Process Stripe refund
+      // If booking was pending (authorized but not captured) and member withdraws,
+      // cancelling the payment intent will release the authorization (similar to host decline)
+      // Process Stripe refund / cancellation
       try {
         // First, retrieve the payment intent to get the charge ID
         const paymentIntent = await this.stripe.paymentIntents.retrieve(
