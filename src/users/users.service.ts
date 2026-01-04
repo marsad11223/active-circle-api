@@ -10,6 +10,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { User, Role } from 'src/schemas/user.schema';
 import { Activity } from 'src/schemas/activity.schema';
+import { Rating } from 'src/schemas/rating.schema';
 import mongoose, { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { ContactUsDto } from './dto/contact-us.dto';
@@ -29,6 +30,7 @@ export class UsersService {
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<User>,
     @InjectModel(Activity.name) private readonly activityModel: Model<Activity>,
+    @InjectModel(Rating.name) private readonly ratingModel: Model<Rating>,
     private readonly mailerService: MailerService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
@@ -106,9 +108,56 @@ export class UsersService {
       const user = await this.findUser(id);
       if (!user) {
         throw new NotFoundException('User not found!');
-      } else {
-        return user;
       }
+
+      // Fetch ratings made by this member (if any)
+      let ratings: any[] = [];
+      try {
+        ratings = await this.ratingModel
+          .find({ memberId: new mongoose.Types.ObjectId(id), deleted_at: null })
+          .populate('activityId', 'title picture date')
+          .populate('hostId', 'name email profilePhoto')
+          .sort({ created_at: -1 });
+      } catch (ratingErr: any) {
+        // Ignore ratings errors but log
+        console.error(
+          'Error fetching member ratings:',
+          ratingErr.message || ratingErr,
+        );
+      }
+
+      const userObj = (user as any).toObject ? (user as any).toObject() : user;
+
+      return {
+        ...userObj,
+        ratings: ratings.map((r) => {
+          const activity = r.activityId || null;
+          const host = r.hostId || null;
+          return {
+            _id: r._id,
+            activity: activity
+              ? {
+                  _id: activity._id || activity,
+                  title: activity.title || '',
+                  picture: activity.picture || null,
+                  date: activity.date || null,
+                }
+              : null,
+            host: host
+              ? {
+                  _id: host._id || host,
+                  name: host.name || '',
+                  email: host.email || '',
+                  profilePhoto: host.profilePhoto || null,
+                }
+              : null,
+            rating: r.rating,
+            review: r.review || null,
+            hostReply: r.hostReply || null,
+            created_at: r.created_at,
+          };
+        }),
+      };
     } catch (err) {
       throw new BadRequestException(err.message);
     }
@@ -369,9 +418,11 @@ export class UsersService {
       };
 
       // Subscription filter
-      const hasSubscriptionFilter = filters.hasSubscription || HasSubscription.ALL;
+      const hasSubscriptionFilter =
+        filters.hasSubscription || HasSubscription.ALL;
       if (hasSubscriptionFilter !== HasSubscription.ALL) {
-        query.hasActiveSubscription = hasSubscriptionFilter === HasSubscription.TRUE;
+        query.hasActiveSubscription =
+          hasSubscriptionFilter === HasSubscription.TRUE;
       }
 
       // Search filter (name or email)
@@ -455,9 +506,11 @@ export class UsersService {
       };
 
       // Subscription filter
-      const hasSubscriptionFilter = filters.hasSubscription || HasSubscription.ALL;
+      const hasSubscriptionFilter =
+        filters.hasSubscription || HasSubscription.ALL;
       if (hasSubscriptionFilter !== HasSubscription.ALL) {
-        query.hasActiveSubscription = hasSubscriptionFilter === HasSubscription.TRUE;
+        query.hasActiveSubscription =
+          hasSubscriptionFilter === HasSubscription.TRUE;
       }
 
       // Search filter (name or email)
