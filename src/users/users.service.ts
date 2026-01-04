@@ -295,6 +295,40 @@ export class UsersService {
     }
   }
 
+  /**
+   * Suspend or unsuspend a user (admin only) — soft suspension
+   */
+  async suspendUser(
+    id: string,
+    suspend: boolean,
+    reason?: string,
+  ): Promise<User | null> {
+    try {
+      const user = await this.findUser(id);
+      if (!user) throw new NotFoundException('User not found!');
+
+      const update: any = {
+        suspended: suspend,
+        suspendedReason: suspend ? reason || null : null,
+        suspended_at: suspend ? new Date() : null,
+        updated_at: new Date(),
+      };
+
+      const updated = await this.userModel
+        .findByIdAndUpdate(id, update, { new: true })
+        .select('-password');
+
+      if (!updated) throw new NotFoundException('User not found after update');
+
+      return updated;
+    } catch (err) {
+      if (err instanceof NotFoundException || err instanceof BadRequestException) {
+        throw err;
+      }
+      throw new BadRequestException(err.message);
+    }
+  }
+
   async findUser(id: string) {
     const isValidID = mongoose.isValidObjectId(id);
     if (!isValidID) {

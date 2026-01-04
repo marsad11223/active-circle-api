@@ -98,6 +98,19 @@ export class UsersController {
   }
 
   @UseGuards(AuthGuard('jwt'))
+  @Put('admin/:id/suspend')
+  suspendUserByAdmin(
+    @Param('id') id: string,
+    @Body() body: { suspend: boolean; reason?: string },
+    @GetUser() user: User,
+  ) {
+    // Admin only
+    IsAdmin(user);
+    const { suspend, reason } = body;
+    return this.usersService.suspendUser(id, suspend, reason);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
   @Get('admin/hosts')
   getAllHosts(@Query() filters: AdminListUsersDto, @GetUser() user: User) {
     IsAdmin(user);

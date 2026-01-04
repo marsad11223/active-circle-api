@@ -70,6 +70,15 @@ export class User {
   @Prop({ default: null })
   deleted_at: Date;
 
+  @Prop({ default: false })
+  suspended?: boolean; // Soft suspension flag (admin can suspend account)
+
+  @Prop({ required: false })
+  suspendedReason?: string;
+
+  @Prop({ required: false })
+  suspended_at?: Date;
+
   @Prop()
   stripeCustomerId: string;
 

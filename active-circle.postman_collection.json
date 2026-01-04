@@ -1985,6 +1985,46 @@
 							"response": []
 						},
 						{
+							"name": "Suspend/Unsuspend User (Admin)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PUT",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"suspend\": true,\n  \"reason\": \"Violation of terms\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/users/admin/{{user_id}}/suspend",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"users",
+										"admin",
+										"{{user_id}}",
+										"suspend"
+									]
+								},
+								"description": "Suspend or unsuspend a user. Admin only. Request body: { \"suspend\": true|false, \"reason\": \"optional reason\" }"
+							},
+							"response": []
+						},
+						{
 							"name": "contactus",
 							"request": {
 								"method": "POST",
