@@ -67,6 +67,10 @@ export class AuthService {
     const { email, password } = loginUserDto;
     const user = await this.userModel.findOne({ email: email });
     if (user) {
+      // Prevent login for soft-deleted users
+      if ((user as any).isDeleted || (user as any).deleted_at) {
+        throw new UnauthorizedException('Account not found');
+      }
       const isValid = await bcrypt.compare(password, user.password);
       if (!isValid) {
         throw new UnauthorizedException('Incorrect Email or Password');
@@ -128,6 +132,12 @@ export class AuthService {
           '[FORGOT_PASSWORD] ERROR: User not found for email:',
           email,
         );
+        throw new NotFoundException('User with this email not found');
+      }
+
+      // Do not allow password reset for soft-deleted users
+      if ((user as any).isDeleted || (user as any).deleted_at) {
+        console.log('[FORGOT_PASSWORD] ERROR: Attempt to reset password for deleted user:', email);
         throw new NotFoundException('User with this email not found');
       }
       console.log(

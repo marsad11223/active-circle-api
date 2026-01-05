@@ -45,9 +45,15 @@ export class UsersController {
 
   @UseGuards(AuthGuard('jwt'))
   @Delete(':id')
-  remove(@Param('id') id: string, @GetUser() user: User) {
-    IsAdmin(user);
-    return this.usersService.remove(id);
+  async remove(@Param('id') id: string, @GetUser() user: User) {
+    const requesterId = (user as any)._id.toString();
+    const targetUserId = id === 'me' ? requesterId : id;
+
+    if (targetUserId !== requesterId) {
+      IsAdmin(user);
+    }
+
+    return this.usersService.remove(targetUserId);
   }
 
   @UseGuards(AuthGuard('jwt'))

@@ -285,9 +285,14 @@ export class UsersService {
       if (!user) {
         throw new NotFoundException('User not found!');
       } else {
-        await this.userModel.deleteOne({ _id: id });
+        // Soft delete: set deleted_at timestamp instead of removing the document
+        await this.userModel.findByIdAndUpdate(id, {
+          isDeleted: true,
+          deleted_at: new Date(),
+          updated_at: new Date(),
+        });
         return {
-          message: 'Successfully deleted',
+          message: 'Successfully deleted (soft)'.toString(),
         };
       }
     } catch (err) {
@@ -322,7 +327,10 @@ export class UsersService {
 
       return updated;
     } catch (err) {
-      if (err instanceof NotFoundException || err instanceof BadRequestException) {
+      if (
+        err instanceof NotFoundException ||
+        err instanceof BadRequestException
+      ) {
         throw err;
       }
       throw new BadRequestException(err.message);

@@ -71,6 +71,9 @@ export class User {
   deleted_at: Date;
 
   @Prop({ default: false })
+  isDeleted?: boolean;
+
+  @Prop({ default: false })
   suspended?: boolean; // Soft suspension flag (admin can suspend account)
 
   @Prop({ required: false })
