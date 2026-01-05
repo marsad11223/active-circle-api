@@ -33,13 +33,23 @@ export class PayoutController {
    */
   @UseGuards(AuthGuard('jwt'))
   @Get('host/earnings-summary')
-  async getHostEarningsSummary(@GetUser() user: User) {
-    if (user.role !== Role.host) {
-      throw new ForbiddenException('Only hosts can access this endpoint');
+  async getHostEarningsSummary(
+    @GetUser() user: User,
+    @Query('hostId') hostId?: string,
+  ) {
+    if (user.role !== Role.host && user.role !== Role.superAdmin) {
+      throw new ForbiddenException(
+        'Only hosts or admins can access this endpoint',
+      );
     }
-    return this.payoutService.getHostEarningsSummary(
-      (user as any)._id.toString(),
-    );
+
+    const tokenUserId = (user as any)._id.toString();
+    if (user.role === Role.host && hostId && hostId !== tokenUserId) {
+      throw new ForbiddenException('Hosts cannot access other hosts data');
+    }
+
+    const targetHostId = hostId ?? tokenUserId;
+    return this.payoutService.getHostEarningsSummary(targetHostId);
   }
 
   /**
@@ -52,14 +62,24 @@ export class PayoutController {
     @GetUser() user: User,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('hostId') hostId?: string,
   ) {
-    if (user.role !== Role.host) {
-      throw new ForbiddenException('Only hosts can access this endpoint');
+    if (user.role !== Role.host && user.role !== Role.superAdmin) {
+      throw new ForbiddenException(
+        'Only hosts or admins can access this endpoint',
+      );
     }
+
+    const tokenUserId = (user as any)._id.toString();
+    if (user.role === Role.host && hostId && hostId !== tokenUserId) {
+      throw new ForbiddenException('Hosts cannot access other hosts data');
+    }
+
+    const targetHostId = hostId ?? tokenUserId;
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 10;
     return this.payoutService.getHostTransactions(
-      (user as any)._id.toString(),
+      targetHostId,
       pageNum,
       limitNum,
     );
@@ -71,12 +91,24 @@ export class PayoutController {
    */
   @UseGuards(AuthGuard('jwt'))
   @Get('host/withdrawal-request/prepare')
-  async getWithdrawalRequestPreparation(@GetUser() user: User) {
-    if (user.role !== Role.host) {
-      throw new ForbiddenException('Only hosts can access this endpoint');
+  async getWithdrawalRequestPreparation(
+    @GetUser() user: User,
+    @Query('hostId') hostId?: string,
+  ) {
+    if (user.role !== Role.host && user.role !== Role.superAdmin) {
+      throw new ForbiddenException(
+        'Only hosts or admins can access this endpoint',
+      );
     }
+
+    const tokenUserId = (user as any)._id.toString();
+    if (user.role === Role.host && hostId && hostId !== tokenUserId) {
+      throw new ForbiddenException('Hosts cannot access other hosts data');
+    }
+
+    const targetHostId = hostId ?? tokenUserId;
     return await this.payoutService.getWithdrawalRequestPreparation(
-      (user as any)._id.toString(),
+      targetHostId,
     );
   }
 
@@ -89,12 +121,24 @@ export class PayoutController {
   async createWithdrawalRequest(
     @GetUser() user: User,
     @Body() createWithdrawalRequestDto: CreateWithdrawalRequestDto,
+    @Query('hostId') hostId?: string,
   ) {
-    if (user.role !== Role.host) {
-      throw new ForbiddenException('Only hosts can create withdrawal requests');
+    if (user.role !== Role.host && user.role !== Role.superAdmin) {
+      throw new ForbiddenException(
+        'Only hosts or admins can create withdrawal requests',
+      );
     }
+
+    const tokenUserId = (user as any)._id.toString();
+    if (user.role === Role.host && hostId && hostId !== tokenUserId) {
+      throw new ForbiddenException(
+        'Hosts cannot create withdrawal requests for other hosts',
+      );
+    }
+
+    const targetHostId = hostId ?? tokenUserId;
     return this.payoutService.createWithdrawalRequest(
-      (user as any)._id.toString(),
+      targetHostId,
       createWithdrawalRequestDto,
     );
   }
@@ -105,13 +149,23 @@ export class PayoutController {
    */
   @UseGuards(AuthGuard('jwt'))
   @Get('host/withdrawal-requests')
-  async getHostWithdrawalRequests(@GetUser() user: User) {
-    if (user.role !== Role.host) {
-      throw new ForbiddenException('Only hosts can access this endpoint');
+  async getHostWithdrawalRequests(
+    @GetUser() user: User,
+    @Query('hostId') hostId?: string,
+  ) {
+    if (user.role !== Role.host && user.role !== Role.superAdmin) {
+      throw new ForbiddenException(
+        'Only hosts or admins can access this endpoint',
+      );
     }
-    return this.payoutService.getHostWithdrawalRequests(
-      (user as any)._id.toString(),
-    );
+
+    const tokenUserId = (user as any)._id.toString();
+    if (user.role === Role.host && hostId && hostId !== tokenUserId) {
+      throw new ForbiddenException('Hosts cannot access other hosts data');
+    }
+
+    const targetHostId = hostId ?? tokenUserId;
+    return this.payoutService.getHostWithdrawalRequests(targetHostId);
   }
 
   /**
@@ -120,13 +174,23 @@ export class PayoutController {
    */
   @UseGuards(AuthGuard('jwt'))
   @Get('host/payout-history')
-  async getHostPayoutHistory(@GetUser() user: User) {
-    if (user.role !== Role.host) {
-      throw new ForbiddenException('Only hosts can access this endpoint');
+  async getHostPayoutHistory(
+    @GetUser() user: User,
+    @Query('hostId') hostId?: string,
+  ) {
+    if (user.role !== Role.host && user.role !== Role.superAdmin) {
+      throw new ForbiddenException(
+        'Only hosts or admins can access this endpoint',
+      );
     }
-    return this.payoutService.getHostPayoutHistory(
-      (user as any)._id.toString(),
-    );
+
+    const tokenUserId = (user as any)._id.toString();
+    if (user.role === Role.host && hostId && hostId !== tokenUserId) {
+      throw new ForbiddenException('Hosts cannot access other hosts data');
+    }
+
+    const targetHostId = hostId ?? tokenUserId;
+    return this.payoutService.getHostPayoutHistory(targetHostId);
   }
 
   /**
@@ -138,12 +202,24 @@ export class PayoutController {
   async addBankAccount(
     @GetUser() user: User,
     @Body() addBankAccountDto: AddBankAccountDto,
+    @Query('hostId') hostId?: string,
   ) {
-    if (user.role !== Role.host) {
-      throw new ForbiddenException('Only hosts can add bank accounts');
+    if (user.role !== Role.host && user.role !== Role.superAdmin) {
+      throw new ForbiddenException(
+        'Only hosts or admins can add bank accounts',
+      );
     }
+
+    const tokenUserId = (user as any)._id.toString();
+    if (user.role === Role.host && hostId && hostId !== tokenUserId) {
+      throw new ForbiddenException(
+        'Hosts cannot add bank accounts for other hosts',
+      );
+    }
+
+    const targetHostId = hostId ?? tokenUserId;
     return await this.payoutService.addBankAccount(
-      (user as any)._id.toString(),
+      targetHostId,
       addBankAccountDto,
     );
   }
@@ -154,13 +230,23 @@ export class PayoutController {
    */
   @UseGuards(AuthGuard('jwt'))
   @Get('host/bank-accounts')
-  async getBankAccounts(@GetUser() user: User) {
-    if (user.role !== Role.host) {
-      throw new ForbiddenException('Only hosts can access this endpoint');
+  async getBankAccounts(
+    @GetUser() user: User,
+    @Query('hostId') hostId?: string,
+  ) {
+    if (user.role !== Role.host && user.role !== Role.superAdmin) {
+      throw new ForbiddenException(
+        'Only hosts or admins can access this endpoint',
+      );
     }
-    return await this.payoutService.getBankAccounts(
-      (user as any)._id.toString(),
-    );
+
+    const tokenUserId = (user as any)._id.toString();
+    if (user.role === Role.host && hostId && hostId !== tokenUserId) {
+      throw new ForbiddenException('Hosts cannot access other hosts data');
+    }
+
+    const targetHostId = hostId ?? tokenUserId;
+    return await this.payoutService.getBankAccounts(targetHostId);
   }
 
   /**
@@ -172,12 +258,24 @@ export class PayoutController {
   async deleteBankAccount(
     @GetUser() user: User,
     @Param('bankAccountId') bankAccountId: string,
+    @Query('hostId') hostId?: string,
   ) {
-    if (user.role !== Role.host) {
-      throw new ForbiddenException('Only hosts can delete bank accounts');
+    if (user.role !== Role.host && user.role !== Role.superAdmin) {
+      throw new ForbiddenException(
+        'Only hosts or admins can delete bank accounts',
+      );
     }
+
+    const tokenUserId = (user as any)._id.toString();
+    if (user.role === Role.host && hostId && hostId !== tokenUserId) {
+      throw new ForbiddenException(
+        'Hosts cannot delete bank accounts for other hosts',
+      );
+    }
+
+    const targetHostId = hostId ?? tokenUserId;
     return await this.payoutService.deleteBankAccount(
-      (user as any)._id.toString(),
+      targetHostId,
       bankAccountId,
     );
   }

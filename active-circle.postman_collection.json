@@ -2438,6 +2438,14 @@
 												"payouts",
 												"host",
 												"earnings-summary"
+											],
+											"query": [
+												{
+													"key": "hostId",
+													"value": "695140a6e9b239a8e1337c1e",
+													"description": "Optional hostId for admin use",
+													"disabled": true
+												}
 											]
 										},
 										"description": "Get host earnings summary: total earnings, pending payouts, total paid out, and available balance."
@@ -2479,6 +2487,12 @@
 													"key": "limit",
 													"value": "10",
 													"description": "Items per page (default: 10)"
+												},
+												{
+													"key": "hostId",
+													"value": "695140a6e9b239a8e1337c1e",
+													"description": "Optional hostId for admin use",
+													"disabled": true
 												}
 											]
 										},
@@ -2511,6 +2525,14 @@
 												"host",
 												"withdrawal-request",
 												"prepare"
+											],
+											"query": [
+												{
+													"key": "hostId",
+													"value": "695140a6e9b239a8e1337c1e",
+													"description": "Optional hostId for admin use",
+													"disabled": true
+												}
 											]
 										},
 										"description": "Get withdrawal request preparation data. Returns available balance, list of bank accounts for selection, and whether there's a pending request. Use this before creating a withdrawal request to show bank accounts to the host."
@@ -2556,6 +2578,14 @@
 												"payouts",
 												"host",
 												"withdrawal-request"
+											],
+											"query": [
+												{
+													"key": "hostId",
+													"value": "695140a6e9b239a8e1337c1e",
+													"description": "Optional hostId for admin use",
+													"disabled": true
+												}
 											]
 										},
 										"description": "Create a withdrawal request. First call GET /payouts/host/withdrawal-request/prepare to get available balance and bank accounts. Then select a bankAccountId from the list and create the withdrawal request with amount and selected bankAccountId."
@@ -2586,6 +2616,14 @@
 												"payouts",
 												"host",
 												"withdrawal-requests"
+											],
+											"query": [
+												{
+													"key": "hostId",
+													"value": "695140a6e9b239a8e1337c1e",
+													"description": "Optional hostId for admin use",
+													"disabled": true
+												}
 											]
 										},
 										"description": "Get all withdrawal requests for the current host."
@@ -2616,6 +2654,14 @@
 												"payouts",
 												"host",
 												"payout-history"
+											],
+											"query": [
+												{
+													"key": "hostId",
+													"value": "695140a6e9b239a8e1337c1e",
+													"description": "Optional hostId for admin use",
+													"disabled": true
+												}
 											]
 										},
 										"description": "Get payout history for the current host (all withdrawal requests with their status)."
@@ -2661,6 +2707,14 @@
 												"payouts",
 												"host",
 												"bank-accounts"
+											],
+											"query": [
+												{
+													"key": "hostId",
+													"value": "695140a6e9b239a8e1337c1e",
+													"description": "Optional hostId for admin use",
+													"disabled": true
+												}
 											]
 										},
 										"description": "Add a bank account for receiving payouts. Hosts can add multiple bank accounts. Required: bankName, accountHolderName, swiftCode. Either IBAN or Account Number (at least one required). Optional: routingNumber, address, city, country, postalCode."
@@ -2691,6 +2745,14 @@
 												"payouts",
 												"host",
 												"bank-accounts"
+											],
+											"query": [
+												{
+													"key": "hostId",
+													"value": "695140a6e9b239a8e1337c1e",
+													"description": "Optional hostId for admin use",
+													"disabled": true
+												}
 											]
 										},
 										"description": "Get all bank accounts for the current host."
@@ -2722,6 +2784,14 @@
 												"host",
 												"bank-accounts",
 												":bankAccountId"
+											],
+											"query": [
+												{
+													"key": "hostId",
+													"value": "695140a6e9b239a8e1337c1e",
+													"description": "Optional hostId for admin use",
+													"disabled": true
+												}
 											]
 										},
 										"description": "Delete a bank account. Replace :bankAccountId with the bank account ID."
