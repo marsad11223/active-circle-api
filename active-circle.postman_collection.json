@@ -1457,6 +1457,14 @@
 										"ratings",
 										"host",
 										"dashboard"
+									],
+									"query": [
+										{
+											"key": "hostId",
+											"value": "695140a6e9b239a8e1337c1e",
+											"description": "Optional hostId for admin use",
+											"disabled": true
+										}
 									]
 								}
 							},
@@ -1486,6 +1494,14 @@
 										"ratings",
 										"host",
 										"reviews"
+									],
+									"query": [
+										{
+											"key": "hostId",
+											"value": "695140a6e9b239a8e1337c1e",
+											"description": "Optional hostId for admin use",
+											"disabled": true
+										}
 									]
 								}
 							},
@@ -1521,6 +1537,12 @@
 											"key": "activityId",
 											"value": "{{activity_id}}",
 											"description": "Optional: Filter reviews by activity ID"
+										},
+										{
+											"key": "hostId",
+											"value": "695140a6e9b239a8e1337c1e",
+											"description": "Optional hostId for admin use",
+											"disabled": true
 										}
 									]
 								}
