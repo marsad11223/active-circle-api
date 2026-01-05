@@ -1306,6 +1306,14 @@ export class ActivityService {
         deleted_at: null,
       };
 
+      // Filter by hostId if provided
+      if ((filters as any).hostId) {
+        if (!mongoose.isValidObjectId((filters as any).hostId)) {
+          throw new BadRequestException('Invalid host ID');
+        }
+        query.hostId = new mongoose.Types.ObjectId((filters as any).hostId);
+      }
+
       // Time filter (upcoming, past, or all)
       const now = new Date();
       now.setHours(0, 0, 0, 0); // Start of today

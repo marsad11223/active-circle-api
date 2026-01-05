@@ -45,6 +45,10 @@ export class AdminListActivitiesDto {
   search?: string; // Search by title and host name
 
   @IsOptional()
+  @IsString()
+  hostId?: string; // Optional filter to return activities for a specific host
+
+  @IsOptional()
   @IsEnum(ActivityTimeFilter)
   timeFilter?: ActivityTimeFilter = ActivityTimeFilter.ALL; // upcoming, past, or all
 

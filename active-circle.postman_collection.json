@@ -2281,6 +2281,12 @@
 											"disabled": true
 										},
 										{
+											"key": "hostId",
+											"value": "",
+											"description": "Filter by host ID to return activities for a specific host",
+											"disabled": true
+										},
+										{
 											"key": "timeFilter",
 											"value": "all",
 											"description": "Filter by time: all, upcoming, past (default: all)"
