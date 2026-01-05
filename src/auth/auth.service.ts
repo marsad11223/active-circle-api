@@ -137,7 +137,10 @@ export class AuthService {
 
       // Do not allow password reset for soft-deleted users
       if ((user as any).isDeleted || (user as any).deleted_at) {
-        console.log('[FORGOT_PASSWORD] ERROR: Attempt to reset password for deleted user:', email);
+        console.log(
+          '[FORGOT_PASSWORD] ERROR: Attempt to reset password for deleted user:',
+          email,
+        );
         throw new NotFoundException('User with this email not found');
       }
       console.log(
