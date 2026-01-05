@@ -64,4 +64,3 @@ export class AdminListActivitiesDto {
   @IsEnum(SortOrder)
   sortOrder?: SortOrder = SortOrder.DESC; // Latest to Oldest by default
 }
-

@@ -1287,9 +1287,7 @@ export class ActivityService {
    * Get paginated list of all activities for admin
    * Supports search, filters, and sorting
    */
-  async getAllActivitiesForAdmin(
-    filters: AdminListActivitiesDto,
-  ): Promise<{
+  async getAllActivitiesForAdmin(filters: AdminListActivitiesDto): Promise<{
     activities: any[];
     total: number;
     page: number;
@@ -1385,10 +1383,7 @@ export class ActivityService {
         // If query already has $or (from past activities filter), we need to combine
         if (query.$or) {
           // Combine existing $or with search conditions using $and
-          query.$and = [
-            { $or: query.$or },
-            { $or: searchConditions },
-          ];
+          query.$and = [{ $or: query.$or }, { $or: searchConditions }];
           delete query.$or;
         } else {
           // No existing $or, just add search conditions
