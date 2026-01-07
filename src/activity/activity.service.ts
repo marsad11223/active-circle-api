@@ -56,6 +56,88 @@ export class ActivityService {
     }
   }
 
+  /**
+   * Get members for an activity (admin or the host of the activity)
+   */
+  async getActivityMembers(
+    activityId: string,
+    requesterId: string,
+    page: number = 1,
+    limit: number = 50,
+  ): Promise<{ members: any[]; total: number; page: number; limit: number }> {
+    try {
+      const activity = await this.activityModel.findById(activityId);
+      if (!activity || activity.deleted_at) {
+        throw new NotFoundException('Activity not found');
+      }
+
+      // Fetch requester to check role
+      const requester = await this.userModel
+        .findById(requesterId)
+        .select('role');
+      if (!requester) {
+        throw new NotFoundException('Requester not found');
+      }
+
+      const isAdmin = requester.role === Role.superAdmin;
+      const isHost = (activity.hostId as any).toString() === requesterId;
+
+      if (!isAdmin && !isHost) {
+        throw new ForbiddenException(
+          'Only activity host or admin can view members list',
+        );
+      }
+
+      const skip = (page - 1) * limit;
+
+      // Only include confirmed bookings (members who have booked)
+      const query: any = {
+        activityId: new mongoose.Types.ObjectId(activityId),
+        status: BookingStatus.CONFIRMED,
+        deleted_at: null,
+      };
+
+      const total = await this.bookingModel.countDocuments(query);
+
+      const bookings = await this.bookingModel
+        .find(query)
+        .populate('memberId', 'name email profilePhoto')
+        .sort({ created_at: -1 })
+        .skip(skip)
+        .limit(limit);
+
+      const members = bookings.map((b) => {
+        const member = (b.memberId as any) || null;
+        return {
+          bookingId: b._id,
+          memberId: member?._id || null,
+          name: member?.name || null,
+          email: member?.email || null,
+          profilePhoto: member?.profilePhoto || null,
+          amount: b.amount,
+          paymentStatus: b.paymentStatus,
+          attendanceStatus: b.attendanceStatus,
+          createdAt: b.created_at,
+        };
+      });
+
+      return {
+        members,
+        total,
+        page,
+        limit,
+      };
+    } catch (err) {
+      if (
+        err instanceof NotFoundException ||
+        err instanceof ForbiddenException
+      ) {
+        throw err;
+      }
+      throw new BadRequestException(err.message);
+    }
+  }
+
   async create(
     createActivityDto: CreateActivityDto,
     hostId: string,

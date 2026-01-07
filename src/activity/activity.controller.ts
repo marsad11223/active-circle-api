@@ -95,6 +95,24 @@ export class ActivityController {
   }
 
   @UseGuards(AuthGuard('jwt'))
+  @Get(':id/members')
+  async getActivityMembers(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @GetUser() user?: any,
+  ) {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 50;
+    return this.activityService.getActivityMembers(
+      id,
+      user._id.toString(),
+      pageNum,
+      limitNum,
+    );
+  }
+
+  @UseGuards(AuthGuard('jwt'))
   @Post(':id/cancel')
   cancelActivity(
     @Param('id') id: string,

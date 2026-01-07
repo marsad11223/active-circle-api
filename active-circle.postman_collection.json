@@ -942,6 +942,48 @@
 							"response": []
 						},
 						{
+							"name": "Get Activity Members",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/activities/{{activity_id}}/members?page=1&limit=50",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"activities",
+										"{{activity_id}}",
+										"members"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "1",
+											"description": "Page number (default: 1)"
+										},
+										{
+											"key": "limit",
+											"value": "50",
+											"description": "Items per page (default: 50)"
+										}
+									]
+								},
+								"description": "Get paginated list of members for an activity. Accessible by the activity host or admin."
+							},
+							"response": []
+						},
+						{
 							"name": "Get Upcoming Activities",
 							"request": {
 								"auth": {
