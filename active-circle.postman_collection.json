@@ -907,7 +907,15 @@
 									"path": [
 										"activities"
 									]
-								}
+								},
+								"query": [
+									{
+										"key": "hostId",
+										"value": "695140a6e9b239a8e1337c1e",
+										"description": "Host ID when admin cancels/deletes an activity (disabled)",
+										"disabled": true
+									}
+								]
 							},
 							"response": []
 						},
@@ -1077,6 +1085,14 @@
 										"{{activity_id}}"
 									]
 								}
+									"query": [
+									{
+										"key": "hostId",
+										"value": "695140a6e9b239a8e1337c1e",
+										"description": "Host ID when admin cancels/deletes an activity (disabled)",
+										"disabled": true
+									}
+								],
 							},
 							"response": []
 						},
@@ -1084,7 +1100,7 @@
 							"name": "Delete Activity",
 							"request": {
 								"auth": {
-									"type": "bearer",
+									"raw": "{{base_url}}/activities/{{activity_id}}/cancel",
 									"bearer": [
 										{
 											"key": "token",

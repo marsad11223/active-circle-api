@@ -8,6 +8,7 @@ import {
   UseGuards,
   Put,
   Query,
+  ForbiddenException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ActivityService } from './activity.service';
@@ -19,7 +20,7 @@ import { AdminListActivitiesDto } from './dto/admin-list-activities.dto';
 import { GetUser } from 'src/auth/GetUser.Decorator';
 import { OptionalJwtAuthGuard } from 'src/auth/optional-jwt.guard';
 import { IsAdmin } from 'src/utils/helper';
-import { User } from 'src/schemas/user.schema';
+import { User, Role } from 'src/schemas/user.schema';
 
 @Controller('activities')
 export class ActivityController {
@@ -98,9 +99,9 @@ export class ActivityController {
   @Get(':id/members')
   async getActivityMembers(
     @Param('id') id: string,
+    @GetUser() user: any,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
-    @GetUser() user?: any,
   ) {
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 50;
@@ -118,15 +119,18 @@ export class ActivityController {
     @Param('id') id: string,
     @Body() body: { cancelReason?: string },
     @GetUser() user: any,
+    @Query('hostId') hostId?: string,
   ) {
-    // Cancel an activity (host only)
-    // For paid activities: processes partial refund (fee - stripe fee)
-    // For free activities: skips refund process
-    return this.activityService.cancelActivity(
-      id,
-      user._id.toString(),
-      body.cancelReason,
-    );
+    // Cancel an activity (host only). Admin can pass hostId to act on behalf of a host.
+    const targetId = hostId ? hostId : user._id.toString();
+
+    if (hostId && user.role !== Role.superAdmin) {
+      throw new ForbiddenException(
+        'You are not allowed to cancel this activity',
+      );
+    }
+
+    return this.activityService.cancelActivity(id, targetId, body.cancelReason);
   }
 
   @UseGuards(AuthGuard('jwt'))
