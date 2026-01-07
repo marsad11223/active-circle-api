@@ -1084,15 +1084,15 @@
 										"activities",
 										"{{activity_id}}"
 									]
-								}
-									"query": [
+								},
+								"query": [
 									{
 										"key": "hostId",
 										"value": "695140a6e9b239a8e1337c1e",
 										"description": "Host ID when admin cancels/deletes an activity (disabled)",
 										"disabled": true
 									}
-								],
+								]
 							},
 							"response": []
 						},
