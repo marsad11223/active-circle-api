@@ -55,10 +55,16 @@ export class UsersService {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(createUserDto.password, salt);
 
-        const newUser = await this.userModel.create({
+        const userData: any = {
           ...createUserDto,
           password: hashedPassword,
-        });
+        };
+
+        if (createUserDto.dateOfBirth) {
+          userData.dateOfBirth = new Date(createUserDto.dateOfBirth);
+        }
+
+        const newUser = await this.userModel.create(userData);
 
         return newUser;
       } catch (err) {

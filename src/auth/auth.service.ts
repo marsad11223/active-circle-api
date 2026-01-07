@@ -40,14 +40,21 @@ export class AuthService {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(createUserDto.password, salt);
 
-        const newUser = await this.userModel.create({
+        const userData: any = {
           ...createUserDto,
           password: hashedPassword,
           // Set default radius to 10km if not provided (member profile specific)
           radius: createUserDto.radius ?? 10,
           // Set default empty interests array if not provided (member profile specific)
           interests: createUserDto.interests ?? [],
-        });
+        };
+
+        // Convert dateOfBirth string to Date if provided
+        if (createUserDto.dateOfBirth) {
+          userData.dateOfBirth = new Date(createUserDto.dateOfBirth);
+        }
+
+        const newUser = await this.userModel.create(userData);
 
         const payload = { id: newUser._id, email: newUser.email };
         const accessToken = this.jwtService.sign(payload);
