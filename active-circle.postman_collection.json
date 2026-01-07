@@ -3014,6 +3014,48 @@
 					]
 				}
 			]
+		},
+		{
+			"name": "Subscription",
+			"item": [
+				{
+					"name": "Cancel Subscription (Admin/Host)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/subscription/cancel?hostId=695140a6e9b239a8e1337c1e",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"subscription",
+								"cancel"
+							],
+							"query": [
+								{
+									"key": "hostId",
+									"value": "695140a6e9b239a8e1337c1e",
+									"description": "Host ID for admin to cancel specific host (disabled)",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Cancel subscription. Hosts can cancel their own; superAdmin can pass hostId to cancel another host's subscription."
+					},
+					"response": []
+				}
+			]
 		}
 	],
 	"event": [

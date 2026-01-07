@@ -7,6 +7,9 @@ import {
   Headers,
   Req,
   BadRequestException,
+  Param,
+  ForbiddenException,
+  Query,
 } from '@nestjs/common';
 import type { RawBodyRequest } from '@nestjs/common';
 import { SubscriptionService } from './subscription.service';
@@ -14,6 +17,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { GetUser } from '../auth/GetUser.Decorator';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
+import { Role } from '../schemas/user.schema';
 
 @Controller('subscription')
 export class SubscriptionController {
@@ -52,8 +56,20 @@ export class SubscriptionController {
 
   @Delete('cancel')
   @UseGuards(JwtAuthGuard)
-  async cancelSubscription(@GetUser() user: any) {
-    return this.subscriptionService.cancelSubscription(user._id);
+  async cancelSubscription(
+    @GetUser() user: any,
+    @Query('hostId') hostId?: string,
+  ) {
+    const targetId = hostId ? hostId : user._id;
+
+    // Only superAdmin can cancel other hosts' subscriptions
+    if (hostId && user.role !== Role.superAdmin) {
+      throw new ForbiddenException(
+        'You are not allowed to cancel this subscription',
+      );
+    }
+
+    return this.subscriptionService.cancelSubscription(targetId);
   }
 
   @Post('confirm-payment')

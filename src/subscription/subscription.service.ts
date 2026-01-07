@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import mongoose from 'mongoose';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import {
@@ -332,7 +333,7 @@ export class SubscriptionService {
 
   async cancelSubscription(userId: string) {
     const subscription = await this.subscriptionModel.findOne({
-      userId,
+      userId: new mongoose.Types.ObjectId(userId),
       status: { $in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING] },
     });
 
