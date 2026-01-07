@@ -7,6 +7,12 @@ export enum Role {
   superAdmin = 'superAdmin',
 }
 
+export enum Gender {
+  male = 'male',
+  female = 'female',
+  other = 'other',
+}
+
 @Schema()
 export class User {
   @Prop()
@@ -44,6 +50,12 @@ export class User {
 
   @Prop({ required: false })
   profilePhoto?: string;
+
+  @Prop({ required: false })
+  dateOfBirth?: Date;
+
+  @Prop({ required: false })
+  gender?: string;
 
   // Notification Preferences
   @Prop({ default: true })

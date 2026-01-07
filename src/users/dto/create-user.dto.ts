@@ -3,6 +3,7 @@ import {
   IsEnum,
   IsNotEmpty,
   IsOptional,
+  IsDateString,
   IsString,
   IsArray,
   IsNumber,
@@ -11,7 +12,7 @@ import {
   Min,
   Max,
 } from 'class-validator';
-import { Role } from 'src/schemas/user.schema';
+import { Role, Gender } from 'src/schemas/user.schema';
 
 export class CreateUserDto {
   @IsNotEmpty()
@@ -54,4 +55,12 @@ export class CreateUserDto {
   @Min(1)
   @Max(50)
   radius?: number; // Search radius in km for activities (1-50km, only for members)
+
+  @IsOptional()
+  @IsDateString()
+  dateOfBirth?: string; // ISO date string (YYYY-MM-DD)
+
+  @IsOptional()
+  @IsEnum(Gender)
+  gender?: Gender;
 }

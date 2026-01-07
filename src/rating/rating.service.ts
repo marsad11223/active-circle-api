@@ -73,9 +73,7 @@ export class RatingService {
 
       // Only allow rating for confirmed bookings
       if (booking.status !== BookingStatus.CONFIRMED) {
-        throw new BadRequestException(
-          'You can only rate confirmed bookings',
-        );
+        throw new BadRequestException('You can only rate confirmed bookings');
       }
 
       const activity = booking.activityId as any;
@@ -99,9 +97,7 @@ export class RatingService {
       });
 
       if (existingRating) {
-        throw new ConflictException(
-          'You have already rated this activity',
-        );
+        throw new ConflictException('You have already rated this activity');
       }
 
       // Get host ID
@@ -111,9 +107,9 @@ export class RatingService {
         typeof activity.hostId === 'object' &&
         '_id' in activity.hostId
       ) {
-        hostId = (activity.hostId as any)._id.toString();
+        hostId = activity.hostId._id.toString();
       } else {
-        hostId = (activity.hostId as any).toString();
+        hostId = activity.hostId.toString();
       }
 
       // Create rating
@@ -131,7 +127,7 @@ export class RatingService {
       // Populate and return
       const populatedRating = await this.ratingModel
         .findById(rating._id)
-        .populate('memberId', 'name email profilePhoto')
+        .populate('memberId', 'name email profilePhoto dateOfBirth gender')
         .populate('activityId', 'title')
         .populate('hostId', 'name email');
 
@@ -168,7 +164,7 @@ export class RatingService {
           activityId: new mongoose.Types.ObjectId(activityId),
           deleted_at: null,
         })
-        .populate('memberId', 'name email profilePhoto')
+        .populate('memberId', 'name email profilePhoto dateOfBirth gender')
         .sort({ created_at: -1 });
 
       const totalRatings = ratings.length;
@@ -257,7 +253,12 @@ export class RatingService {
       };
 
       allRatings.forEach((rating) => {
-        const ratingKey = rating.rating.toString() as '1' | '2' | '3' | '4' | '5';
+        const ratingKey = rating.rating.toString() as
+          | '1'
+          | '2'
+          | '3'
+          | '4'
+          | '5';
         if (ratingDistribution[ratingKey] !== undefined) {
           ratingDistribution[ratingKey]++;
         }
@@ -395,7 +396,12 @@ export class RatingService {
       };
 
       ratings.forEach((rating) => {
-        const ratingKey = rating.rating.toString() as '1' | '2' | '3' | '4' | '5';
+        const ratingKey = rating.rating.toString() as
+          | '1'
+          | '2'
+          | '3'
+          | '4'
+          | '5';
         if (ratingDistribution[ratingKey] !== undefined) {
           ratingDistribution[ratingKey]++;
         }
@@ -404,7 +410,9 @@ export class RatingService {
       // Calculate response rate
       const reviewsWithReplies = ratings.filter((r) => r.hostReply).length;
       const responseRate =
-        totalReviews > 0 ? Math.round((reviewsWithReplies / totalReviews) * 100) : 0;
+        totalReviews > 0
+          ? Math.round((reviewsWithReplies / totalReviews) * 100)
+          : 0;
       const pendingResponses = totalReviews - reviewsWithReplies;
 
       return {
@@ -546,7 +554,10 @@ export class RatingService {
       await rating.save();
 
       // Populate and return
-      await rating.populate('memberId', 'name email profilePhoto');
+      await rating.populate(
+        'memberId',
+        'name email profilePhoto dateOfBirth gender',
+      );
       await rating.populate('activityId', 'title picture date location');
 
       return rating;
@@ -563,4 +574,3 @@ export class RatingService {
     }
   }
 }
-

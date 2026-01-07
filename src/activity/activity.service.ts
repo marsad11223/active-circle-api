@@ -101,7 +101,7 @@ export class ActivityService {
 
       const bookings = await this.bookingModel
         .find(query)
-        .populate('memberId', 'name email profilePhoto')
+        .populate('memberId', 'name email profilePhoto dateOfBirth gender')
         .sort({ created_at: -1 })
         .skip(skip)
         .limit(limit);
@@ -114,6 +114,8 @@ export class ActivityService {
           name: member?.name || null,
           email: member?.email || null,
           profilePhoto: member?.profilePhoto || null,
+          dateOfBirth: member?.dateOfBirth || null,
+          gender: member?.gender || null,
           amount: b.amount,
           paymentStatus: b.paymentStatus,
           attendanceStatus: b.attendanceStatus,

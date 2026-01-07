@@ -640,7 +640,7 @@ export class BookingService {
           deleted_at: null,
         })
         .populate('activityId')
-        .populate('memberId', 'name email profilePhoto')
+        .populate('memberId', 'name email profilePhoto dateOfBirth gender')
         .populate('hostId', 'name email profilePhoto')
         .sort({ created_at: -1 });
 
@@ -664,7 +664,7 @@ export class BookingService {
       const booking = await this.bookingModel
         .findOne({ _id: bookingId, deleted_at: null })
         .populate('activityId')
-        .populate('memberId', 'name email profilePhoto')
+        .populate('memberId', 'name email profilePhoto dateOfBirth gender')
         .populate('hostId', 'name email profilePhoto');
 
       if (!booking) {
@@ -777,7 +777,7 @@ export class BookingService {
       const bookings = await this.bookingModel
         .find(resultsQuery)
         .populate('activityId')
-        .populate('memberId', 'name email profilePhoto')
+        .populate('memberId', 'name email profilePhoto dateOfBirth gender')
         .populate('hostId', 'name email profilePhoto')
         .sort({ created_at: -1 });
 
@@ -840,7 +840,7 @@ export class BookingService {
           status: BookingStatus.CONFIRMED, // Only confirmed bookings can have attendance
           deleted_at: null,
         })
-        .populate('memberId', 'name email profilePhoto')
+        .populate('memberId', 'name email profilePhoto dateOfBirth gender')
         .populate('activityId', 'title date time')
         .sort({ created_at: -1 });
 
@@ -876,7 +876,7 @@ export class BookingService {
       const booking = await this.bookingModel
         .findById(bookingId)
         .populate('activityId')
-        .populate('memberId', 'name email profilePhoto');
+        .populate('memberId', 'name email profilePhoto dateOfBirth gender');
 
       if (!booking) {
         throw new NotFoundException('Booking not found');
@@ -1375,7 +1375,7 @@ export class BookingService {
         })
         .populate('activityId')
         .populate('hostId', 'name email profilePhoto')
-        .populate('memberId', 'name email');
+        .populate('memberId', 'name email dateOfBirth gender');
 
       if (!booking) {
         throw new NotFoundException('Booking not found');

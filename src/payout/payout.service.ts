@@ -201,7 +201,7 @@ export class PayoutService {
     const bookings = await this.bookingModel
       .find(query)
       .populate('activityId', 'title picture date status')
-      .populate('memberId', 'name email profilePhoto')
+      .populate('memberId', 'name email profilePhoto dateOfBirth gender')
       .sort({ created_at: -1 });
 
     // Filter bookings where activity is completed
