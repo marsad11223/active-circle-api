@@ -268,7 +268,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"name\": \"Marsad Ghanvi\",\n  \"email\": \"marsad11223@gmail.com\",\n  \"password\": \"12345678\",\n  \"role\": \"host\",\n  \"address\": \"123 Main Street, Cityville, Country\",\n  \"phoneNumber\": \"+1234567890\"\n}",
+							"raw": "{\n  \"name\": \"Marsad Ghanvi\",\n  \"email\": \"marsad11223@gmail.com\",\n  \"password\": \"12345678\",\n  \"role\": \"host\",\n  \"address\": \"123 Main Street, Cityville, Country\",\n  \"phoneNumber\": \"+1234567890\",\n  \"gender\": \"male\",\n  \"dateOfBirth\": \"1990-01-01\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
