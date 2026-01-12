@@ -95,6 +95,12 @@ export class UsersController {
     return this.usersService.getFavoriteActivities(user._id.toString());
   }
 
+  @UseGuards(AuthGuard('jwt'))
+  @Get('notifications')
+  getNotifications(@GetUser() user: any) {
+    return this.usersService.getNotifications(user._id.toString());
+  }
+
   // Admin endpoints - Must be before :id route to avoid route conflicts
   @UseGuards(AuthGuard('jwt'))
   @Get('admin/members')

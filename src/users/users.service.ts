@@ -691,4 +691,32 @@ export class UsersService {
       throw new BadRequestException(err.message);
     }
   }
+
+  /**
+   * Get quick notification flags for a user
+   * Returns only the boolean flags used for fast polling
+   */
+  async getNotifications(userId: string): Promise<{
+    hasNewBookings: boolean;
+    hasNewMessages: boolean;
+    hasNewPayoutRequests: boolean;
+  }> {
+    try {
+      const user = await this.findUser(userId);
+      if (!user) throw new NotFoundException('User not found');
+
+      const userObj: any = (user as any).toObject
+        ? (user as any).toObject()
+        : user;
+
+      return {
+        hasNewBookings: !!userObj.hasNewBookings,
+        hasNewMessages: !!userObj.hasNewMessages,
+        hasNewPayoutRequests: !!userObj.hasNewPayoutRequests,
+      };
+    } catch (err) {
+      if (err instanceof NotFoundException) throw err;
+      throw new BadRequestException(err.message);
+    }
+  }
 }
