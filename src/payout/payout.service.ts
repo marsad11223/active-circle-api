@@ -328,6 +328,16 @@ export class PayoutService {
       requestedAt: new Date(),
     });
 
+    // Mark admin(s) as having new payout requests
+    try {
+      await this.userModel.updateMany(
+        { role: Role.superAdmin },
+        { $set: { hasNewPayoutRequests: true, updated_at: new Date() } },
+      );
+    } catch (err) {
+      console.error('Failed to set admin hasNewPayoutRequests flag:', err);
+    }
+
     return payout;
   }
 
@@ -395,6 +405,16 @@ export class PayoutService {
         bankAccount: bankAccount || null,
       };
     });
+
+    // Clear admin new-payout flag since admin retrieved the list
+    try {
+      await this.userModel.updateMany(
+        { role: Role.superAdmin },
+        { $set: { hasNewPayoutRequests: false, updated_at: new Date() } },
+      );
+    } catch (err) {
+      console.error('Failed to clear admin hasNewPayoutRequests flag:', err);
+    }
 
     return {
       payouts: payoutsWithBankDetails,

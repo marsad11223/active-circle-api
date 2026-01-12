@@ -134,6 +134,15 @@ export class MessageService {
         await message.save();
       }
 
+      // Mark host as having new messages
+      try {
+        await this.userModel.findByIdAndUpdate(hostId, {
+          $set: { hasNewMessages: true, updated_at: new Date() },
+        });
+      } catch (err) {
+        console.error('Failed to set host hasNewMessages flag:', err);
+      }
+
       // Populate for response
       await message.populate('senderId', 'name email profilePhoto');
       await message.populate('receiverId', 'name email profilePhoto');
@@ -257,6 +266,15 @@ export class MessageService {
         console.error('Error sending email:', emailError);
       }
 
+      // Mark member as having new messages
+      try {
+        await this.userModel.findByIdAndUpdate(memberId, {
+          $set: { hasNewMessages: true, updated_at: new Date() },
+        });
+      } catch (err) {
+        console.error('Failed to set member hasNewMessages flag:', err);
+      }
+
       // Populate for response
       await reply.populate('senderId', 'name email profilePhoto');
       await reply.populate('receiverId', 'name email profilePhoto');
@@ -353,6 +371,18 @@ export class MessageService {
         });
 
         messages.push(message);
+
+        // Mark member as having new messages
+        try {
+          await this.userModel.findByIdAndUpdate(memberId, {
+            $set: { hasNewMessages: true, updated_at: new Date() },
+          });
+        } catch (err) {
+          console.error(
+            'Failed to set member hasNewMessages flag for broadcast:',
+            err,
+          );
+        }
 
         // Send email to member
         const emailsEnabled =
@@ -659,6 +689,26 @@ export class MessageService {
       message.updated_at = new Date();
       await message.save();
 
+      // If user has no more unread messages, clear hasNewMessages flag
+      try {
+        const unreadCount = await this.messageModel.countDocuments({
+          receiverId: message.receiverId,
+          isSeen: false,
+          deleted_at: null,
+        });
+
+        if (unreadCount === 0) {
+          const receiverIdStr = (message.receiverId as any).toString();
+          await this.userModel.findByIdAndUpdate(receiverIdStr, {
+            $set: { hasNewMessages: false, updated_at: new Date() },
+          });
+        }
+      } catch (err) {
+        console.error(
+          'Failed to clear hasNewMessages flag after markAsSeen:',
+          err,
+        );
+      }
       // Populate for response
       await message.populate('senderId', 'name email profilePhoto');
       await message.populate('receiverId', 'name email profilePhoto');

@@ -289,6 +289,24 @@ export class BookingService {
         }
       }
 
+      // Mark host and admin(s) as having new booking requests
+      try {
+        await this.userModel.findByIdAndUpdate(hostId, {
+          $set: { hasNewBookings: true, updated_at: new Date() },
+        });
+      } catch (err) {
+        console.error('Failed to set host hasNewBookings flag:', err);
+      }
+
+      try {
+        await this.userModel.updateMany(
+          { role: Role.superAdmin },
+          { $set: { hasNewBookings: true, updated_at: new Date() } },
+        );
+      } catch (err) {
+        console.error('Failed to set admin hasNewBookings flag:', err);
+      }
+
       return booking;
     } catch (err) {
       if (
@@ -647,6 +665,15 @@ export class BookingService {
       console.log(
         `Found ${bookings.length} pending bookings for host ${hostId}`,
       );
+      // Clear host hasNewBookings since they fetched their pending bookings
+      try {
+        await this.userModel.findByIdAndUpdate(hostId, {
+          $set: { hasNewBookings: false, updated_at: new Date() },
+        });
+      } catch (err) {
+        console.error('Failed to clear host hasNewBookings flag:', err);
+      }
+
       return bookings;
     } catch (err) {
       console.error('Error fetching host pending bookings:', err);

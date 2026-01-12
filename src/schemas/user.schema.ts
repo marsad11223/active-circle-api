@@ -73,6 +73,16 @@ export class User {
   @Prop({ default: true })
   paymentNotifications: boolean;
 
+  // New unread / unseen notification flags
+  @Prop({ default: false })
+  hasNewBookings: boolean; // true for hosts/admins when there's a new booking request
+
+  @Prop({ default: false })
+  hasNewMessages: boolean; // true for hosts or members when there's a new message
+
+  @Prop({ default: false })
+  hasNewPayoutRequests: boolean; // true for admins when a host creates a payout request
+
   @Prop({ default: Date.now })
   created_at: Date;
 
