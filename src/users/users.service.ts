@@ -246,7 +246,7 @@ export class UsersService {
   async update(
     id: string,
     updateUserDto: UpdateUserDto,
-    currentUser: User,
+    _currentUser: User,
   ): Promise<User | null> {
     try {
       const user = await this.findUser(id);
