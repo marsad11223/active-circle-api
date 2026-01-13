@@ -49,10 +49,12 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
 
       setClientSecret(response.data.clientSecret);
       setShowCheckout(true);
-      
+
       // Show different message for members vs hosts
       if (currentUser.role === 'member') {
-        setSuccess('💳 Payment intent created! Complete payment to become a host. Your role will remain "member" until payment succeeds.');
+        setSuccess(
+          '💳 Payment intent created! Complete payment to become a host. Your role will remain "member" until payment succeeds.',
+        );
       } else {
         setSuccess('Subscription created! Please complete payment.');
       }
@@ -70,7 +72,7 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
         console.warn('No user ID available to fetch user data');
         return;
       }
-      
+
       const response = await axios.get(`${API_URL}/users/${currentUser._id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -126,11 +128,13 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
       );
 
       if (wasMember) {
-        setSuccess('🎉 Payment successful! You are now a host! Your role has been upgraded.');
+        setSuccess(
+          '🎉 Payment successful! You are now a host! Your role has been upgraded.',
+        );
       } else {
         setSuccess('🎉 Payment successful! Your subscription is now active.');
       }
-      
+
       setShowCheckout(false);
       setClientSecret('');
 
@@ -171,14 +175,17 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
         <div className="user-role-info">
           <p>
             <strong>Current Role:</strong>{' '}
-            <span className={`role-badge role-${currentUser.role || currentUser.grantRole || 'member'}`}>
+            <span
+              className={`role-badge role-${currentUser.role || currentUser.grantRole || 'member'}`}
+            >
               {currentUser.role || currentUser.grantRole || 'member'}
             </span>
           </p>
           {currentUser.role === 'member' && (
             <div className="info-box">
-              ℹ️ You are currently a <strong>member</strong>. Subscribe to become a <strong>host</strong>!
-              Your role will only change to "host" after successful payment.
+              ℹ️ You are currently a <strong>member</strong>. Subscribe to
+              become a <strong>host</strong>! Your role will only change to
+              "host" after successful payment.
             </div>
           )}
         </div>
@@ -214,7 +221,7 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
               <span className="value">
                 {subscription.cancelAtPeriodEnd
                   ? '❌ Canceled (active until period end)'
-                  : `£5.00 on ${new Date(
+                  : `£5.99 on ${new Date(
                       subscription.currentPeriodEnd,
                     ).toLocaleDateString()}`}
               </span>
@@ -238,7 +245,7 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
             <h3>Host Monthly Subscription</h3>
             <div className="price">
               <span className="currency">£</span>
-              <span className="amount">5</span>
+              <span className="amount">5.99</span>
               <span className="period">/month</span>
             </div>
             <ul className="features">
@@ -256,20 +263,30 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
               className="btn-primary"
               disabled={loading}
             >
-              {loading 
-                ? 'Creating...' 
-                : currentUser.role === 'member' 
-                  ? 'Become a Host - Subscribe Now' 
+              {loading
+                ? 'Creating...'
+                : currentUser.role === 'member'
+                  ? 'Become a Host - Subscribe Now'
                   : 'Subscribe Now'}
             </button>
-            
+
             {currentUser.role === 'member' && (
-              <div className="info-box" style={{ marginTop: '15px', fontSize: '0.9em' }}>
-                <strong>🧪 Test Flow:</strong> Click "Become a Host" to create a payment intent.
-                Your role will remain "member" until payment succeeds. Try with:
+              <div
+                className="info-box"
+                style={{ marginTop: '15px', fontSize: '0.9em' }}
+              >
+                <strong>🧪 Test Flow:</strong> Click "Become a Host" to create a
+                payment intent. Your role will remain "member" until payment
+                succeeds. Try with:
                 <ul style={{ marginTop: '8px', paddingLeft: '20px' }}>
-                  <li><strong>Success card (4242...):</strong> Payment succeeds → Role becomes "host"</li>
-                  <li><strong>Decline card (4000...0002):</strong> Payment fails → Role stays "member"</li>
+                  <li>
+                    <strong>Success card (4242...):</strong> Payment succeeds →
+                    Role becomes "host"
+                  </li>
+                  <li>
+                    <strong>Decline card (4000...0002):</strong> Payment fails →
+                    Role stays "member"
+                  </li>
                 </ul>
               </div>
             )}

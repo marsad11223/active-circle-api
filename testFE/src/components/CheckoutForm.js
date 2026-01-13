@@ -91,7 +91,7 @@ function CheckoutForm({ clientSecret, onSuccess, onError }) {
       </div>
 
       <div className="payment-info">
-        <p>💳 You will be charged £5.00 per month</p>
+        <p>💳 You will be charged £5.99 per month</p>
         <p>🔒 Secure payment powered by Stripe</p>
       </div>
 
@@ -100,7 +100,7 @@ function CheckoutForm({ clientSecret, onSuccess, onError }) {
         className="btn-primary"
         disabled={!stripe || processing}
       >
-        {processing ? 'Processing...' : 'Pay £5.00'}
+        {processing ? 'Processing...' : 'Pay £5.99'}
       </button>
     </form>
   );
