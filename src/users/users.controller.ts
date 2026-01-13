@@ -65,7 +65,7 @@ export class UsersController {
   ) {
     // Check authorization: superAdmin can update anyone, users can only update themselves
     canAccessResource(user, id);
-    return this.usersService.update(id, updateUserDto, user);
+    return this.usersService.update(id, updateUserDto);
   }
 
   @UseGuards(AuthGuard('jwt'))
@@ -102,6 +102,13 @@ export class UsersController {
   }
 
   // Admin endpoints - Must be before :id route to avoid route conflicts
+  @UseGuards(AuthGuard('jwt'))
+  @Get('admin/overview')
+  getAdminOverview(@GetUser() user: User) {
+    IsAdmin(user);
+    return this.usersService.getAdminOverview();
+  }
+
   @UseGuards(AuthGuard('jwt'))
   @Get('admin/members')
   getAllMembers(@Query() filters: AdminListUsersDto, @GetUser() user: User) {

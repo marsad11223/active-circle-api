@@ -12,6 +12,10 @@ import { User, Role } from 'src/schemas/user.schema';
 import { Activity } from 'src/schemas/activity.schema';
 import { Rating } from 'src/schemas/rating.schema';
 import { Booking } from 'src/schemas/booking.schema';
+import {
+  Subscription,
+  SubscriptionStatus,
+} from 'src/schemas/subscription.schema';
 import mongoose, { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { ContactUsDto } from './dto/contact-us.dto';
@@ -33,6 +37,8 @@ export class UsersService {
     @InjectModel(Activity.name) private readonly activityModel: Model<Activity>,
     @InjectModel(Rating.name) private readonly ratingModel: Model<Rating>,
     @InjectModel(Booking.name) private readonly bookingModel: Model<Booking>,
+    @InjectModel(Subscription.name)
+    private readonly subscriptionModel: Model<Subscription>,
     private readonly mailerService: MailerService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
@@ -243,11 +249,7 @@ export class UsersService {
     }
   }
 
-  async update(
-    id: string,
-    updateUserDto: UpdateUserDto,
-    _currentUser: User,
-  ): Promise<User | null> {
+  async update(id: string, updateUserDto: UpdateUserDto): Promise<User | null> {
     try {
       const user = await this.findUser(id);
       if (!user) {
@@ -716,6 +718,98 @@ export class UsersService {
       };
     } catch (err) {
       if (err instanceof NotFoundException) throw err;
+      throw new BadRequestException(err.message);
+    }
+  }
+
+  /**
+   * Get admin dashboard overview statistics
+   * Admin only
+   */
+  async getAdminOverview(): Promise<{
+    totalMembers: number;
+    totalHosts: number;
+    totalActivities: number;
+    upcomingActivities: number;
+    totalBookings: number;
+    recentRevenue: number;
+    activeSubscriptions: number;
+    activityStatus: {
+      upcoming: number;
+      completed: number;
+    };
+  }> {
+    try {
+      const now = new Date();
+
+      // Get total members (exclude superAdmin)
+      const totalMembers = await this.userModel.countDocuments({
+        role: { $ne: Role.superAdmin },
+        deleted_at: null,
+      });
+
+      // Get total hosts (users with role = host)
+      const totalHosts = await this.userModel.countDocuments({
+        role: Role.host,
+        deleted_at: null,
+      });
+
+      // Get total activities
+      const totalActivities = await this.activityModel.countDocuments({
+        deleted_at: null,
+      });
+
+      // Get upcoming activities (activities with date > now)
+      const upcomingActivities = await this.activityModel.countDocuments({
+        date: { $gt: now },
+        deleted_at: null,
+      });
+
+      // Get total bookings
+      const totalBookings = await this.bookingModel.countDocuments({
+        deleted_at: null,
+      });
+
+      // Get active subscriptions count
+      const activeSubscriptions = await this.subscriptionModel.countDocuments({
+        status: SubscriptionStatus.ACTIVE,
+      });
+
+      // Calculate recent revenue (last 30 days from paid bookings)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const recentBookings = await this.bookingModel.find({
+        created_at: { $gte: thirtyDaysAgo },
+        amount: { $gt: 0 },
+        paymentStatus: 'paid',
+        deleted_at: null,
+      });
+
+      const recentRevenue = recentBookings.reduce((total, booking) => {
+        return total + (booking.amount || 0);
+      }, 0);
+
+      // Get activity status counts
+      const completedActivities = await this.activityModel.countDocuments({
+        date: { $lt: now },
+        deleted_at: null,
+      });
+
+      return {
+        totalMembers,
+        totalHosts,
+        totalActivities,
+        upcomingActivities,
+        totalBookings,
+        recentRevenue: Math.round(recentRevenue * 100) / 100, // Round to 2 decimal places
+        activeSubscriptions,
+        activityStatus: {
+          upcoming: upcomingActivities,
+          completed: completedActivities,
+        },
+      };
+    } catch (err) {
       throw new BadRequestException(err.message);
     }
   }

@@ -2221,6 +2221,36 @@
 					"name": "Admin",
 					"item": [
 						{
+							"name": "Get Admin Overview",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/users/admin/overview",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"users",
+										"admin",
+										"overview"
+									]
+								},
+								"description": "Get comprehensive dashboard statistics for admin overview page. Returns total members, hosts, activities, bookings, revenue, subscriptions, and activity status breakdown."
+							},
+							"response": []
+						},
+						{
 							"name": "Get All Members",
 							"request": {
 								"auth": {
