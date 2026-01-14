@@ -42,18 +42,36 @@ function CheckoutForm({ clientSecret, onSuccess, onError }) {
     const cardElement = elements.getElement(CardNumberElement);
 
     try {
-      const { error: stripeError, paymentIntent } =
-        await stripe.confirmCardPayment(clientSecret, {
-          payment_method: {
-            card: cardElement,
-          },
-        });
+      if (clientSecret) {
+        // Normal flow: clientSecret exists, confirm payment
+        const { error: stripeError, paymentIntent } =
+          await stripe.confirmCardPayment(clientSecret, {
+            payment_method: {
+              card: cardElement,
+            },
+          });
 
-      if (stripeError) {
-        setError(stripeError.message);
-        onError(stripeError.message);
-      } else if (paymentIntent.status === 'succeeded') {
-        onSuccess(paymentIntent.id);
+        if (stripeError) {
+          setError(stripeError.message);
+          onError(stripeError.message);
+        } else if (paymentIntent.status === 'succeeded') {
+          onSuccess(paymentIntent.id);
+        }
+      } else {
+        // No clientSecret: Create payment method first, then backend will use invoices.pay()
+        const { error: pmError, paymentMethod } =
+          await stripe.createPaymentMethod({
+            type: 'card',
+            card: cardElement,
+          });
+
+        if (pmError) {
+          setError(pmError.message);
+          onError(pmError.message);
+        } else {
+          // Pass payment method ID to backend
+          onSuccess(paymentMethod.id);
+        }
       }
     } catch (err) {
       setError('Payment failed. Please try again.');

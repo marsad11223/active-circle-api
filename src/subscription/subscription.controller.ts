@@ -7,7 +7,6 @@ import {
   Headers,
   Req,
   BadRequestException,
-  Param,
   ForbiddenException,
   Query,
 } from '@nestjs/common';
@@ -74,14 +73,26 @@ export class SubscriptionController {
 
   @Post('confirm-payment')
   @UseGuards(JwtAuthGuard)
-  async confirmPayment(@GetUser() user: any, @Req() request: any) {
-    const { paymentIntentId } = request.body;
-    if (!paymentIntentId) {
-      throw new BadRequestException('paymentIntentId is required');
-    }
+  async confirmPayment(@GetUser() user: any) {
+    // ✅ Stripe-approved: No payment intent ID needed
+    // Just trigger invoices.pay() which creates PI if needed
     return this.subscriptionService.confirmPaymentAndActivateSubscription(
       user._id,
-      paymentIntentId,
+    );
+  }
+
+  @Post('pay-with-payment-method')
+  @UseGuards(JwtAuthGuard)
+  async payWithPaymentMethod(@GetUser() user: any, @Req() request: any) {
+    const { paymentMethodId } = request.body;
+
+    if (!paymentMethodId) {
+      throw new BadRequestException('Payment method ID is required');
+    }
+
+    return this.subscriptionService.payInvoiceWithPaymentMethod(
+      user._id,
+      paymentMethodId,
     );
   }
 
@@ -90,7 +101,14 @@ export class SubscriptionController {
     @Headers('stripe-signature') signature: string,
     @Req() request: RawBodyRequest<Request>,
   ) {
+    console.log('\n🔔 WEBHOOK RECEIVED');
+    console.log('Signature present:', !!signature);
+    console.log('Request has rawBody:', !!request.rawBody);
+    console.log('RawBody type:', typeof request.rawBody);
+    console.log('RawBody length:', request.rawBody?.length);
+
     if (!signature) {
+      console.error('❌ No signature');
       throw new BadRequestException('Missing stripe-signature header');
     }
 
@@ -99,13 +117,16 @@ export class SubscriptionController {
     );
 
     if (!webhookSecret) {
+      console.error('❌ No webhook secret configured');
       throw new BadRequestException('STRIPE_WEBHOOK_SECRET is not configured');
     }
 
     if (!request.rawBody) {
+      console.error('❌ No raw body');
       throw new BadRequestException('Missing raw body');
     }
 
+    console.log('About to construct event...');
     let event: Stripe.Event;
 
     try {
@@ -114,11 +135,24 @@ export class SubscriptionController {
         signature,
         webhookSecret,
       );
+      console.log('✅ Webhook signature verified');
+      console.log('Event type:', event.type);
+      console.log('Event ID:', event.id);
     } catch (err: any) {
+      console.error('❌ Webhook signature verification failed:', err.message);
+      console.error('Error stack:', err.stack);
       throw new BadRequestException(`Webhook Error: ${err.message}`);
     }
 
-    await this.subscriptionService.handleWebhookEvent(event);
+    console.log('About to call handleWebhookEvent...');
+    try {
+      await this.subscriptionService.handleWebhookEvent(event);
+      console.log('✅ Webhook processed successfully');
+    } catch (error: any) {
+      console.error('❌ Error processing webhook:', error.message);
+      console.error('Error stack:', error.stack);
+      throw error;
+    }
 
     return { received: true };
   }

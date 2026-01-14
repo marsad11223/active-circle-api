@@ -17,8 +17,16 @@ async function bootstrap() {
     }),
   );
 
-  // ✅ Then normal JSON parsing
-  app.use(bodyParser.json({ limit: '10mb' }));
+  // ✅ CRITICAL: Exclude webhook route from JSON parsing
+  // Webhooks need raw body for signature verification
+  app.use((req, res, next) => {
+    if (req.originalUrl === '/subscription/webhook') {
+      next(); // Skip body parsing for webhooks
+    } else {
+      bodyParser.json({ limit: '10mb' })(req, res, next);
+    }
+  });
+
   app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
 
   const PORT = Number(process.env.PORT) || 3000;

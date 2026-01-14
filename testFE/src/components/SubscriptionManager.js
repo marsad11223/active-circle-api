@@ -47,16 +47,25 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
         },
       );
 
-      setClientSecret(response.data.clientSecret);
-      setShowCheckout(true);
+      const { clientSecret, subscriptionId, invoiceId } = response.data;
 
-      // Show different message for members vs hosts
-      if (currentUser.role === 'member') {
-        setSuccess(
-          '💳 Payment intent created! Complete payment to become a host. Your role will remain "member" until payment succeeds.',
-        );
+      if (clientSecret) {
+        // Normal flow: clientSecret exists
+        setClientSecret(clientSecret);
+        setShowCheckout(true);
+        if (currentUser.role === 'member') {
+          setSuccess(
+            '💳 Payment intent created! Complete payment to become a host.',
+          );
+        } else {
+          setSuccess('Subscription created! Please complete payment.');
+        }
       } else {
-        setSuccess('Subscription created! Please complete payment.');
+        // No clientSecret: Need to use Complete Payment button
+        setSuccess(
+          'Subscription created! Click "Complete Payment" below to add your payment method and activate.',
+        );
+        await fetchSubscriptionStatus();
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to create subscription');
@@ -118,10 +127,10 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
     setSuccess('Payment successful! Activating subscription...');
 
     try {
-      // Call the confirm-payment endpoint to pay invoice and activate subscription
-      const response = await axios.post(
-        `${API_URL}/subscription/confirm-payment`,
-        { paymentIntentId },
+      // ✅ Stripe-approved: Call backend with payment method ID
+      await axios.post(
+        `${API_URL}/subscription/pay-with-payment-method`,
+        { paymentMethodId: paymentIntentId }, // This is actually payment method ID now
         {
           headers: { Authorization: `Bearer ${token}` },
         },
@@ -142,11 +151,11 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
       setTimeout(async () => {
         await fetchSubscriptionStatus();
         await fetchUserData();
-      }, 1000);
+      }, 1500); // Give webhooks time to process
     } catch (err) {
       setError(
         err.response?.data?.message ||
-          'Payment succeeded but failed to activate subscription. Please refresh the page.',
+          'Payment succeeded but activation pending. Please refresh the page.',
       );
       // Still close checkout and refresh status
       setShowCheckout(false);
@@ -228,6 +237,28 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
             </div>
           </div>
 
+          {subscription.status === 'incomplete' && (
+            <div className="incomplete-actions">
+              <div className="info-box" style={{ marginBottom: '15px' }}>
+                ⚠️ Your subscription is incomplete. Please complete the payment
+                to activate your subscription and become a host.
+              </div>
+              <button
+                onClick={() => {
+                  // Simply show the checkout form
+                  setShowCheckout(true);
+                  setSuccess(
+                    'Please enter your card details to complete payment.',
+                  );
+                }}
+                className="btn-primary"
+                disabled={loading}
+              >
+                Complete Payment
+              </button>
+            </div>
+          )}
+
           {subscription.status === 'active' &&
             !subscription.cancelAtPeriodEnd && (
               <button
@@ -294,7 +325,7 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
         </div>
       )}
 
-      {showCheckout && clientSecret && (
+      {showCheckout && (
         <div className="checkout-modal">
           <div className="checkout-content">
             <button
