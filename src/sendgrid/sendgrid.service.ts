@@ -39,7 +39,7 @@ export class SendGridService {
     try {
       const msg = {
         to: options.to,
-        from: options.from || `"Active Circle" <${this.defaultFrom}>`,
+        from: options.from || `<${this.defaultFrom}>`,
         subject: options.subject,
         html: options.html,
         text: options.text || options.html.replace(/<[^>]*>/g, ''), // Strip HTML tags for text version
