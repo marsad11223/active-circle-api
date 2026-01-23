@@ -14,12 +14,13 @@ import * as bcrypt from 'bcrypt';
 import { LoginUserDto } from './dto/login-user.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { MailerService } from '@nestjs-modules/mailer';
+import { SendGridService } from '../sendgrid/sendgrid.service';
 import { ConfigService } from '@nestjs/config';
 import {
   passwordResetRequest,
   passwordResetSuccessful,
   passwordChangedSuccessfully,
+  welcomeEmail,
 } from 'src/utils/email-templates';
 
 @Injectable()
@@ -28,7 +29,7 @@ export class AuthService {
     @InjectModel(User.name)
     private userModel: mongoose.Model<User>,
     private jwtService: JwtService,
-    private readonly mailerService: MailerService,
+    private readonly sendGridService: SendGridService,
     private configService: ConfigService,
   ) {}
 
@@ -58,6 +59,34 @@ export class AuthService {
 
         const payload = { id: newUser._id, email: newUser.email };
         const accessToken = this.jwtService.sign(payload);
+
+        // Send welcome email asynchronously (non-blocking)
+        const emailsEnabled =
+          this.configService.get<string>('EMAILS_ENABLED') === 'true';
+        if (emailsEnabled) {
+          setImmediate(() => {
+            this.sendGridService
+              .sendMail({
+                to: newUser.email,
+                subject: 'Welcome to Active Circle!',
+                html: welcomeEmail({
+                  userName: newUser.name,
+                  userEmail: newUser.email,
+                }),
+              })
+              .then(() => {
+                console.log('[REGISTER] Welcome email sent to:', newUser.email);
+              })
+              .catch((err) => {
+                console.error(
+                  '[REGISTER] Error sending welcome email:',
+                  err.message,
+                );
+                // Don't throw error - registration was successful
+              });
+          });
+        }
+
         return {
           data: newUser,
           accessToken: accessToken,
@@ -295,7 +324,7 @@ export class AuthService {
     }
 
     try {
-      const result: any = await this.mailerService.sendMail(emailOptions);
+      const result: any = await this.sendGridService.sendMail(emailOptions);
       const emailDuration = Date.now() - startTime;
       const attemptDuration = Date.now() - attemptStartTime;
 
@@ -417,7 +446,7 @@ export class AuthService {
         this.configService.get<string>('EMAILS_ENABLED') === 'true';
       if (emailsEnabled) {
         try {
-          await this.mailerService.sendMail({
+          await this.sendGridService.sendMail({
             to: user.email,
             subject: 'Password Reset Successful',
             html: passwordResetSuccessful({
@@ -489,7 +518,7 @@ export class AuthService {
         this.configService.get<string>('EMAILS_ENABLED') === 'true';
       if (emailsEnabled) {
         try {
-          await this.mailerService.sendMail({
+          await this.sendGridService.sendMail({
             to: user.email,
             subject: 'Password Changed Successfully',
             html: passwordChangedSuccessfully({

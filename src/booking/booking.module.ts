@@ -8,6 +8,8 @@ import { User, UserSchema } from 'src/schemas/user.schema';
 import { Rating, RatingSchema } from 'src/schemas/rating.schema';
 import { AuthModule } from 'src/auth/auth.module';
 
+import { SendGridModule } from '../sendgrid/sendgrid.module';
+
 @Module({
   imports: [
     MongooseModule.forFeature([
@@ -17,6 +19,7 @@ import { AuthModule } from 'src/auth/auth.module';
       { name: Rating.name, schema: RatingSchema },
     ]),
     forwardRef(() => AuthModule),
+    SendGridModule,
   ],
   controllers: [BookingController],
   providers: [BookingService],

@@ -28,7 +28,7 @@ import { User, Role } from 'src/schemas/user.schema';
 import { RecurringType, ActivityStatus } from 'src/schemas/activity.schema';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
-import { MailerService } from '@nestjs-modules/mailer';
+import { SendGridService } from '../sendgrid/sendgrid.service';
 import {
   activityCancelledFreeToMember,
   activityCancelledWithRefundToMember,
@@ -48,7 +48,7 @@ export class ActivityService {
     @InjectModel(Booking.name)
     private readonly bookingModel: Model<Booking>,
     private configService: ConfigService,
-    private readonly mailerService: MailerService,
+    private readonly sendGridService: SendGridService,
   ) {
     const stripeSecretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (stripeSecretKey) {
@@ -1065,7 +1065,7 @@ export class ActivityService {
                       if (emailsEnabled) {
                         try {
                           const activityDate = new Date(activity.date);
-                          await this.mailerService.sendMail({
+                          await this.sendGridService.sendMail({
                             to: member.email,
                             subject: 'Activity Cancelled - Refund Processed',
                             html: activityCancelledWithRefundToMember({
@@ -1140,7 +1140,7 @@ export class ActivityService {
             if (emailsEnabled) {
               try {
                 const activityDate = new Date(activity.date);
-                await this.mailerService.sendMail({
+                await this.sendGridService.sendMail({
                   to: member.email,
                   subject: 'Activity Cancelled',
                   html: activityCancelledFreeToMember({
@@ -1179,7 +1179,7 @@ export class ActivityService {
             if (emailsEnabled) {
               try {
                 const activityDate = new Date(activity.date);
-                await this.mailerService.sendMail({
+                await this.sendGridService.sendMail({
                   to: member.email,
                   subject: 'Activity Cancelled',
                   html: activityCancelledFreeToMember({

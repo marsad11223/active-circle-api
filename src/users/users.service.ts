@@ -19,7 +19,7 @@ import {
 import mongoose, { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { ContactUsDto } from './dto/contact-us.dto';
-import { MailerService } from '@nestjs-modules/mailer';
+import { SendGridService } from '../sendgrid/sendgrid.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { contactUsToAdmin } from 'src/utils/email-templates';
@@ -39,7 +39,7 @@ export class UsersService {
     @InjectModel(Booking.name) private readonly bookingModel: Model<Booking>,
     @InjectModel(Subscription.name)
     private readonly subscriptionModel: Model<Subscription>,
-    private readonly mailerService: MailerService,
+    private readonly sendGridService: SendGridService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) {}
@@ -88,7 +88,7 @@ export class UsersService {
 
     if (emailsEnabled) {
       try {
-        await this.mailerService.sendMail({
+        await this.sendGridService.sendMail({
           to: 'marsad11223@gmail.com',
           subject: subject,
           html: contactUsToAdmin({

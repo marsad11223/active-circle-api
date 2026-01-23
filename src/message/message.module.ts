@@ -8,6 +8,8 @@ import { Activity, ActivitySchema } from 'src/schemas/activity.schema';
 import { User, UserSchema } from 'src/schemas/user.schema';
 import { AuthModule } from 'src/auth/auth.module';
 
+import { SendGridModule } from '../sendgrid/sendgrid.module';
+
 @Module({
   imports: [
     MongooseModule.forFeature([
@@ -17,6 +19,7 @@ import { AuthModule } from 'src/auth/auth.module';
       { name: User.name, schema: UserSchema },
     ]),
     forwardRef(() => AuthModule),
+    SendGridModule,
   ],
   controllers: [MessageController],
   providers: [MessageService],

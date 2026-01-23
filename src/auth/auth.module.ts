@@ -9,10 +9,13 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { UserSchema } from 'src/schemas/user.schema';
 import { UsersModule } from 'src/users/users.module';
 
+import { SendGridModule } from '../sendgrid/sendgrid.module';
+
 @Module({
   imports: [
     forwardRef(() => UsersModule),
     PassportModule,
+    SendGridModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({

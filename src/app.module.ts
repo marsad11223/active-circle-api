@@ -14,8 +14,8 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { MessageModule } from './message/message.module';
 import { PayoutModule } from './payout/payout.module';
 
-import { MailerModule } from '@nestjs-modules/mailer';
 import { APP_PIPE } from '@nestjs/core';
+import { SendGridModule } from './sendgrid/sendgrid.module';
 
 @Module({
   imports: [
@@ -30,32 +30,7 @@ import { APP_PIPE } from '@nestjs/core';
     PayoutModule,
 
     ConfigModule.forRoot({ isGlobal: true }),
-    MailerModule.forRoot({
-      transport: {
-        host: 'smtp.gmail.com',
-        port: 587,
-        secure: false, // true for 465, false for other ports
-        auth: {
-          user: process.env.EMAIL_USERNAME,
-          pass: process.env.EMAIL_PASSWORD,
-        },
-        // Significantly increased timeouts for production (Gmail SMTP can be very slow)
-        connectionTimeout: 60000, // 60 seconds (increased from 30)
-        greetingTimeout: 30000, // 30 seconds (increased from 10)
-        socketTimeout: 60000, // 60 seconds (increased from 30)
-        // Disable pool in production to avoid connection issues
-        pool: false, // Set to false to avoid connection pool issues
-        // Additional options for better reliability
-        tls: {
-          rejectUnauthorized: false, // Accept self-signed certificates if needed
-        },
-        debug: process.env.NODE_ENV === 'development', // Enable debug in dev
-        logger: process.env.NODE_ENV === 'development', // Enable logger in dev
-      },
-      defaults: {
-        from: `"Active Circle" <${process.env.EMAIL_USERNAME}>`,
-      },
-    }),
+    SendGridModule,
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {

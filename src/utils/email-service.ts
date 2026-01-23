@@ -1,8 +1,16 @@
+/**
+ * Email service utility function
+ * Compatible with both MailerService and SendGridService
+ * @param mailservice - The email service instance (SendGridService or MailerService)
+ * @param email - Recipient email address
+ * @param content - HTML email content
+ * @param title - Email subject
+ */
 export function emailService(mailservice, email, content, title) {
   mailservice
     .sendMail({
       to: email, // list of receivers
-      from: `"Sofa and Rattan" <${process.env.EMAIL_USERNAME}>`, // sender address
+      from: `"Active Circle" <${process.env.EMAIL_USERNAME}>`, // sender address
       subject: title, // Subject line
       html: content, // HTML body content
     })

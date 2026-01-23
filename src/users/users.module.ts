@@ -12,6 +12,8 @@ import {
 } from 'src/schemas/subscription.schema';
 import { AuthModule } from 'src/auth/auth.module';
 
+import { SendGridModule } from '../sendgrid/sendgrid.module';
+
 @Module({
   imports: [
     MongooseModule.forFeature([
@@ -22,6 +24,7 @@ import { AuthModule } from 'src/auth/auth.module';
       { name: Subscription.name, schema: SubscriptionSchema },
     ]),
     forwardRef(() => AuthModule),
+    SendGridModule,
   ],
   controllers: [UsersController],
   providers: [UsersService],

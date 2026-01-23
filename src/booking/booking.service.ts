@@ -24,7 +24,7 @@ import {
 } from './dto/admin-list-bookings.dto';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
-import { MailerService } from '@nestjs-modules/mailer';
+import { SendGridService } from '../sendgrid/sendgrid.service';
 import {
   bookingRequestSentToMember,
   newBookingRequestToHost,
@@ -48,7 +48,7 @@ export class BookingService {
     @InjectModel(Rating.name)
     private readonly ratingModel: Model<Rating>,
     private configService: ConfigService,
-    private readonly mailerService: MailerService,
+    private readonly sendGridService: SendGridService,
   ) {
     const stripeSecretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!stripeSecretKey) {
@@ -256,7 +256,7 @@ export class BookingService {
       if (emailsEnabled) {
         try {
           // Email to member
-          await this.mailerService.sendMail({
+          await this.sendGridService.sendMail({
             to: member.email,
             subject:
               activityPrice > 0
@@ -271,7 +271,7 @@ export class BookingService {
           });
 
           // Email to host (same for both paid and free)
-          await this.mailerService.sendMail({
+          await this.sendGridService.sendMail({
             to: host.email,
             subject: 'New Booking Request',
             html: newBookingRequestToHost({
@@ -420,7 +420,7 @@ export class BookingService {
       const member = await this.userModel.findById(booking.memberId);
       if (member && emailsEnabled) {
         try {
-          await this.mailerService.sendMail({
+          await this.sendGridService.sendMail({
             to: member.email,
             subject: 'Booking Confirmed',
             html: bookingConfirmedToMember({
@@ -524,7 +524,7 @@ export class BookingService {
       const member = await this.userModel.findById(booking.memberId);
       if (member && emailsEnabled) {
         try {
-          await this.mailerService.sendMail({
+          await this.sendGridService.sendMail({
             to: member.email,
             subject: 'Booking Declined',
             html: bookingDeclinedToMember({
@@ -1035,7 +1035,7 @@ export class BookingService {
         const member = await this.userModel.findById(memberId);
         if (member && emailsEnabled) {
           try {
-            await this.mailerService.sendMail({
+            await this.sendGridService.sendMail({
               to: member.email,
               subject: wasPending ? 'Booking Withdrawn' : 'Booking Cancelled',
               html: bookingCancelledFreeToMember({
@@ -1097,7 +1097,7 @@ export class BookingService {
         const member = await this.userModel.findById(memberId);
         if (member && emailsEnabled) {
           try {
-            await this.mailerService.sendMail({
+            await this.sendGridService.sendMail({
               to: member.email,
               subject: 'Booking Withdrawn',
               html: bookingDeclinedToMember({
@@ -1208,7 +1208,7 @@ export class BookingService {
         const member = await this.userModel.findById(memberId);
         if (member && emailsEnabled) {
           try {
-            await this.mailerService.sendMail({
+            await this.sendGridService.sendMail({
               to: member.email,
               subject: 'Booking Cancelled - Refund Processed',
               html: bookingCancelledWithRefundToMember({

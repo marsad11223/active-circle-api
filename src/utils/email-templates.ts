@@ -402,3 +402,137 @@ export function activityCancelledWithRefundToMember(data: {
     </div>
   `;
 }
+
+/**
+ * Welcome Email (on Sign Up)
+ */
+export function welcomeEmail(data: {
+  userName: string;
+  userEmail: string;
+}): string {
+  const { userName, userEmail } = data;
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px 0;">
+        <tr>
+          <td align="center">
+            <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+              
+              <!-- Header -->
+              <tr>
+                <td style="padding: 30px 40px 20px 40px; background-color: #ffffff;">
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td>
+                        <div style="display: inline-block; vertical-align: middle;">
+                          <div style="width: 50px; height: 50px; border: 2px solid #1a365d; border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 15px;">
+                            <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #ff6b35; font-size: 28px; font-weight: bold;">A</div>
+                          </div>
+                        </div>
+                        <div style="display: inline-block; vertical-align: middle;">
+                          <div style="color: #1a365d; font-size: 18px; font-weight: bold; line-height: 1.2;">
+                            THE ACTIVE<br>CIRCLE
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Welcome Heading -->
+              <tr>
+                <td style="padding: 0 40px 30px 40px;">
+                  <h1 style="color: #1a365d; font-size: 28px; font-weight: bold; margin: 0; line-height: 1.3;">
+                    WELCOME TO THE ACTIVE CIRCLE
+                  </h1>
+                </td>
+              </tr>
+
+              <!-- Main Content -->
+              <tr>
+                <td style="padding: 0 40px 40px 40px; background-color: #ffffff;">
+                  <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 15px 0;">
+                    Hello ${userName || userEmail},<br>
+                    You're in 🎉
+                  </p>
+                  <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 25px 0;">
+                    We're pleased to have you.
+                  </p>
+                  <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 25px 0;">
+                    Active Circle is a curated space for people who value health, movement, and meaningful connection. It's about staying active with purpose — and meeting others who share the same mindset.
+                  </p>
+                  
+                  <div style="margin: 30px 0;">
+                    <p style="color: #333333; font-size: 16px; line-height: 1.8; margin: 0 0 10px 0;">
+                      <strong>Thoughtfully designed.</strong>
+                    </p>
+                    <p style="color: #333333; font-size: 16px; line-height: 1.8; margin: 0 0 10px 0;">
+                      <strong>Health-focused.</strong>
+                    </p>
+                    <p style="color: #333333; font-size: 16px; line-height: 1.8; margin: 0;">
+                      <strong>Connection-driven.</strong>
+                    </p>
+                  </div>
+
+                  <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 30px 0 0 0;">
+                    Explore the Circle, discover what's on, and begin building a more active, connected lifestyle.
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Footer -->
+              <tr>
+                <td style="background-color: #1a365d; padding: 40px; color: #ffffff;">
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td>
+                        <div style="margin-bottom: 20px;">
+                          <div style="display: inline-block; vertical-align: middle;">
+                            <div style="width: 40px; height: 40px; border: 2px solid #ffffff; border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 12px;">
+                              <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #ff6b35; font-size: 22px; font-weight: bold;">A</div>
+                            </div>
+                          </div>
+                          <div style="display: inline-block; vertical-align: middle;">
+                            <div style="color: #ffffff; font-size: 16px; font-weight: bold; line-height: 1.2;">
+                              THE ACTIVE<br>CIRCLE
+                            </div>
+                          </div>
+                        </div>
+                        <p style="color: #ffffff; font-size: 14px; line-height: 1.6; margin: 0 0 30px 0;">
+                          Connecting people through movement, shared interests, and local experiences.
+                        </p>
+                        <div style="margin-top: 20px;">
+                          <a href="https://instagram.com" style="display: inline-block; margin-right: 15px; text-decoration: none;">
+                            <span style="color: #ffffff; font-size: 20px;">📷</span>
+                          </a>
+                          <a href="https://tiktok.com" style="display: inline-block; margin-right: 15px; text-decoration: none;">
+                            <span style="color: #ffffff; font-size: 20px;">🎵</span>
+                          </a>
+                          <a href="https://facebook.com" style="display: inline-block; text-decoration: none;">
+                            <span style="color: #ffffff; font-size: 20px;">f</span>
+                          </a>
+                        </div>
+                      </td>
+                      <td align="right" valign="bottom">
+                        <a href="#top" style="color: #ffffff; text-decoration: none; font-size: 20px;">^</a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+}
