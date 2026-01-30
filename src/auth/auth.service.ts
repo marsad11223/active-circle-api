@@ -20,7 +20,8 @@ import {
   passwordResetRequest,
   passwordResetSuccessful,
   passwordChangedSuccessfully,
-  welcomeEmail,
+  welcomeEmailMember,
+  welcomeEmailHost,
 } from 'src/utils/email-templates';
 
 @Injectable()
@@ -65,14 +66,21 @@ export class AuthService {
           this.configService.get<string>('EMAILS_ENABLED') === 'true';
         if (emailsEnabled) {
           setImmediate(() => {
+            const isHost = newUser.role === Role.host;
+            const welcomeHtml = isHost
+              ? welcomeEmailHost({
+                  userName: newUser.name,
+                  userEmail: newUser.email,
+                })
+              : welcomeEmailMember({
+                  userName: newUser.name,
+                  userEmail: newUser.email,
+                });
             this.sendGridService
               .sendMail({
                 to: newUser.email,
                 subject: 'Welcome to Active Circle!',
-                html: welcomeEmail({
-                  userName: newUser.name,
-                  userEmail: newUser.email,
-                }),
+                html: welcomeHtml,
               })
               .then(() => {
                 console.log('[REGISTER] Welcome email sent to:', newUser.email);

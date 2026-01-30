@@ -404,9 +404,9 @@ export function activityCancelledWithRefundToMember(data: {
 }
 
 /**
- * Welcome Email (on Sign Up)
+ * Welcome Email for Member (on Sign Up)
  */
-export function welcomeEmail(data: {
+export function welcomeEmailMember(data: {
   userName: string;
   userEmail: string;
 }): string {
@@ -480,7 +480,7 @@ export function welcomeEmail(data: {
               <tr>
                 <td class="content" style="padding: 0 40px 20px 40px; text-align: center;">
                   <p style="color: #333333; font-size: 16px; font-weight: normal; margin: 0; line-height: 1.5;">
-                    Welcome to the Circle
+                    Hello ${userName || userEmail},<br>Welcome to the Circle
                   </p>
                 </td>
               </tr>
@@ -490,6 +490,133 @@ export function welcomeEmail(data: {
                 <td class="content" style="padding: 0 40px 30px 40px; text-align: center;">
                   <p class="text-medium" style="color: #333333; font-size: 20px; font-weight: bold; margin: 0; line-height: 1.4;">
                     You’re one step closer to building meaningful connections through movement
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Real People / Real connections -->
+              <tr>
+                <td class="content" style="padding: 0 40px 50px 40px; text-align: center;">
+                  <p style="color: #333333; font-size: 16px; font-weight: normal; margin: 0 0 8px 0; line-height: 1.5;">
+                    Real People
+                  </p>
+                  <p style="color: #333333; font-size: 16px; font-weight: normal; margin: 0; line-height: 1.5;">
+                    Real connections
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Contact Section -->
+              <tr>
+                <td class="content" style="padding: 0 40px 40px 40px; text-align: center;">
+                  <p style="color: #F98C01; font-size: 16px; font-weight: normal; margin: 0 0 10px 0; line-height: 1.5;">
+                    Questions or need support?
+                  </p>
+                  <p style="margin: 0;">
+                    <a href="mailto:contact@theactivecircle.com" style="color: #1a365d; font-size: 16px; font-weight: normal; text-decoration: none; line-height: 1.5;">
+                      contact@theactivecircle.com
+                    </a>
+                  </p>
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+}
+
+/**
+ * Welcome Email for Host (on Sign Up)
+ * Same styling as member, different body message
+ */
+export function welcomeEmailHost(data: {
+  userName: string;
+  userEmail: string;
+}): string {
+  const { userName, userEmail } = data;
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        @media only screen and (max-width: 600px) {
+          .container {
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+          .content {
+            padding: 30px 20px !important;
+          }
+          .heading-large {
+            font-size: 36px !important;
+            line-height: 1.2 !important;
+          }
+          .heading-medium {
+            font-size: 24px !important;
+            line-height: 1.3 !important;
+          }
+          .text-small {
+            font-size: 14px !important;
+          }
+          .text-medium {
+            font-size: 18px !important;
+            line-height: 1.5 !important;
+          }
+        }
+      </style>
+    </head>
+    <body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #ffffff;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #ffffff; padding: 40px 20px;">
+        <tr>
+          <td align="center">
+            <table class="container" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; max-width: 600px;">
+              
+              <!-- Top Section: MEET. MOVE. CONNECT. -->
+              <tr>
+                <td class="content" style="padding: 40px 40px 20px 40px; text-align: center;">
+                  <div style="margin-bottom: 10px;">
+                    <span style="color: #1a365d; font-size: 42px; font-weight: bold; letter-spacing: 1px; line-height: 1.2;">MEET.</span>
+                    <span style="color: #F98C01; font-size: 42px; font-weight: bold; letter-spacing: 1px; line-height: 1.2;"> MOVE.</span>
+                  </div>
+                  <div style="margin-top: 5px;">
+                    <span style="color: #1a365d; font-size: 42px; font-weight: bold; letter-spacing: 1px; line-height: 1.2;">CONNECT.</span>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- Separator Line -->
+              <tr>
+                <td style="padding: 0 40px 30px 40px;">
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td align="center">
+                        <div style="height: 4px; background-color: #1a365d; width: 80%; max-width: 400px; margin: 0 auto;"></div>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Welcome to the Circle (Host) -->
+              <tr>
+                <td class="content" style="padding: 0 40px 20px 40px; text-align: center;">
+                  <p style="color: #333333; font-size: 16px; font-weight: normal; margin: 0; line-height: 1.5;">
+                    Hello ${userName || userEmail},<br>Welcome to the Circle
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Main Message (Host) -->
+              <tr>
+                <td class="content" style="padding: 0 40px 30px 40px; text-align: center;">
+                  <p class="text-medium" style="color: #333333; font-size: 20px; font-weight: bold; margin: 0; line-height: 1.4;">
+                    You're one step closer to bringing people together through movement
                   </p>
                 </td>
               </tr>
