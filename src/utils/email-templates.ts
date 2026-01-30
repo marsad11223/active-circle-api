@@ -417,114 +417,106 @@ export function welcomeEmail(data: {
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        @media only screen and (max-width: 600px) {
+          .container {
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+          .content {
+            padding: 30px 20px !important;
+          }
+          .heading-large {
+            font-size: 36px !important;
+            line-height: 1.2 !important;
+          }
+          .heading-medium {
+            font-size: 24px !important;
+            line-height: 1.3 !important;
+          }
+          .text-small {
+            font-size: 14px !important;
+          }
+          .text-medium {
+            font-size: 18px !important;
+            line-height: 1.5 !important;
+          }
+        }
+      </style>
     </head>
-    <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px 0;">
+    <body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #ffffff;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #ffffff; padding: 40px 20px;">
         <tr>
           <td align="center">
-            <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+            <table class="container" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; max-width: 600px;">
               
-              <!-- Header -->
+              <!-- Top Section: MEET. MOVE. CONNECT. -->
               <tr>
-                <td style="padding: 30px 40px 20px 40px; background-color: #ffffff;">
-                  <table width="100%" cellpadding="0" cellspacing="0">
-                    <tr>
-                      <td>
-                        <div style="display: inline-block; vertical-align: middle;">
-                          <div style="width: 50px; height: 50px; border: 2px solid #1a365d; border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 15px;">
-                            <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #ff6b35; font-size: 28px; font-weight: bold;">A</div>
-                          </div>
-                        </div>
-                        <div style="display: inline-block; vertical-align: middle;">
-                          <div style="color: #1a365d; font-size: 18px; font-weight: bold; line-height: 1.2;">
-                            THE ACTIVE<br>CIRCLE
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  </table>
+                <td class="content" style="padding: 40px 40px 20px 40px; text-align: center;">
+                  <div style="margin-bottom: 10px;">
+                    <span style="color: #1a365d; font-size: 42px; font-weight: bold; letter-spacing: 1px; line-height: 1.2;">MEET.</span>
+                    <span style="color: #F98C01; font-size: 42px; font-weight: bold; letter-spacing: 1px; line-height: 1.2;"> MOVE.</span>
+                  </div>
+                  <div style="margin-top: 5px;">
+                    <span style="color: #1a365d; font-size: 42px; font-weight: bold; letter-spacing: 1px; line-height: 1.2;">CONNECT.</span>
+                  </div>
                 </td>
               </tr>
 
-              <!-- Welcome Heading -->
+              <!-- Separator Line -->
               <tr>
                 <td style="padding: 0 40px 30px 40px;">
-                  <h1 style="color: #1a365d; font-size: 28px; font-weight: bold; margin: 0; line-height: 1.3;">
-                    WELCOME TO THE ACTIVE CIRCLE
-                  </h1>
-                </td>
-              </tr>
-
-              <!-- Main Content -->
-              <tr>
-                <td style="padding: 0 40px 40px 40px; background-color: #ffffff;">
-                  <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 15px 0;">
-                    Hello ${userName || userEmail},<br>
-                    You're in 🎉
-                  </p>
-                  <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 25px 0;">
-                    We're pleased to have you.
-                  </p>
-                  <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 25px 0;">
-                    Active Circle is a curated space for people who value health, movement, and meaningful connection. It's about staying active with purpose — and meeting others who share the same mindset.
-                  </p>
-                  
-                  <div style="margin: 30px 0;">
-                    <p style="color: #333333; font-size: 16px; line-height: 1.8; margin: 0 0 10px 0;">
-                      <strong>Thoughtfully designed.</strong>
-                    </p>
-                    <p style="color: #333333; font-size: 16px; line-height: 1.8; margin: 0 0 10px 0;">
-                      <strong>Health-focused.</strong>
-                    </p>
-                    <p style="color: #333333; font-size: 16px; line-height: 1.8; margin: 0;">
-                      <strong>Connection-driven.</strong>
-                    </p>
-                  </div>
-
-                  <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 30px 0 0 0;">
-                    Explore the Circle, discover what's on, and begin building a more active, connected lifestyle.
-                  </p>
-                </td>
-              </tr>
-
-              <!-- Footer -->
-              <tr>
-                <td style="background-color: #1a365d; padding: 40px; color: #ffffff;">
                   <table width="100%" cellpadding="0" cellspacing="0">
                     <tr>
-                      <td>
-                        <div style="margin-bottom: 20px;">
-                          <div style="display: inline-block; vertical-align: middle;">
-                            <div style="width: 40px; height: 40px; border: 2px solid #ffffff; border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 12px;">
-                              <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #ff6b35; font-size: 22px; font-weight: bold;">A</div>
-                            </div>
-                          </div>
-                          <div style="display: inline-block; vertical-align: middle;">
-                            <div style="color: #ffffff; font-size: 16px; font-weight: bold; line-height: 1.2;">
-                              THE ACTIVE<br>CIRCLE
-                            </div>
-                          </div>
-                        </div>
-                        <p style="color: #ffffff; font-size: 14px; line-height: 1.6; margin: 0 0 30px 0;">
-                          Connecting people through movement, shared interests, and local experiences.
-                        </p>
-                        <div style="margin-top: 20px;">
-                          <a href="https://instagram.com" style="display: inline-block; margin-right: 15px; text-decoration: none;">
-                            <span style="color: #ffffff; font-size: 20px;">📷</span>
-                          </a>
-                          <a href="https://tiktok.com" style="display: inline-block; margin-right: 15px; text-decoration: none;">
-                            <span style="color: #ffffff; font-size: 20px;">🎵</span>
-                          </a>
-                          <a href="https://facebook.com" style="display: inline-block; text-decoration: none;">
-                            <span style="color: #ffffff; font-size: 20px;">f</span>
-                          </a>
-                        </div>
-                      </td>
-                      <td align="right" valign="bottom">
-                        <a href="#top" style="color: #ffffff; text-decoration: none; font-size: 20px;">^</a>
+                      <td align="center">
+                        <div style="height: 4px; background-color: #1a365d; width: 80%; max-width: 400px; margin: 0 auto;"></div>
                       </td>
                     </tr>
                   </table>
+                </td>
+              </tr>
+
+              <!-- Welcome to the Circle -->
+              <tr>
+                <td class="content" style="padding: 0 40px 20px 40px; text-align: center;">
+                  <p style="color: #333333; font-size: 16px; font-weight: normal; margin: 0; line-height: 1.5;">
+                    Welcome to the Circle
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Main Message -->
+              <tr>
+                <td class="content" style="padding: 0 40px 30px 40px; text-align: center;">
+                  <p class="text-medium" style="color: #333333; font-size: 20px; font-weight: bold; margin: 0; line-height: 1.4;">
+                    You’re one step closer to building meaningful connections through movement
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Real People / Real connections -->
+              <tr>
+                <td class="content" style="padding: 0 40px 50px 40px; text-align: center;">
+                  <p style="color: #333333; font-size: 16px; font-weight: normal; margin: 0 0 8px 0; line-height: 1.5;">
+                    Real People
+                  </p>
+                  <p style="color: #333333; font-size: 16px; font-weight: normal; margin: 0; line-height: 1.5;">
+                    Real connections
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Contact Section -->
+              <tr>
+                <td class="content" style="padding: 0 40px 40px 40px; text-align: center;">
+                  <p style="color: #F98C01; font-size: 16px; font-weight: normal; margin: 0 0 10px 0; line-height: 1.5;">
+                    Questions or need support?
+                  </p>
+                  <p style="margin: 0;">
+                    <a href="mailto:contact@theactivecircle.com" style="color: #1a365d; font-size: 16px; font-weight: normal; text-decoration: none; line-height: 1.5;">
+                      contact@theactivecircle.com
+                    </a>
+                  </p>
                 </td>
               </tr>
 
