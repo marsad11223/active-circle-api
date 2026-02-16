@@ -2377,6 +2377,71 @@
 							"response": []
 						},
 						{
+							"name": "Send Marketing Email (Admin)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"subject\": \"Monthly update from Active Circle\",\n  \"message\": \"New activities are live. Log in to book your spot!\",\n  \"respectMarketingPreference\": true,\n  \"testMode\": true\n}",
+									"options": { "raw": { "language": "json" } }
+								},
+								"url": {
+									"raw": "{{base_url}}/users/admin/send-marketing-email",
+									"host": ["{{base_url}}"],
+									"path": ["users", "admin", "send-marketing-email"]
+								},
+								"description": "Admin only. Send one marketing email to every member. Template is on backend. Body: subject (required), message (optional), respectMarketingPreference (optional), testMode (optional). If testMode=true, sends only to TEST_EMAIL. Returns { sent, failed, total, message }."
+							},
+							"response": []
+						},
+						{
+							"name": "Send Session Reminders (Admin)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/users/admin/send-session-reminders?hoursAhead=24&testMode=true",
+									"host": ["{{base_url}}"],
+									"path": ["users", "admin", "send-session-reminders"],
+									"query": [
+										{
+											"key": "hoursAhead",
+											"value": "24",
+											"description": "Send reminders for sessions in the next N hours (default 24)"
+										},
+										{
+											"key": "testMode",
+											"value": "true",
+											"description": "If true, send only to TEST_EMAIL (no members receive reminders)"
+										}
+									]
+								},
+								"description": "Admin only. Send session reminders for confirmed bookings in the next X hours. Query: hoursAhead (default 24), testMode (if true, send only to TEST_EMAIL). Returns { sent, failed, total, message }."
+							},
+							"response": []
+						},
+						{
 							"name": "Get All Activities",
 							"request": {
 								"auth": {

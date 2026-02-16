@@ -655,3 +655,100 @@ export function welcomeEmailHost(data: {
     </html>
   `;
 }
+
+/**
+ * Marketing / broadcast email (admin to all members)
+ * Single template on backend – admin only sends subject (and optional message).
+ */
+export function marketingBroadcastEmail(data: {
+  recipientName?: string;
+  subject: string;
+  message?: string;
+}): string {
+  const { recipientName, subject, message } = data;
+  const greeting = recipientName ? `Hello ${recipientName},` : 'Hello,';
+  const escapeHtml = (s: string) =>
+    s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  const safeMessage = message && message.trim() ? escapeHtml(message).replace(/\n/g, '<br>') : '';
+  const bodyContent = safeMessage
+      ? `<p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">${safeMessage}</p>`
+      : `
+      <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
+        We have new activities and updates for you. Log in to the app to discover what's happening near you.
+      </p>
+      <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0;">
+        Stay active. Stay connected.
+      </p>`;
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f3f4f6;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 20px;">
+        <tr>
+          <td align="center">
+            <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; max-width: 600px; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+              <tr>
+                <td style="padding: 32px 40px 24px 40px; text-align: center; background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);">
+                  <p style="margin: 0; color: #ffffff; font-size: 14px; letter-spacing: 1px;">MEET. MOVE. CONNECT.</p>
+                  <p style="margin: 8px 0 0 0; color: #F98C01; font-size: 20px; font-weight: bold;">Active Circle</p>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 24px 40px 32px 40px;">
+                  <h1 style="color: #1a365d; font-size: 22px; margin: 0 0 16px 0; font-weight: bold;">${subject}</h1>
+                  <p style="color: #374151; font-size: 16px; margin: 0 0 20px 0;">${greeting}</p>
+                  ${bodyContent}
+                  <p style="color: #6b7280; font-size: 12px; margin-top: 28px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                    You received this email from Active Circle. To manage your preferences, visit your account settings.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+}
+
+/**
+ * Session reminder (upcoming activity)
+ */
+export function sessionReminderEmail(data: {
+  memberName: string;
+  memberEmail: string;
+  activityTitle: string;
+  activityDate: Date;
+  location?: string;
+  hoursUntil?: number;
+}): string {
+  const { memberName, memberEmail, activityTitle, activityDate, location, hoursUntil } = data;
+  const dateStr = new Date(activityDate).toLocaleString(undefined, {
+    dateStyle: 'full',
+    timeStyle: 'short',
+  });
+  const when = hoursUntil != null ? `in ${hoursUntil} hour${hoursUntil !== 1 ? 's' : ''}` : 'soon';
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>Reminder: Your session is coming up</h2>
+      <p>Hello ${memberName || memberEmail},</p>
+      <p>This is a friendly reminder that you have a session coming up ${when}:</p>
+      <p><strong>${activityTitle}</strong></p>
+      <p>Date & time: ${dateStr}</p>
+      ${location ? `<p>Location: ${location}</p>` : ''}
+      <p>We look forward to seeing you!</p>
+      <p style="color: #6b7280; font-size: 12px;">Active Circle</p>
+    </div>
+  `;
+}

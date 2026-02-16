@@ -15,6 +15,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { User } from 'src/schemas/user.schema';
 import { GetUser } from 'src/auth/GetUser.Decorator';
 import { ContactUsDto } from './dto/contact-us.dto';
+import { SendMarketingEmailDto } from './dto/send-marketing-email.dto';
 import { ToggleFavoriteDto } from './dto/toggle-favorite.dto';
 import { IsAdmin, canAccessResource } from 'src/utils/helper';
 import { AdminListUsersDto } from './dto/admin-list-users.dto';
@@ -134,6 +135,32 @@ export class UsersController {
   getAllHosts(@Query() filters: AdminListUsersDto, @GetUser() user: User) {
     IsAdmin(user);
     return this.usersService.getAllHosts(filters);
+  }
+
+  /** Admin: send marketing email to all members (one broadcast). Respects marketingEmails preference by default. */
+  @UseGuards(AuthGuard('jwt'))
+  @Post('admin/send-marketing-email')
+  sendMarketingEmail(
+    @Body() dto: SendMarketingEmailDto,
+    @GetUser() user: User,
+  ) {
+    IsAdmin(user);
+    return this.usersService.sendMarketingEmailToAll(dto);
+  }
+
+  /** Admin: send session reminders to members with confirmed bookings in the next X hours (default 24). Use ?testMode=true to send only to TEST_EMAIL. */
+  @UseGuards(AuthGuard('jwt'))
+  @Post('admin/send-session-reminders')
+  sendSessionReminders(
+    @Query('hoursAhead') hoursAheadStr: string,
+    @Query('testMode') testModeStr: string,
+    @GetUser() user: User,
+  ) {
+    IsAdmin(user);
+    const hoursAhead = hoursAheadStr ? parseInt(hoursAheadStr, 10) : 24;
+    const hours = Number.isFinite(hoursAhead) && hoursAhead > 0 ? hoursAhead : 24;
+    const testMode = testModeStr === 'true' || testModeStr === '1';
+    return this.usersService.sendSessionReminders(hours, testMode);
   }
 
   @UseGuards(AuthGuard('jwt'))

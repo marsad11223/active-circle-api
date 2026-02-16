@@ -11,7 +11,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { GrantRole, User, Role } from 'src/schemas/user.schema';
 import { Activity } from 'src/schemas/activity.schema';
 import { Rating } from 'src/schemas/rating.schema';
-import { Booking } from 'src/schemas/booking.schema';
+import { Booking, BookingStatus } from 'src/schemas/booking.schema';
 import {
   Subscription,
   SubscriptionStatus,
@@ -19,7 +19,9 @@ import {
 import mongoose, { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { ContactUsDto } from './dto/contact-us.dto';
+import { SendMarketingEmailDto } from './dto/send-marketing-email.dto';
 import { SendGridService } from '../sendgrid/sendgrid.service';
+import { marketingBroadcastEmail, sessionReminderEmail } from 'src/utils/email-templates';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { contactUsToAdmin } from 'src/utils/email-templates';
@@ -815,5 +817,192 @@ export class UsersService {
     } catch (err) {
       throw new BadRequestException(err.message);
     }
+  }
+
+  /**
+   * Send marketing email to all members (admin only).
+   * Optionally respects marketingEmails preference (default true).
+   * If testMode is true, sends only to TEST_EMAIL (no real members receive it).
+   */
+  async sendMarketingEmailToAll(dto: SendMarketingEmailDto): Promise<{
+    sent: number;
+    failed: number;
+    total: number;
+    message: string;
+  }> {
+    const testEmail =
+      this.configService.get<string>('TEST_EMAIL') || 'marsad11223@gmail.com';
+
+    if (dto.testMode) {
+      try {
+        const html = marketingBroadcastEmail({
+          recipientName: 'Test Recipient',
+          subject: dto.subject,
+          message: dto.message,
+        });
+        await this.sendGridService.sendMail({
+          to: testEmail,
+          subject: `[TEST] ${dto.subject}`,
+          html,
+        });
+        return {
+          sent: 1,
+          failed: 0,
+          total: 1,
+          message: `Test mode: email sent to ${testEmail} only. No members were emailed.`,
+        };
+      } catch (err) {
+        console.error('[sendMarketingEmailToAll] Test send failed', err);
+        return {
+          sent: 0,
+          failed: 1,
+          total: 1,
+          message: `Test mode: failed to send to ${testEmail}. ${(err as Error).message}`,
+        };
+      }
+    }
+
+    const respect = dto.respectMarketingPreference !== false;
+    const query: any = { role: { $ne: Role.superAdmin }, deleted_at: null };
+    if (respect) {
+      query.marketingEmails = true;
+    }
+    const users = await this.userModel
+      .find(query)
+      .select('email name')
+      .lean();
+    let sent = 0;
+    let failed = 0;
+    const subject = dto.subject;
+    const message = dto.message;
+
+    for (const u of users) {
+      const email = (u as any).email;
+      if (!email) {
+        failed++;
+        continue;
+      }
+      try {
+        const html = marketingBroadcastEmail({
+          recipientName: (u as any).name,
+          subject,
+          message,
+        });
+        await this.sendGridService.sendMail({
+          to: email,
+          subject,
+          html,
+        });
+        sent++;
+      } catch (err) {
+        console.error('[sendMarketingEmailToAll] Failed to send to', email, err);
+        failed++;
+      }
+    }
+
+    return {
+      sent,
+      failed,
+      total: users.length,
+      message: `Marketing email sent to ${sent} of ${users.length} members${failed > 0 ? ` (${failed} failed)` : ''}.`,
+    };
+  }
+
+  /**
+   * Send session reminders to members with confirmed bookings in the next X hours (admin only).
+   * Default 24 hours. If testMode is true, all reminders go to TEST_EMAIL only.
+   */
+  async sendSessionReminders(
+    hoursAhead: number = 24,
+    testMode: boolean = false,
+  ): Promise<{
+    sent: number;
+    failed: number;
+    total: number;
+    message: string;
+  }> {
+    const now = new Date();
+    const cutoff = new Date(now.getTime() + hoursAhead * 60 * 60 * 1000);
+
+    const bookings = await this.bookingModel
+      .find({
+        status: BookingStatus.CONFIRMED,
+        deleted_at: null,
+      })
+      .populate('activityId', 'title date location')
+      .populate('memberId', 'name email')
+      .lean();
+
+    const inRange: Array<{
+      memberId: any;
+      memberName: string;
+      memberEmail: string;
+      activityTitle: string;
+      activityDate: Date;
+      location?: string;
+      hoursUntil: number;
+    }> = [];
+
+    for (const b of bookings) {
+      const activity = (b as any).activityId;
+      const member = (b as any).memberId;
+      if (!activity || !member) continue;
+      const activityDate = new Date(activity.date);
+      if (activityDate < now || activityDate > cutoff) continue;
+      const hoursUntil = Math.round((activityDate.getTime() - now.getTime()) / (60 * 60 * 1000));
+      inRange.push({
+        memberId: (b as any).memberId?._id,
+        memberName: member.name || member.email,
+        memberEmail: member.email,
+        activityTitle: activity.title,
+        activityDate,
+        location: activity.location,
+        hoursUntil,
+      });
+    }
+
+    const testEmail =
+      this.configService.get<string>('TEST_EMAIL') || 'marsad11223@gmail.com';
+    const sendTo = testMode ? testEmail : null;
+
+    let sent = 0;
+    let failed = 0;
+    for (const item of inRange) {
+      const toEmail = sendTo || item.memberEmail;
+      if (!toEmail) {
+        failed++;
+        continue;
+      }
+      try {
+        const html = sessionReminderEmail({
+          memberName: item.memberName,
+          memberEmail: item.memberEmail,
+          activityTitle: item.activityTitle,
+          activityDate: item.activityDate,
+          location: item.location,
+          hoursUntil: item.hoursUntil,
+        });
+        await this.sendGridService.sendMail({
+          to: toEmail,
+          subject: testMode
+            ? `[TEST] Reminder: ${item.activityTitle} – ${new Date(item.activityDate).toLocaleString()}`
+            : `Reminder: ${item.activityTitle} – ${new Date(item.activityDate).toLocaleString()}`,
+          html,
+        });
+        sent++;
+      } catch (err) {
+        console.error('[sendSessionReminders] Failed to send to', toEmail, err);
+        failed++;
+      }
+    }
+
+    return {
+      sent,
+      failed,
+      total: inRange.length,
+      message: testMode
+        ? `Test mode: ${sent} reminder(s) sent to ${testEmail} only. No members were emailed.`
+        : `Session reminders sent: ${sent} of ${inRange.length}${failed > 0 ? ` (${failed} failed)` : ''}.`,
+    };
   }
 }
