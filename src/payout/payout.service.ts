@@ -60,7 +60,7 @@ export class PayoutService {
       throw new NotFoundException('Host not found');
     }
 
-    if (host.role !== Role.host) {
+    if (host.role !== Role.premiumMember && host.role !== Role.standardMember) {
       throw new ForbiddenException('Only hosts can access this endpoint');
     }
 
@@ -272,7 +272,7 @@ export class PayoutService {
       throw new NotFoundException('Host not found');
     }
 
-    if (host.role !== Role.host) {
+    if (host.role !== Role.premiumMember && host.role !== Role.standardMember) {
       throw new ForbiddenException('Only hosts can create withdrawal requests');
     }
 
@@ -583,7 +583,7 @@ export class PayoutService {
       throw new NotFoundException('Host not found');
     }
 
-    if (host.role !== Role.host) {
+    if (host.role !== Role.premiumMember && host.role !== Role.standardMember) {
       throw new ForbiddenException('Only hosts can add bank accounts');
     }
 
@@ -647,7 +647,7 @@ export class PayoutService {
       throw new NotFoundException('Host not found');
     }
 
-    if (host.role !== Role.host) {
+    if (host.role !== Role.premiumMember && host.role !== Role.standardMember) {
       throw new ForbiddenException('Only hosts can delete bank accounts');
     }
 

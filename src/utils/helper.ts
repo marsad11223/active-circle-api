@@ -1,11 +1,23 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { Role, User } from 'src/schemas/user.schema';
+import { GrantRole, Role, User } from 'src/schemas/user.schema';
 import mongoose from 'mongoose';
 
 export function IsAdmin(user: User) {
   if (user.role !== Role.superAdmin) {
     throw new BadRequestException('Only Admin can perform this action');
   }
+}
+
+/** True if user can create activities (premium member, standard member plan, or super admin) */
+export function isHostOrStandardHost(
+  user: User & { role?: Role; grantRole?: GrantRole },
+): boolean {
+  return (
+    user?.role === Role.premiumMember ||
+    user?.grantRole === GrantRole.host ||
+    user?.role === Role.standardMember ||
+    user?.role === Role.superAdmin
+  );
 }
 
 /**

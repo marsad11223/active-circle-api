@@ -56,14 +56,14 @@ export class RatingController {
     @GetUser() user: User,
     @Query('hostId') hostId?: string,
   ) {
-    if (user.role !== Role.host && user.role !== Role.superAdmin) {
+    if (user.role !== Role.premiumMember && user.role !== Role.standardMember && user.role !== Role.superAdmin) {
       throw new ForbiddenException(
         'Only hosts or admins can access this endpoint',
       );
     }
 
     const tokenUserId = (user as any)._id.toString();
-    if (user.role === Role.host && hostId && hostId !== tokenUserId) {
+    if ((user.role === Role.premiumMember || user.role === Role.standardMember) && hostId && hostId !== tokenUserId) {
       throw new ForbiddenException('Hosts cannot access other hosts data');
     }
 
@@ -79,14 +79,14 @@ export class RatingController {
     @Query('hostId') hostId: string | undefined,
     @GetUser() user: User,
   ) {
-    if (user.role !== Role.host && user.role !== Role.superAdmin) {
+    if (user.role !== Role.premiumMember && user.role !== Role.standardMember && user.role !== Role.superAdmin) {
       throw new ForbiddenException(
         'Only hosts or admins can access this endpoint',
       );
     }
 
     const tokenUserId = (user as any)._id.toString();
-    if (user.role === Role.host && hostId && hostId !== tokenUserId) {
+    if ((user.role === Role.premiumMember || user.role === Role.standardMember) && hostId && hostId !== tokenUserId) {
       throw new ForbiddenException('Hosts cannot access other hosts data');
     }
 

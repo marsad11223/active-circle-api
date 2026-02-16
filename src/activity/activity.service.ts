@@ -24,11 +24,19 @@ import {
   ActivityTimeFilter,
   ActivityStatusFilter,
 } from './dto/admin-list-activities.dto';
-import { User, Role } from 'src/schemas/user.schema';
+import { GrantRole, User, Role } from 'src/schemas/user.schema';
 import { RecurringType, ActivityStatus } from 'src/schemas/activity.schema';
+import {
+  Subscription,
+  SubscriptionStatus,
+  SubscriptionPlan,
+} from 'src/schemas/subscription.schema';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { SendGridService } from '../sendgrid/sendgrid.service';
+
+const STANDARD_HOST_FREE_LIMIT = 2;
+const STANDARD_HOST_PAID_LIMIT = 1;
 import {
   activityCancelledFreeToMember,
   activityCancelledWithRefundToMember,
@@ -47,6 +55,8 @@ export class ActivityService {
     private readonly ratingModel: Model<Rating>,
     @InjectModel(Booking.name)
     private readonly bookingModel: Model<Booking>,
+    @InjectModel(Subscription.name)
+    private readonly subscriptionModel: Model<Subscription>,
     private configService: ConfigService,
     private readonly sendGridService: SendGridService,
   ) {
@@ -151,19 +161,59 @@ export class ActivityService {
         throw new NotFoundException('Host not found');
       }
 
-      // Check if user has host role or grantRole
-      const isHost =
-        host.role === Role.host ||
-        host.grantRole === Role.host ||
+      const canCreate =
+        host.role === Role.premiumMember ||
+        host.grantRole === GrantRole.host ||
+        host.role === Role.standardMember ||
         host.role === Role.superAdmin;
 
-      if (!isHost) {
+      if (!canCreate) {
         throw new ForbiddenException(
-          'Only hosts can create activities. Please switch to host profile.',
+          'Only hosts can create activities. Please switch to host mode.',
         );
       }
 
-      // Convert date string to Date object
+      if (host.role === Role.standardMember) {
+        const sub = await this.subscriptionModel.findOne({
+          userId: host._id,
+          status: {
+            $in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING],
+          },
+          plan: SubscriptionPlan.STANDARD,
+        });
+        if (sub?.currentPeriodStart && sub?.currentPeriodEnd) {
+          const freeCount = await this.activityModel.countDocuments({
+            hostId: new mongoose.Types.ObjectId(hostId),
+            status: { $ne: ActivityStatus.CANCELLED },
+            created_at: {
+              $gte: sub.currentPeriodStart,
+              $lte: sub.currentPeriodEnd,
+            },
+            $or: [{ price: 0 }, { price: { $exists: false } }],
+          });
+          const paidCount = await this.activityModel.countDocuments({
+            hostId: new mongoose.Types.ObjectId(hostId),
+            status: { $ne: ActivityStatus.CANCELLED },
+            created_at: {
+              $gte: sub.currentPeriodStart,
+              $lte: sub.currentPeriodEnd,
+            },
+            price: { $gt: 0 },
+          });
+          const price = createActivityDto.price ?? 0;
+          if (price === 0 && freeCount >= STANDARD_HOST_FREE_LIMIT) {
+            throw new BadRequestException(
+              `Standard plan limit: you can create up to ${STANDARD_HOST_FREE_LIMIT} free activities per billing period. Upgrade to premium for unlimited.`,
+            );
+          }
+          if (price > 0 && paidCount >= STANDARD_HOST_PAID_LIMIT) {
+            throw new BadRequestException(
+              `Standard plan limit: you can create up to ${STANDARD_HOST_PAID_LIMIT} paid activity per billing period. Upgrade to premium for unlimited.`,
+            );
+          }
+        }
+      }
+
       const activityDate = new Date(createActivityDto.date);
 
       const newActivity = await this.activityModel.create({

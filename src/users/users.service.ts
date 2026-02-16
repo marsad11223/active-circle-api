@@ -8,7 +8,7 @@ import {
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectModel } from '@nestjs/mongoose';
-import { User, Role } from 'src/schemas/user.schema';
+import { GrantRole, User, Role } from 'src/schemas/user.schema';
 import { Activity } from 'src/schemas/activity.schema';
 import { Rating } from 'src/schemas/rating.schema';
 import { Booking } from 'src/schemas/booking.schema';
@@ -363,21 +363,24 @@ export class UsersService {
         throw new NotFoundException('User not found!');
       }
 
-      // Get current grantRole or default to member
-      const currentGrantRole = user.grantRole || Role.member;
-      let newGrantRole: Role;
+      // Get current grantRole or default to member (GrantRole is member | host only)
+      const currentGrantRole = user.grantRole || GrantRole.member;
+      let newGrantRole: GrantRole;
 
-      // Toggle between member and host
-      // Users can freely toggle between member and host roles
-      if (currentGrantRole === Role.member) {
-        newGrantRole = Role.host;
+      if (currentGrantRole === GrantRole.member) {
+        const canBeCreator =
+          user.role === Role.premiumMember || user.role === Role.standardMember;
+        if (!canBeCreator) {
+          throw new BadRequestException(
+            'Subscribe to a plan to switch to host mode',
+          );
+        }
+        newGrantRole = GrantRole.host;
       } else {
-        // Switching from host to member
-        newGrantRole = Role.member;
+        newGrantRole = GrantRole.member;
       }
 
       // Update grantRole, lastLogin, and updated_at
-      // grantRole serves as both the current active role and the "last role" for restoration
       const updatedUser = await this.userModel
         .findByIdAndUpdate(
           userId,
@@ -623,9 +626,9 @@ export class UsersService {
       const limit = filters.limit || 10;
       const skip = (page - 1) * limit;
 
-      // Build query - only hosts
+      // Build query - hosts and standard hosts
       const query: any = {
-        role: Role.host,
+        role: { $in: [Role.premiumMember, Role.standardMember] },
         deleted_at: null,
       };
 
@@ -748,9 +751,9 @@ export class UsersService {
         deleted_at: null,
       });
 
-      // Get total hosts (users with role = host)
+      // Get total hosts (full host + standard host)
       const totalHosts = await this.userModel.countDocuments({
-        role: Role.host,
+        role: { $in: [Role.premiumMember, Role.standardMember] },
         deleted_at: null,
       });
 

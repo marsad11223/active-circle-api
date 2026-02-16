@@ -27,14 +27,26 @@
   letter-spacing: 0.5px;
 }
 
-.role-badge.role-member {
+.role-badge.role-member,
+.role-badge.role-standardMember {
   background: #dbeafe;
   color: #1e40af;
 }
 
-.role-badge.role-host {
+.role-badge.role-host,
+.role-badge.role-premiumMember {
   background: #d1fae5;
   color: #065f46;
+}
+
+.role-badge.role-standardMember {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.role-badge.role-superAdmin {
+  background: #fef3c7;
+  color: #92400e;
 }
 
 .info-box {
@@ -89,6 +101,86 @@
 .detail-row .value {
   color: #1f2937;
   font-weight: 600;
+}
+
+.detail-row.trial-highlight {
+  background: #ecfdf5;
+  margin: 0 -16px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  border: none;
+}
+
+.status-badge.status-trialing {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-badge.status-trialing-label {
+  background: #a7f3d0;
+  color: #047857;
+  margin-left: 8px;
+  font-size: 11px;
+}
+
+.pricing-card .trial-badge {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.25);
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+/* Plan selection cards */
+.plan-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.plan-cards .pricing-card {
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.plan-cards .pricing-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+}
+
+.plan-cards .pricing-card.selected {
+  outline: 3px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
+}
+
+.pricing-card-standard {
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+}
+
+.status-badge.plan-premium {
+  background: #d1fae5;
+  color: #065f46;
+  margin-left: 8px;
+  font-size: 11px;
+}
+
+.status-badge.plan-standard {
+  background: #e0e7ff;
+  color: #3730a3;
+  margin-left: 8px;
+  font-size: 11px;
+}
+
+.detail-row.plan-limits {
+  background: #eef2ff;
+  margin: 0 -16px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  border: none;
 }
 
 .btn-danger {

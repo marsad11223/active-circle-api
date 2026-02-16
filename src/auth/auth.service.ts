@@ -8,7 +8,11 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
 import { InjectModel } from '@nestjs/mongoose';
-import { User, Role } from 'src/schemas/user.schema';
+import { GrantRole, User, Role } from 'src/schemas/user.schema';
+import {
+  Subscription,
+  SubscriptionSchema,
+} from 'src/schemas/subscription.schema';
 import mongoose from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { LoginUserDto } from './dto/login-user.dto';
@@ -29,6 +33,8 @@ export class AuthService {
   constructor(
     @InjectModel(User.name)
     private userModel: mongoose.Model<User>,
+    @InjectModel(Subscription.name)
+    private subscriptionModel: mongoose.Model<Subscription>,
     private jwtService: JwtService,
     private readonly sendGridService: SendGridService,
     private configService: ConfigService,
@@ -45,6 +51,8 @@ export class AuthService {
         const userData: any = {
           ...createUserDto,
           password: hashedPassword,
+          role: createUserDto.role ?? Role.member,
+          grantRole: GrantRole.member,
           // Set default radius to 10km if not provided (member profile specific)
           radius: createUserDto.radius ?? 10,
           // Set default empty interests array if not provided (member profile specific)
@@ -66,7 +74,9 @@ export class AuthService {
           this.configService.get<string>('EMAILS_ENABLED') === 'true';
         if (emailsEnabled) {
           setImmediate(() => {
-            const isHost = newUser.role === Role.host;
+            const isHost =
+              newUser.role === Role.premiumMember ||
+              newUser.role === Role.standardMember;
             const welcomeHtml = isHost
               ? welcomeEmailHost({
                   userName: newUser.name,
@@ -128,14 +138,22 @@ export class AuthService {
         updated_at: Date.now(),
       };
 
-      // Set permanent role to 'host' if user has active subscription
-      // Exclude superAdmin from role changes - superAdmin role should never be modified
+      // Set permanent role to premiumMember or standardMember if user has active subscription
       if (
         user.hasActiveSubscription &&
-        user.role !== Role.host &&
+        user.role !== Role.premiumMember &&
+        user.role !== Role.standardMember &&
         user.role !== Role.superAdmin
       ) {
-        updateData.role = Role.host;
+        const sub = await this.subscriptionModel
+          .findOne({
+            userId: user._id,
+            status: { $in: ['active', 'trialing'] },
+          })
+          .select('plan')
+          .lean();
+        updateData.role =
+          sub?.plan === 'standard' ? Role.standardMember : Role.premiumMember;
       }
 
       // Update user with new grantRole and lastLogin

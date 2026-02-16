@@ -268,7 +268,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"name\": \"Marsad Ghanvi\",\n  \"email\": \"marsad11223@gmail.com\",\n  \"password\": \"12345678\",\n  \"role\": \"host\",\n  \"address\": \"123 Main Street, Cityville, Country\",\n  \"phoneNumber\": \"+1234567890\",\n  \"gender\": \"male\",\n  \"dateOfBirth\": \"1990-01-01\"\n}",
+							"raw": "{\n  \"name\": \"Marsad Ghanvi\",\n  \"email\": \"marsad11223@gmail.com\",\n  \"password\": \"12345678\",\n  \"role\": \"member\",\n  \"address\": \"123 Main Street, Cityville, Country\",\n  \"phoneNumber\": \"+1234567890\",\n  \"gender\": \"male\",\n  \"dateOfBirth\": \"1990-01-01\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -2372,7 +2372,7 @@
 										}
 									]
 								},
-								"description": "Get paginated list of all hosts (users with role = host, subscription true or false). Admin only. Filters: search (name/email), sortBy, sortOrder, page, limit, hasSubscription (true/false/all)."
+								"description": "Get paginated list of all creators (users with role = premiumMember or standardMember, subscription true or false). Admin only. Filters: search (name/email), sortBy, sortOrder, page, limit, hasSubscription (true/false/all)."
 							},
 							"response": []
 						},
@@ -3093,6 +3093,145 @@
 			"name": "Subscription",
 			"item": [
 				{
+					"name": "Create Subscription (3-month trial)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"plan\": \"premium\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/subscription/create",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"subscription",
+								"create"
+							]
+						},
+						"description": "Create subscription with 3-month free trial. Body: { \"plan\": \"premium\" } (default) or { \"plan\": \"standard\" }. Premium = full host £5.99/mo; Standard = £1.99/mo, 2 free + 1 paid activity per period.\n\nResponse: subscriptionId, invoiceId, clientSecret (often null for trial), status, requiresPaymentMethod, plan."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Subscription Status",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/subscription/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"subscription",
+								"status"
+							]
+						},
+						"description": "Get current user's subscription status.\n\nResponse: hasSubscription, status, plan (premium | standard), currentPeriodStart, currentPeriodEnd, cancelAtPeriodEnd, isTrialing, trialEnd."
+					},
+					"response": []
+				},
+				{
+					"name": "Pay with Payment Method",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"paymentMethodId\": \"pm_xxxxxxxxxxxxx\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/subscription/pay-with-payment-method",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"subscription",
+								"pay-with-payment-method"
+							]
+						},
+						"description": "Attach payment method and complete subscription. Use after Create Subscription when requiresPaymentMethod is true (trial) or when confirming payment.\n\nBody: { \"paymentMethodId\": \"pm_xxx\" } — from Stripe.js createPaymentMethod (not PaymentIntent id).\n\nResponse (trial): { \"status\": \"trialing_activated\", \"message\": \"Trial started\" } — card saved, no charge; user is host on trial.\n\nResponse (invoice paid): { \"status\": \"payment_processing\", \"invoiceId\": \"in_xxx\" } — webhook will set subscription active."
+					},
+					"response": []
+				},
+				{
+					"name": "Confirm Payment",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/subscription/confirm-payment",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"subscription",
+								"confirm-payment"
+							]
+						},
+						"description": "Optional: confirm payment when clientSecret was returned from Create. May return requires_payment with clientSecret for frontend to confirm."
+					},
+					"response": []
+				},
+				{
 					"name": "Cancel Subscription (Admin/Host)",
 					"request": {
 						"auth": {
@@ -3125,7 +3264,7 @@
 								}
 							]
 						},
-						"description": "Cancel subscription. Hosts can cancel their own; superAdmin can pass hostId to cancel another host's subscription."
+						"description": "Cancel subscription at period end. Works for both active and trialing subscriptions. Hosts can cancel their own; superAdmin can pass hostId to cancel another host's subscription."
 					},
 					"response": []
 				}

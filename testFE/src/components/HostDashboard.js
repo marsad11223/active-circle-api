@@ -43,7 +43,7 @@ function HostDashboard({ token, user }) {
   const [withdrawalAmount, setWithdrawalAmount] = useState('');
 
   useEffect(() => {
-    if (token && user?.role === 'host') {
+    if (token && (user?.role === 'premiumMember' || user?.role === 'standardMember' || user?.grantRole === 'host')) {
       loadDashboardData();
     }
   }, [token, user]);
@@ -202,7 +202,7 @@ function HostDashboard({ token, user }) {
     }
   };
 
-  if (user?.role !== 'host') {
+  if (user?.role !== 'premiumMember' && user?.role !== 'standardMember' && user?.grantRole !== 'host') {
     return (
       <div className="host-dashboard">
         <div className="error-message">

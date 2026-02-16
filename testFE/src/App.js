@@ -51,7 +51,11 @@ function App() {
           {user && (
             <div className="user-info">
               <span>
-                👤 {user.email} ({user.role || user.grantRole || 'member'})
+                👤 {user.email} ({(() => {
+                  const r = user.role || user.grantRole || 'member';
+                  const labels = { member: 'Member', standardMember: 'Standard Member', premiumMember: 'Premium Member', superAdmin: 'Super Admin', host: 'Host' };
+                  return labels[r] || r;
+                })()})
               </span>
               <div className="header-actions">
                 {token && (
@@ -68,7 +72,7 @@ function App() {
                     >
                       Subscription
                     </button>
-                    {(user?.role === 'host' || user?.grantRole === 'host') && (
+                    {(user?.role === 'premiumMember' || user?.role === 'standardMember' || user?.grantRole === 'host') && (
                       <button
                         className={activeView === 'host-dashboard' ? 'active' : ''}
                         onClick={() => setActiveView('host-dashboard')}

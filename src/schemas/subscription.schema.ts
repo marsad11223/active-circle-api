@@ -10,6 +10,11 @@ export enum SubscriptionStatus {
   TRIALING = 'trialing',
 }
 
+export enum SubscriptionPlan {
+  PREMIUM = 'premium', // Full host: £5.99/month, unlimited activities
+  STANDARD = 'standard', // Standard: £1.99/month, 2 free + 1 paid per period, 3-month trial
+}
+
 @Schema()
 export class Subscription extends Document {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
@@ -24,6 +29,9 @@ export class Subscription extends Document {
   @Prop()
   stripePriceId: string;
 
+  @Prop({ enum: SubscriptionPlan, default: SubscriptionPlan.PREMIUM })
+  plan: SubscriptionPlan;
+
   @Prop({ enum: SubscriptionStatus, default: SubscriptionStatus.INCOMPLETE })
   status: SubscriptionStatus;
 
@@ -36,6 +44,12 @@ export class Subscription extends Document {
   @Prop({ default: false })
   cancelAtPeriodEnd: boolean;
 
+  @Prop()
+  trialStart: Date;
+
+  @Prop()
+  trialEnd: Date;
+
   @Prop({ default: Date.now })
   created_at: Date;
 
@@ -44,4 +58,3 @@ export class Subscription extends Document {
 }
 
 export const SubscriptionSchema = SchemaFactory.createForClass(Subscription);
-

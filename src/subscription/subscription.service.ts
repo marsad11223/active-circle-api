@@ -11,8 +11,9 @@ import Stripe from 'stripe';
 import {
   Subscription,
   SubscriptionStatus,
+  SubscriptionPlan,
 } from '../schemas/subscription.schema';
-import { User, Role } from '../schemas/user.schema';
+import { GrantRole, User, Role } from '../schemas/user.schema';
 
 @Injectable()
 export class SubscriptionService {
@@ -33,12 +34,14 @@ export class SubscriptionService {
     this.stripe = new Stripe(stripeSecretKey);
   }
 
-  // ✅ STRIPE-APPROVED: Create subscription (no manual PI creation)
-  async createSubscription(userId: string) {
+  // Create subscription (premium or standard plan, 3-month trial)
+  async createSubscription(
+    userId: string,
+    plan: 'premium' | 'standard' = 'premium',
+  ) {
     const user = await this.userModel.findById(userId);
     if (!user) throw new NotFoundException('User not found');
 
-    // Prevent duplicate active subscriptions
     const existing = await this.subscriptionModel.findOne({
       userId,
       status: { $in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING] },
@@ -47,7 +50,6 @@ export class SubscriptionService {
       throw new BadRequestException('User already has an active subscription');
     }
 
-    // Ensure Stripe customer
     let stripeCustomerId = user.stripeCustomerId;
     if (!stripeCustomerId) {
       const customer = await this.stripe.customers.create({
@@ -55,25 +57,28 @@ export class SubscriptionService {
         name: user.name,
         metadata: { userId: userId.toString() },
       });
-
       stripeCustomerId = customer.id;
-      await this.userModel.findByIdAndUpdate(userId, {
-        stripeCustomerId,
-      });
+      await this.userModel.findByIdAndUpdate(userId, { stripeCustomerId });
     }
 
-    const priceId = this.configService.get<string>('STRIPE_PRICE_ID');
+    const planEnum =
+      plan === 'standard' ? SubscriptionPlan.STANDARD : SubscriptionPlan.PREMIUM;
+    const priceId =
+      plan === 'standard'
+        ? this.configService.get<string>('STRIPE_PRICE_ID_STANDARD')
+        : this.configService.get<string>('STRIPE_PRICE_ID');
     if (!priceId) {
-      throw new BadRequestException('Stripe price ID not configured');
+      throw new BadRequestException(
+        `Stripe price ID not configured for plan: ${plan}`,
+      );
     }
 
-    // Create subscription (Stripe-approved)
-    console.log('Creating subscription (Stripe-approved way)...');
+    console.log(`Creating ${plan} subscription with 3-month trial...`);
 
-    // ✅ CRITICAL: Add automatic_tax and collection_method to ensure PI creation
     const subscription = await this.stripe.subscriptions.create({
       customer: stripeCustomerId,
       items: [{ price: priceId }],
+      trial_period_days: 90,
       payment_behavior: 'default_incomplete',
       payment_settings: {
         save_default_payment_method: 'on_subscription',
@@ -201,96 +206,105 @@ export class SubscriptionService {
       stripeCustomerId,
       stripeSubscriptionId: subscription.id,
       stripePriceId: priceId,
+      plan: planEnum,
       status: subscription.status,
       currentPeriodStart: subAny.current_period_start
         ? new Date(subAny.current_period_start * 1000)
         : new Date(),
       currentPeriodEnd: subAny.current_period_end
         ? new Date(subAny.current_period_end * 1000)
-        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+      trialStart: subAny.trial_start
+        ? new Date(subAny.trial_start * 1000)
+        : undefined,
+      trialEnd: subAny.trial_end
+        ? new Date(subAny.trial_end * 1000)
+        : undefined,
     });
 
     const clientSecret = paymentIntent?.client_secret ?? null;
-
-    console.log('Returning response:', {
-      subscriptionId: subscription.id,
-      invoiceId: invoice?.id ?? null,
-      clientSecret: clientSecret ? 'present' : 'null',
-      status: subscription.status,
-    });
+    const isTrialing = subscription.status === 'trialing';
+    const requiresPaymentMethod =
+      isTrialing && !clientSecret
+        ? true
+        : !clientSecret && subscription.status === 'incomplete';
 
     return {
       subscriptionId: subscription.id,
       invoiceId: invoice?.id ?? null,
       clientSecret,
       status: subscription.status,
+      requiresPaymentMethod: !!requiresPaymentMethod,
+      plan: planEnum,
     };
   }
 
-  // ✅ STRIPE-APPROVED: Pay invoice with payment method
-  // This creates a subscription-owned PaymentIntent (renewals will work!)
+  // Pay invoice with payment method, or for trial: attach card only (no charge)
   async payInvoiceWithPaymentMethod(userId: string, paymentMethodId: string) {
-    console.log('\n💳 Paying invoice with payment method...');
+    console.log('\n💳 Pay invoice / attach payment method...');
 
     const subscription = await this.subscriptionModel.findOne({
       userId,
-      status: SubscriptionStatus.INCOMPLETE,
+      status: {
+        $in: [SubscriptionStatus.INCOMPLETE, SubscriptionStatus.TRIALING],
+      },
     });
 
     if (!subscription) {
-      throw new BadRequestException('No incomplete subscription found');
+      throw new BadRequestException(
+        'No incomplete or trialing subscription found',
+      );
     }
-
-    const stripeSubscription = await this.stripe.subscriptions.retrieve(
-      subscription.stripeSubscriptionId,
-      { expand: ['latest_invoice'] },
-    );
-
-    const invoice = stripeSubscription.latest_invoice as Stripe.Invoice;
-    if (!invoice) {
-      throw new BadRequestException('No invoice found for subscription');
-    }
-
-    console.log(
-      'Paying invoice:',
-      invoice.id,
-      'with payment method:',
-      paymentMethodId,
-    );
 
     try {
-      // ✅ STEP 1: Attach payment method to customer
-      console.log('Attaching payment method to customer...');
       await this.stripe.paymentMethods.attach(paymentMethodId, {
         customer: subscription.stripeCustomerId,
       });
-      console.log('✅ Payment method attached to customer');
-
-      // ✅ STEP 2: Set as default payment method on customer
       await this.stripe.customers.update(subscription.stripeCustomerId, {
         invoice_settings: {
           default_payment_method: paymentMethodId,
         },
       });
-      console.log('✅ Set as default payment method');
+      console.log('✅ Payment method attached and set as default');
 
-      // ✅ STEP 3: Pay the invoice
-      // This creates a subscription-owned PaymentIntent and pays it
-      console.log('Paying invoice...');
+      if (subscription.status === SubscriptionStatus.TRIALING) {
+        const role =
+          subscription.plan === SubscriptionPlan.STANDARD
+            ? Role.standardMember
+            : Role.premiumMember;
+        await this.userModel.findByIdAndUpdate(userId, {
+          role,
+          grantRole: GrantRole.host,
+          hasActiveSubscription: true,
+        });
+        console.log(`✅ User granted ${role} access (trial)`);
+        return {
+          status: 'trialing_activated',
+          message: 'Trial started',
+          plan: subscription.plan,
+        };
+      }
+
+      const stripeSubscription = await this.stripe.subscriptions.retrieve(
+        subscription.stripeSubscriptionId,
+        { expand: ['latest_invoice'] },
+      );
+      const invoice = stripeSubscription.latest_invoice as Stripe.Invoice;
+      if (!invoice) {
+        throw new BadRequestException('No invoice found for subscription');
+      }
+
       const paidInvoice = await this.stripe.invoices.pay(invoice.id, {
         payment_method: paymentMethodId,
         expand: ['payment_intent'],
       });
-
       console.log('✅ Invoice paid successfully');
-      console.log('✅ Subscription-owned PI created. Renewals will work!');
-
       return {
         status: 'payment_processing',
         invoiceId: paidInvoice.id,
       };
     } catch (error: any) {
-      console.error('❌ Error paying invoice:', error.message);
+      console.error('❌ Error:', error.message);
       throw new BadRequestException(`Payment failed: ${error.message}`);
     }
   }
@@ -408,9 +422,12 @@ export class SubscriptionService {
     return {
       hasSubscription: true,
       status: subscription.status,
+      plan: subscription.plan ?? SubscriptionPlan.PREMIUM,
       currentPeriodStart: subscription.currentPeriodStart,
       currentPeriodEnd: subscription.currentPeriodEnd,
       cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+      isTrialing: subscription.status === SubscriptionStatus.TRIALING,
+      trialEnd: subscription.trialEnd ?? null,
     };
   }
 
@@ -420,13 +437,13 @@ export class SubscriptionService {
       throw new NotFoundException('User not found');
     }
 
-    if (user.role !== Role.host) {
+    if (user.role !== Role.premiumMember && user.role !== Role.standardMember) {
       throw new BadRequestException('User is not a host');
     }
 
     await this.userModel.findByIdAndUpdate(userId, {
       role: Role.member,
-      lastRole: Role.member,
+      grantRole: GrantRole.member,
     });
 
     return {
@@ -569,20 +586,20 @@ export class SubscriptionService {
 
     console.log('Found user:', user._id, 'Current role:', user.role);
 
+    const targetRole =
+      subscription.plan === SubscriptionPlan.STANDARD
+        ? Role.standardMember
+        : Role.premiumMember;
+
     if (user.role === Role.member) {
       const updateData: any = {
-        role: Role.host,
-        grantRole: Role.host,
+        role: targetRole,
+        grantRole: GrantRole.host,
         hasActiveSubscription: true,
-        lastRole: user.grantRole || Role.member,
       };
-
       await this.userModel.findByIdAndUpdate(user._id, updateData);
-      console.log('✅ User role updated to host');
+      console.log(`✅ User role updated to ${targetRole}`);
     } else {
-      console.log(
-        'User is already a host, updating hasActiveSubscription only',
-      );
       await this.userModel.findByIdAndUpdate(user._id, {
         hasActiveSubscription: true,
       });
@@ -615,7 +632,6 @@ export class SubscriptionService {
       return;
     }
 
-    // ✅ FIX: Properly convert Unix timestamps to Date objects
     const subAny = subscription as any;
     dbSubscription.status = subscription.status as SubscriptionStatus;
     dbSubscription.currentPeriodStart = subAny.current_period_start
@@ -625,6 +641,10 @@ export class SubscriptionService {
       ? new Date(subAny.current_period_end * 1000)
       : dbSubscription.currentPeriodEnd;
     dbSubscription.cancelAtPeriodEnd = subAny.cancel_at_period_end || false;
+    if (subAny.trial_start)
+      dbSubscription.trialStart = new Date(subAny.trial_start * 1000);
+    if (subAny.trial_end)
+      dbSubscription.trialEnd = new Date(subAny.trial_end * 1000);
     dbSubscription.updated_at = new Date();
 
     await dbSubscription.save();
@@ -635,11 +655,20 @@ export class SubscriptionService {
       SubscriptionStatus.TRIALING,
     ].includes(subscription.status as SubscriptionStatus);
 
-    await this.userModel.findByIdAndUpdate(dbSubscription.userId, {
-      hasActiveSubscription: isActive,
-    });
-
-    console.log('✅ User hasActiveSubscription updated to:', isActive);
+    const userUpdate: any = { hasActiveSubscription: isActive };
+    if (isActive) {
+      const user = await this.userModel.findById(dbSubscription.userId);
+      if (user && user.role === Role.member) {
+        const targetRole =
+          dbSubscription.plan === SubscriptionPlan.STANDARD
+            ? Role.standardMember
+            : Role.premiumMember;
+        userUpdate.role = targetRole;
+        userUpdate.grantRole = GrantRole.host;
+      }
+    }
+    await this.userModel.findByIdAndUpdate(dbSubscription.userId, userUpdate);
+    console.log('✅ User hasActiveSubscription (and role if member) updated');
   }
 
   private async handleSubscriptionDeleted(subscription: Stripe.Subscription) {

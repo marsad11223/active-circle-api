@@ -23,7 +23,7 @@ const CARD_ELEMENT_OPTIONS = {
   },
 };
 
-function CheckoutForm({ clientSecret, onSuccess, onError }) {
+function CheckoutForm({ clientSecret, isTrialFlow, plan = 'premium', onSuccess, onError }) {
   const stripe = useStripe();
   const elements = useElements();
   const [processing, setProcessing] = useState(false);
@@ -108,18 +108,39 @@ function CheckoutForm({ clientSecret, onSuccess, onError }) {
         </div>
       </div>
 
-      <div className="payment-info">
-        <p>💳 You will be charged £5.99 per month</p>
-        <p>🔒 Secure payment powered by Stripe</p>
-      </div>
+      {(() => {
+        const amount = plan === 'standard' ? '£1.99' : '£5.99';
+        return (
+          <>
+            <div className="payment-info">
+              {isTrialFlow ? (
+                <>
+                  <p>🆓 No charge today — 3-month free trial</p>
+                  <p>💳 We'll charge {amount}/month at the start of month 4</p>
+                  {plan === 'standard' && (
+                    <p style={{ fontSize: '0.9em', color: '#6b7280' }}>Standard: 2 free + 1 paid activity per period</p>
+                  )}
+                </>
+              ) : (
+                <p>💳 You will be charged {amount} per month</p>
+              )}
+              <p>🔒 Secure payment powered by Stripe</p>
+            </div>
 
-      <button
-        type="submit"
-        className="btn-primary"
-        disabled={!stripe || processing}
-      >
-        {processing ? 'Processing...' : 'Pay £5.99'}
-      </button>
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={!stripe || processing}
+            >
+              {processing
+                ? 'Processing...'
+                : isTrialFlow
+                  ? 'Add card & start free trial'
+                  : `Pay ${amount}`}
+            </button>
+          </>
+        );
+      })()}
     </form>
   );
 }

@@ -13,6 +13,7 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [currentUser, setCurrentUser] = useState(user);
+  const [selectedPlan, setSelectedPlan] = useState('premium'); // 'premium' | 'standard'
 
   const fetchSubscriptionStatus = async () => {
     try {
@@ -33,35 +34,42 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
     setCurrentUser(user);
   }, [token, user]);
 
-  const handleCreateSubscription = async () => {
+  const handleCreateSubscription = async (plan = selectedPlan) => {
     setLoading(true);
     setError('');
     setSuccess('');
 
+    const amount = plan === 'standard' ? '£1.99' : '£5.99';
     try {
       const response = await axios.post(
         `${API_URL}/subscription/create`,
-        {},
+        { plan },
         {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
         },
       );
 
-      const { clientSecret, subscriptionId, invoiceId } = response.data;
+      const { clientSecret, subscriptionId, invoiceId, status, requiresPaymentMethod, plan: resPlan } = response.data;
+      const effectivePlan = resPlan || plan;
 
       if (clientSecret) {
-        // Normal flow: clientSecret exists
         setClientSecret(clientSecret);
         setShowCheckout(true);
-        if (currentUser.role === 'member') {
-          setSuccess(
-            '💳 Payment intent created! Complete payment to become a host.',
-          );
-        } else {
-          setSuccess('Subscription created! Please complete payment.');
-        }
+        setSuccess(
+          status === 'trialing'
+            ? `Add your card below. No charge today — 3-month free trial, then ${amount}/month.`
+            : '💳 Complete payment to activate your subscription.',
+        );
+      } else if (requiresPaymentMethod || status === 'trialing') {
+        setClientSecret('');
+        setShowCheckout(true);
+        setSuccess(
+          `🎉 3-month free trial started! Add your card below. No charge today — we'll charge ${amount}/month at the start of month 4.`,
+        );
       } else {
-        // No clientSecret: Need to use Complete Payment button
         setSuccess(
           'Subscription created! Click "Complete Payment" below to add your payment method and activate.',
         );
@@ -124,21 +132,30 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
     setLoading(true);
     setError('');
     const wasMember = currentUser.role === 'member';
-    setSuccess('Payment successful! Activating subscription...');
+    setSuccess('Processing...');
 
     try {
-      // ✅ Stripe-approved: Call backend with payment method ID
-      await axios.post(
+      const response = await axios.post(
         `${API_URL}/subscription/pay-with-payment-method`,
-        { paymentMethodId: paymentIntentId }, // This is actually payment method ID now
+        { paymentMethodId: paymentIntentId },
         {
           headers: { Authorization: `Bearer ${token}` },
         },
       );
 
-      if (wasMember) {
+      const isTrialActivated = response.data?.status === 'trialing_activated';
+      const plan = response.data?.plan || selectedPlan;
+      const amount = plan === 'standard' ? '£1.99' : '£5.99';
+
+      if (isTrialActivated) {
         setSuccess(
-          '🎉 Payment successful! You are now a host! Your role has been upgraded.',
+          plan === 'standard'
+            ? `🎉 You're on a 3-month free trial (Standard)! 2 free + 1 paid activity per period. We'll charge ${amount} at the start of month 4.`
+            : `🎉 You're on a 3-month free trial! Full host access. No charge today — we'll charge ${amount} at the start of month 4.`,
+        );
+      } else if (wasMember) {
+        setSuccess(
+          '🎉 Payment successful! You are now a host (Premium Member). Your role has been upgraded.',
         );
       } else {
         setSuccess('🎉 Payment successful! Your subscription is now active.');
@@ -147,17 +164,15 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
       setShowCheckout(false);
       setClientSecret('');
 
-      // Refresh subscription status and user data
       setTimeout(async () => {
         await fetchSubscriptionStatus();
         await fetchUserData();
-      }, 1500); // Give webhooks time to process
+      }, 1500);
     } catch (err) {
       setError(
         err.response?.data?.message ||
           'Payment succeeded but activation pending. Please refresh the page.',
       );
-      // Still close checkout and refresh status
       setShowCheckout(false);
       setTimeout(async () => {
         await fetchSubscriptionStatus();
@@ -187,14 +202,21 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
             <span
               className={`role-badge role-${currentUser.role || currentUser.grantRole || 'member'}`}
             >
-              {currentUser.role || currentUser.grantRole || 'member'}
+              {(() => {
+                const r = currentUser.role || currentUser.grantRole || 'member';
+                if (r === 'premiumMember') return 'Premium Member';
+                if (r === 'standardMember') return 'Standard Member';
+                if (r === 'member') return 'Member';
+                if (r === 'superAdmin') return 'Super Admin';
+                if (r === 'host') return 'Host';
+                return r;
+              })()}
             </span>
           </p>
-          {currentUser.role === 'member' && (
+          {(currentUser.role === 'member' || currentUser.grantRole === 'member') && (
             <div className="info-box">
-              ℹ️ You are currently a <strong>member</strong>. Subscribe to
-              become a <strong>host</strong>! Your role will only change to
-              "host" after successful payment.
+              ℹ️ You are currently a <strong>Member</strong>. Subscribe to
+              become a <strong>Premium Member</strong> or <strong>Standard Member</strong>. Your role updates after you add your card.
             </div>
           )}
         </div>
@@ -208,7 +230,30 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
               <span className={`status-badge status-${subscription.status}`}>
                 {subscription.status}
               </span>
+              {subscription.plan === 'standard' && (
+                <span className="status-badge plan-standard">Standard</span>
+              )}
+              {subscription.plan === 'premium' && (
+                <span className="status-badge plan-premium">Premium</span>
+              )}
+              {subscription.isTrialing && (
+                <span className="status-badge status-trialing-label">3-month free trial</span>
+              )}
             </h3>
+            {subscription.plan === 'standard' && (
+              <div className="detail-row plan-limits">
+                <span className="label">Plan limits:</span>
+                <span className="value">2 free + 1 paid activity per billing period</span>
+              </div>
+            )}
+            {subscription.isTrialing && subscription.trialEnd && (
+              <div className="detail-row trial-highlight">
+                <span className="label">Trial ends:</span>
+                <span className="value">
+                  {new Date(subscription.trialEnd).toLocaleDateString()} — first charge ({subscription.plan === 'standard' ? '£1.99' : '£5.99'}) on this date
+                </span>
+              </div>
+            )}
             <div className="detail-row">
               <span className="label">Status:</span>
               <span className="value">{subscription.status}</span>
@@ -230,9 +275,13 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
               <span className="value">
                 {subscription.cancelAtPeriodEnd
                   ? '❌ Canceled (active until period end)'
-                  : `£5.99 on ${new Date(
-                      subscription.currentPeriodEnd,
-                    ).toLocaleDateString()}`}
+                  : (() => {
+                      const amount = subscription.plan === 'standard' ? '£1.99' : '£5.99';
+                      const date = subscription.isTrialing && subscription.trialEnd
+                        ? new Date(subscription.trialEnd)
+                        : new Date(subscription.currentPeriodEnd);
+                      return `${amount} on ${date.toLocaleDateString()}${subscription.isTrialing ? ' (after trial)' : ''}`;
+                    })()}
               </span>
             </div>
           </div>
@@ -259,7 +308,7 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
             </div>
           )}
 
-          {subscription.status === 'active' &&
+          {(subscription.status === 'active' || subscription.status === 'trialing') &&
             !subscription.cancelAtPeriodEnd && (
               <button
                 onClick={handleCancelSubscription}
@@ -272,55 +321,65 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
         </div>
       ) : (
         <div className="no-subscription">
-          <div className="pricing-card">
-            <h3>Host Monthly Subscription</h3>
-            <div className="price">
-              <span className="currency">£</span>
-              <span className="amount">5.99</span>
-              <span className="period">/month</span>
-            </div>
-            <ul className="features">
-              <li>✓ Access to all host features</li>
-              <li>✓ Create and manage events</li>
-              <li>✓ Member management tools</li>
-              <li>✓ Priority support</li>
-              {currentUser.role === 'member' && (
-                <li>✓ Upgrade from member to host</li>
-              )}
-            </ul>
-
-            <button
-              onClick={handleCreateSubscription}
-              className="btn-primary"
-              disabled={loading}
+          <h3 style={{ marginBottom: '20px', color: '#1f2937' }}>Choose your plan</h3>
+          <div className="plan-cards">
+            <div
+              className={`pricing-card ${selectedPlan === 'premium' ? 'selected' : ''}`}
+              onClick={() => setSelectedPlan('premium')}
             >
-              {loading
-                ? 'Creating...'
-                : currentUser.role === 'member'
-                  ? 'Become a Host - Subscribe Now'
-                  : 'Subscribe Now'}
-            </button>
-
-            {currentUser.role === 'member' && (
-              <div
-                className="info-box"
-                style={{ marginTop: '15px', fontSize: '0.9em' }}
-              >
-                <strong>🧪 Test Flow:</strong> Click "Become a Host" to create a
-                payment intent. Your role will remain "member" until payment
-                succeeds. Try with:
-                <ul style={{ marginTop: '8px', paddingLeft: '20px' }}>
-                  <li>
-                    <strong>Success card (4242...):</strong> Payment succeeds →
-                    Role becomes "host"
-                  </li>
-                  <li>
-                    <strong>Decline card (4000...0002):</strong> Payment fails →
-                    Role stays "member"
-                  </li>
-                </ul>
+              <h3>Premium Member</h3>
+              <div className="trial-badge">3 months free, then £5.99/month</div>
+              <div className="price">
+                <span className="currency">£</span>
+                <span className="amount">5.99</span>
+                <span className="period">/month after trial</span>
               </div>
-            )}
+              <ul className="features">
+                <li>✓ 3-month free trial</li>
+                <li>✓ Unlimited activities</li>
+                <li>✓ Full host features</li>
+                <li>✓ Create and manage events</li>
+                <li>✓ Member management & payouts</li>
+              </ul>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleCreateSubscription('premium'); }}
+                className="btn-primary"
+                disabled={loading}
+              >
+                {loading ? 'Creating...' : 'Start Premium Trial'}
+              </button>
+            </div>
+
+            <div
+              className={`pricing-card pricing-card-standard ${selectedPlan === 'standard' ? 'selected' : ''}`}
+              onClick={() => setSelectedPlan('standard')}
+            >
+              <h3>Standard Member</h3>
+              <div className="trial-badge">3 months free, then £1.99/month</div>
+              <div className="price">
+                <span className="currency">£</span>
+                <span className="amount">1.99</span>
+                <span className="period">/month after trial</span>
+              </div>
+              <ul className="features">
+                <li>✓ 3-month free trial</li>
+                <li>✓ 2 free + 1 paid activity per period</li>
+                <li>✓ Host features (with limits)</li>
+                <li>✓ Create events, manage bookings</li>
+                <li>✓ Payouts for paid activities</li>
+              </ul>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleCreateSubscription('standard'); }}
+                className="btn-primary"
+                disabled={loading}
+              >
+                {loading ? 'Creating...' : 'Start Standard Trial'}
+              </button>
+            </div>
+          </div>
+
+          <div className="info-box" style={{ marginTop: '20px', fontSize: '0.9em' }}>
+            <strong>🧪 Test:</strong> Pick a plan, add your card to start the trial. No charge now. Use test card 4242 4242 4242 4242.
           </div>
         </div>
       )}
@@ -337,9 +396,11 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
             >
               ×
             </button>
-            <h3>Complete Your Payment</h3>
+            <h3>{clientSecret ? 'Complete Your Payment' : 'Add Card — Start Free Trial'}</h3>
             <CheckoutForm
               clientSecret={clientSecret}
+              isTrialFlow={!clientSecret}
+              plan={selectedPlan}
               onSuccess={handlePaymentSuccess}
               onError={(msg) => {
                 setError(msg);

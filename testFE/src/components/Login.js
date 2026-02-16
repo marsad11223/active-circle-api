@@ -10,7 +10,7 @@ function Login({ onLogin }) {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
-  const [role, setRole] = useState('member'); // 'member' or 'host'
+  const [role, setRole] = useState('member'); // 'member' | 'standardMember' | 'premiumMember'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -85,8 +85,8 @@ function Login({ onLogin }) {
       <div className="login-box">
         <h2>{isSignup ? 'Create Account' : 'Login'}</h2>
         <p className="login-subtitle">
-          {isSignup 
-            ? 'Create a member or host account to test booking flow'
+          {isSignup
+            ? 'Create a Member, Standard Member, or Premium Member account'
             : 'Login to test booking features'}
         </p>
 
@@ -119,14 +119,15 @@ function Login({ onLogin }) {
               </div>
 
               <div className="form-group">
-                <label>Account Type</label>
+                <label>Sign up as</label>
                 <select
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
                   required
                 >
                   <option value="member">Member (Can book activities)</option>
-                  <option value="host">Host (Can create activities)</option>
+                  <option value="standardMember">Standard Member (Host plan)</option>
+                  <option value="premiumMember">Premium Member (Host plan)</option>
                 </select>
               </div>
             </>

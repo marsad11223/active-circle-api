@@ -50,10 +50,10 @@ function BookingTest({ token, user }) {
   useEffect(() => {
     if (token) {
       loadActivities();
-      if (user?.role === 'member' || user?.grantRole === 'member') {
+      if (user?.role === 'member' || user?.role === 'standardMember' || user?.grantRole === 'member') {
         loadMyBookings();
       }
-      if (user?.role === 'host' || user?.grantRole === 'host') {
+      if (user?.role === 'premiumMember' || user?.role === 'standardMember' || user?.grantRole === 'host') {
         loadPendingBookings();
         loadHostDashboard();
       }
@@ -62,7 +62,7 @@ function BookingTest({ token, user }) {
 
   // Reload pending bookings when switching to pending bookings tab
   useEffect(() => {
-    if (activeTab === 'pending-bookings' && token && (user?.role === 'host' || user?.grantRole === 'host')) {
+    if (activeTab === 'pending-bookings' && token && (user?.role === 'premiumMember' || user?.role === 'standardMember' || user?.grantRole === 'host')) {
       loadPendingBookings();
     }
   }, [activeTab, token, user]);
@@ -76,7 +76,7 @@ function BookingTest({ token, user }) {
 
   // Reload dashboard when switching to dashboard tab or filters change
   useEffect(() => {
-    if (activeTab === 'host-dashboard' && token && (user?.role === 'host' || user?.grantRole === 'host')) {
+    if (activeTab === 'host-dashboard' && token && (user?.role === 'premiumMember' || user?.role === 'standardMember' || user?.grantRole === 'host')) {
       loadHostDashboard();
     }
   }, [activeTab, token, user, dashboardFilters]);
@@ -85,7 +85,7 @@ function BookingTest({ token, user }) {
     try {
       setLoading(true);
       // If user is a host, show only their activities
-      const isHost = user?.role === 'host' || user?.grantRole === 'host';
+      const isHost = user?.role === 'premiumMember' || user?.role === 'standardMember' || user?.grantRole === 'host';
       let response;
       if (isHost && token) {
         // Fetch host's own activities
@@ -434,8 +434,8 @@ function BookingTest({ token, user }) {
     }
   };
 
-  const isMember = user?.role === 'member' || user?.grantRole === 'member';
-  const isHost = user?.role === 'host' || user?.grantRole === 'host';
+  const isMember = user?.role === 'member' || user?.role === 'standardMember' || user?.grantRole === 'member';
+  const isHost = user?.role === 'premiumMember' || user?.role === 'standardMember' || user?.grantRole === 'host';
 
   return (
     <div className="booking-test-container">

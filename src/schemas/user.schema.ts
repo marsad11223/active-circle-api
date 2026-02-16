@@ -1,10 +1,18 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import * as mongoose from 'mongoose';
 
+/** Permanent account role: member (free), standardMember (Standard plan), premiumMember (Premium plan), superAdmin */
 export enum Role {
   member = 'member',
-  host = 'host',
+  standardMember = 'standardMember', // Standard plan: 2 free + 1 paid activity per period
+  premiumMember = 'premiumMember',
   superAdmin = 'superAdmin',
+}
+
+/** Current mode for frontend: member = browsing, host = creating activities. */
+export enum GrantRole {
+  member = 'member',
+  host = 'host',
 }
 
 export enum Gender {
@@ -31,13 +39,13 @@ export class User {
   password: string;
 
   @Prop({ default: Role.member })
-  role: Role; // Permanent role - set to 'host' if user has paid, cannot be changed directly
+  role: Role; // Permanent role: member | standardMember | premiumMember | superAdmin
 
   @Prop({ required: false })
   lastRole?: Role; // DEPRECATED: Legacy field for backward compatibility. Use grantRole instead.
 
   @Prop({ required: false })
-  grantRole?: Role; // Current selected role (member/host) - can be toggled. Also serves as "last role" for restoration.
+  grantRole?: GrantRole; // Current mode (member | host) for frontend - browsing vs creating.
 
   @Prop({ required: false })
   lastLogin?: Date; // Tracks when user last logged in with current grantRole

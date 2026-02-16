@@ -7,6 +7,10 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { MongooseModule } from '@nestjs/mongoose';
 import { UserSchema } from 'src/schemas/user.schema';
+import {
+  Subscription,
+  SubscriptionSchema,
+} from 'src/schemas/subscription.schema';
 import { UsersModule } from 'src/users/users.module';
 
 import { SendGridModule } from '../sendgrid/sendgrid.module';
@@ -24,8 +28,10 @@ import { SendGridModule } from '../sendgrid/sendgrid.module';
       }),
       inject: [ConfigService],
     }),
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    MongooseModule.forFeature([{ name: 'User', schema: UserSchema }]),
+    MongooseModule.forFeature([
+      { name: 'User', schema: UserSchema },
+      { name: Subscription.name, schema: SubscriptionSchema },
+    ]),
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],

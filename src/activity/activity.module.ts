@@ -6,6 +6,10 @@ import { Activity, ActivitySchema } from 'src/schemas/activity.schema';
 import { User, UserSchema } from 'src/schemas/user.schema';
 import { Rating, RatingSchema } from 'src/schemas/rating.schema';
 import { Booking, BookingSchema } from 'src/schemas/booking.schema';
+import {
+  Subscription,
+  SubscriptionSchema,
+} from 'src/schemas/subscription.schema';
 import { AuthModule } from 'src/auth/auth.module';
 import { SendGridModule } from '../sendgrid/sendgrid.module';
 
@@ -16,6 +20,7 @@ import { SendGridModule } from '../sendgrid/sendgrid.module';
       { name: User.name, schema: UserSchema },
       { name: Rating.name, schema: RatingSchema },
       { name: Booking.name, schema: BookingSchema },
+      { name: Subscription.name, schema: SubscriptionSchema },
     ]),
     forwardRef(() => AuthModule),
     SendGridModule,

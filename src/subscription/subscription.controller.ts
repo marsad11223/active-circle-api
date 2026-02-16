@@ -37,8 +37,12 @@ export class SubscriptionController {
 
   @Post('create')
   @UseGuards(JwtAuthGuard)
-  async createSubscription(@GetUser() user: any) {
-    return this.subscriptionService.createSubscription(user._id);
+  async createSubscription(
+    @GetUser() user: any,
+    @Req() req: { body?: { plan?: 'premium' | 'standard' } },
+  ) {
+    const plan = req.body?.plan ?? 'premium';
+    return this.subscriptionService.createSubscription(user._id, plan);
   }
 
   @Get('status')
