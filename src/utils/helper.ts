@@ -2,6 +2,22 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { GrantRole, Role, User } from 'src/schemas/user.schema';
 import mongoose from 'mongoose';
 
+/**
+ * Normalize email for storage and lookup: lowercase + strip Gmail-style plus alias.
+ * So marsad11223+1@gmail.com and Marsad11223@gmail.com both become marsad11223@gmail.com.
+ * One account per "real" inbox; login is case-insensitive.
+ */
+export function normalizeEmail(email: string): string {
+  if (!email || typeof email !== 'string') return email;
+  const trimmed = email.trim().toLowerCase();
+  const at = trimmed.indexOf('@');
+  if (at <= 0) return trimmed;
+  const local = trimmed.slice(0, at);
+  const domain = trimmed.slice(at + 1);
+  const localBeforePlus = local.includes('+') ? local.split('+')[0] : local;
+  return `${localBeforePlus}@${domain}`;
+}
+
 export function IsAdmin(user: User) {
   if (user.role !== Role.superAdmin) {
     throw new BadRequestException('Only Admin can perform this action');

@@ -752,3 +752,45 @@ export function sessionReminderEmail(data: {
     </div>
   `;
 }
+
+/**
+ * Email verification OTP (sent after signup)
+ */
+export function emailVerificationOtp(data: {
+  recipientName?: string;
+  otp: string;
+  expiresInMinutes: number;
+}): string {
+  const { recipientName, otp, expiresInMinutes } = data;
+  const greeting = recipientName ? `Hello ${recipientName},` : 'Hello,';
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f3f4f6;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 20px;">
+        <tr><td align="center">
+          <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; max-width: 600px; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <tr>
+              <td style="padding: 32px 40px 24px 40px; text-align: center; background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);">
+                <p style="margin: 0; color: #ffffff; font-size: 14px; letter-spacing: 1px;">MEET. MOVE. CONNECT.</p>
+                <p style="margin: 8px 0 0 0; color: #F98C01; font-size: 20px; font-weight: bold;">Active Circle</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 24px 40px 32px 40px;">
+                <h1 style="color: #1a365d; font-size: 22px; margin: 0 0 16px 0; font-weight: bold;">Verify your email</h1>
+                <p style="color: #374151; font-size: 16px; margin: 0 0 20px 0;">${greeting}</p>
+                <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">Use this code to verify your email address:</p>
+                <p style="font-size: 28px; font-weight: bold; letter-spacing: 8px; color: #1a365d; margin: 0 0 24px 0;">${otp}</p>
+                <p style="color: #6b7280; font-size: 14px; margin: 0;">This code expires in ${expiresInMinutes} minutes. Do not share it with anyone.</p>
+                <p style="color: #6b7280; font-size: 12px; margin-top: 28px; padding-top: 20px; border-top: 1px solid #e5e7eb;">Active Circle</p>
+              </td>
+            </tr>
+          </table>
+        </td></tr>
+      </table>
+    </body>
+    </html>
+  `;
+}

@@ -31,6 +31,7 @@ import {
   SortOrder,
   HasSubscription,
 } from './dto/admin-list-users.dto';
+import { normalizeEmail } from 'src/utils/helper';
 
 @Injectable()
 export class UsersService {
@@ -47,7 +48,8 @@ export class UsersService {
   ) {}
 
   async validateUser(email: string) {
-    const user: User | null = await this.userModel.findOne({ email });
+    const emailNormalized = normalizeEmail(email);
+    const user: User | null = await this.userModel.findOne({ email: emailNormalized });
     if (user) {
       return user;
     } else {
@@ -56,7 +58,8 @@ export class UsersService {
   }
 
   async create(createUserDto: CreateUserDto): Promise<User> {
-    const user = await this.userModel.findOne({ email: createUserDto.email });
+    const emailNormalized = normalizeEmail(createUserDto.email);
+    const user = await this.userModel.findOne({ email: emailNormalized });
 
     if (!user) {
       try {
@@ -65,6 +68,7 @@ export class UsersService {
 
         const userData: any = {
           ...createUserDto,
+          email: emailNormalized,
           password: hashedPassword,
         };
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './Login.css';
 
@@ -6,14 +6,24 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
 
 function Login({ onLogin }) {
   const [isSignup, setIsSignup] = useState(false);
+  const [step, setStep] = useState('login'); // 'login' | 'signup' | 'verify'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
-  const [role, setRole] = useState('member'); // 'member' | 'standardMember' | 'premiumMember'
+  const [role, setRole] = useState('member');
+  const [verifyEmail, setVerifyEmail] = useState('');
+  const [otp, setOtp] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setInterval(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearInterval(t);
+  }, [resendCooldown]);
 
   const handleSignup = async (e) => {
     e.preventDefault();
@@ -30,16 +40,70 @@ function Login({ onLogin }) {
         role,
       });
 
-      setSuccess('Account created successfully! Please login.');
-      setIsSignup(false);
-      setEmail('');
-      setPassword('');
-      setName('');
-      setAddress('');
+      if (response.data?.requiresEmailVerification) {
+        setVerifyEmail(response.data.email || email);
+        setSuccess('Account created! Check your email for the 6-digit code.');
+        setStep('verify');
+      } else {
+        setSuccess('Account created successfully! Please login.');
+        setIsSignup(false);
+        setEmail('');
+        setPassword('');
+        setName('');
+        setAddress('');
+      }
     } catch (err) {
       setError(
         err.response?.data?.message ||
           'Signup failed. Please try again.',
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyEmail = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    try {
+      const response = await axios.post(`${API_URL}/auth/verify-email`, {
+        email: verifyEmail,
+        otp: otp.trim(),
+      });
+      const token = response.data?.accessToken;
+      const userData = response.data?.data;
+      if (token && userData) {
+        onLogin(token, userData);
+      } else {
+        setError('Verification succeeded but no session received.');
+      }
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          'Invalid or expired code. Try again or resend.',
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return;
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    try {
+      await axios.post(`${API_URL}/auth/resend-email-otp`, { email: verifyEmail });
+      setSuccess('New code sent. Check your email.');
+      setResendCooldown(60);
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          'Could not resend code. Try again later.',
       );
     } finally {
       setLoading(false);
@@ -58,12 +122,8 @@ function Login({ onLogin }) {
         password,
       });
 
-      // Handle the response structure: response.data.accessToken and response.data.data (user info)
       const token = response.data?.accessToken;
       const userData = response.data?.data;
-
-      console.log('Token:', token);
-      console.log('User Data:', userData);
 
       if (token && userData) {
         onLogin(token, userData);
@@ -71,14 +131,89 @@ function Login({ onLogin }) {
         setError('Login successful but incomplete data received');
       }
     } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          'Login failed. Please check your credentials.',
-      );
+      const data = err.response?.data;
+      if (err.response?.status === 403 && (data?.code === 'EMAIL_NOT_VERIFIED' || data?.message?.code === 'EMAIL_NOT_VERIFIED')) {
+        setVerifyEmail(data?.email || data?.message?.email || email);
+        setStep('verify');
+        setError('');
+        setSuccess('Please verify your email. Enter the 6-digit code we sent you.');
+      } else {
+        const msg = data?.message;
+        setError(
+          typeof msg === 'string' ? msg : (msg?.message || 'Login failed. Please check your credentials.'),
+        );
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  // Verify email step (OTP)
+  if (step === 'verify') {
+    return (
+      <div className="login-container">
+        <div className="login-box">
+          <h2>Verify your email</h2>
+          <p className="login-subtitle">
+            We sent a 6-digit code to <strong>{verifyEmail}</strong>. Enter it below.
+          </p>
+
+          {error && <div className="error">{error}</div>}
+          {success && <div className="success">{success}</div>}
+
+          <form onSubmit={handleVerifyEmail}>
+            <div className="form-group">
+              <label>Email</label>
+              <input
+                type="email"
+                value={verifyEmail}
+                readOnly
+                className="read-only-input"
+              />
+            </div>
+            <div className="form-group">
+              <label>Verification code</label>
+              <input
+                type="text"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="000000"
+                maxLength={6}
+                pattern="[0-9]{6}"
+                required
+              />
+            </div>
+            <button type="submit" className="btn-primary" disabled={loading || otp.length !== 6}>
+              {loading ? 'Verifying...' : 'Verify & log in'}
+            </button>
+            <div className="auth-switch" style={{ marginTop: 16 }}>
+              <button
+                type="button"
+                className="link-button"
+                onClick={handleResendOtp}
+                disabled={loading || resendCooldown > 0}
+              >
+                {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
+              </button>
+              <span style={{ margin: '0 8px' }}> | </span>
+              <button
+                type="button"
+                className="link-button"
+                onClick={() => {
+                  setStep(isSignup ? 'signup' : 'login');
+                  setOtp('');
+                  setError('');
+                  setSuccess('');
+                }}
+              >
+                Back
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="login-container">
@@ -185,6 +320,7 @@ function Login({ onLogin }) {
           <p>Make sure your backend is running on port 3000</p>
           <p>Create a member account to book activities</p>
           <p>Create a host account to create activities and manage bookings</p>
+          <p>After signup, verify your email with the 6-digit code sent to your inbox.</p>
         </div>
       </div>
     </div>

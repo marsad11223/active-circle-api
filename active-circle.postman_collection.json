@@ -284,7 +284,46 @@
 								"auth",
 								"signup"
 							]
-						}
+						},
+						"description": "Create account. Response includes requiresEmailVerification: true and email; no accessToken. User must verify email via POST /auth/verify-email with OTP sent to email."
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Email (OTP)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"marsad11223@gmail.com\",\n  \"otp\": \"123456\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/verify-email",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "verify-email"]
+						},
+						"description": "Verify email with 6-digit OTP sent after signup. On success returns data + accessToken (use token to log in). OTP expires in 10 min; max 5 attempts."
+					},
+					"response": []
+				},
+				{
+					"name": "Resend Email OTP",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"marsad11223@gmail.com\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/resend-email-otp",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "resend-email-otp"]
+						},
+						"description": "Resend verification OTP to email. 60 s cooldown between requests."
 					},
 					"response": []
 				},

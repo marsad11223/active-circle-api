@@ -109,7 +109,17 @@
   margin-left: 5px;
 }
 
-.link-button:hover {
+.link-button:hover:not(:disabled) {
   color: #764ba2;
+}
+
+.link-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.read-only-input {
+  background: #f3f4f6;
+  cursor: not-allowed;
 }
 

@@ -41,6 +41,11 @@ export class SubscriptionService {
   ) {
     const user = await this.userModel.findById(userId);
     if (!user) throw new NotFoundException('User not found');
+    if ((user as any).emailVerified === false) {
+      throw new BadRequestException(
+        'Please verify your email before starting a subscription.',
+      );
+    }
 
     const existing = await this.subscriptionModel.findOne({
       userId,

@@ -5,6 +5,8 @@ import { AuthService } from './auth.service';
 import { LoginUserDto } from './dto/login-user.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+import { ResendOtpDto } from './dto/resend-otp.dto';
 import { GetUser } from './GetUser.Decorator';
 
 @Controller('auth')
@@ -14,6 +16,16 @@ export class AuthController {
   @Post('signup')
   async register(@Body() createUserDto: CreateUserDto): Promise<any> {
     return await this.authService.register(createUserDto);
+  }
+
+  @Post('verify-email')
+  async verifyEmail(@Body() dto: VerifyEmailDto): Promise<any> {
+    return await this.authService.verifyEmail(dto.email, dto.otp);
+  }
+
+  @Post('resend-email-otp')
+  async resendEmailOtp(@Body() dto: ResendOtpDto): Promise<{ message: string }> {
+    return await this.authService.resendVerificationOtp(dto.email);
   }
 
   @Post('login')

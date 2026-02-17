@@ -109,6 +109,25 @@ export class User {
   @Prop({ required: false })
   suspendedReason?: string;
 
+  // Email verification (OTP) – required before subscription/trial
+  @Prop({ default: false })
+  emailVerified?: boolean;
+
+  @Prop({ required: false })
+  emailVerifiedAt?: Date;
+
+  @Prop({ required: false, select: false })
+  verificationOtpHash?: string;
+
+  @Prop({ required: false })
+  verificationOtpExpiresAt?: Date;
+
+  @Prop({ default: 0 })
+  verificationOtpAttempts?: number;
+
+  @Prop({ required: false })
+  verificationOtpLastSentAt?: Date;
+
   @Prop({ required: false })
   suspended_at?: Date;
 

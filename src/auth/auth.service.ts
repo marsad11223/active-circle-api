@@ -1,10 +1,12 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
 import { InjectModel } from '@nestjs/mongoose';
@@ -26,7 +28,9 @@ import {
   passwordChangedSuccessfully,
   welcomeEmailMember,
   welcomeEmailHost,
+  emailVerificationOtp,
 } from 'src/utils/email-templates';
+import { normalizeEmail } from 'src/utils/helper';
 
 @Injectable()
 export class AuthService {
@@ -40,86 +44,218 @@ export class AuthService {
     private configService: ConfigService,
   ) {}
 
+  private readonly OTP_EXPIRY_MINUTES = 10;
+  private readonly OTP_MAX_ATTEMPTS = 5;
+  private readonly RESEND_COOLDOWN_SECONDS = 60;
+
+  private generateOtp(): string {
+    return crypto.randomInt(100000, 999999).toString();
+  }
+
   async register(createUserDto: CreateUserDto) {
-    const user = await this.userModel.findOne({ email: createUserDto.email });
-
-    if (!user) {
-      try {
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(createUserDto.password, salt);
-
-        const userData: any = {
-          ...createUserDto,
-          password: hashedPassword,
-          role: createUserDto.role ?? Role.member,
-          grantRole: GrantRole.member,
-          // Set default radius to 10km if not provided (member profile specific)
-          radius: createUserDto.radius ?? 10,
-          // Set default empty interests array if not provided (member profile specific)
-          interests: createUserDto.interests ?? [],
-        };
-
-        // Convert dateOfBirth string to Date if provided
-        if (createUserDto.dateOfBirth) {
-          userData.dateOfBirth = new Date(createUserDto.dateOfBirth);
-        }
-
-        const newUser = await this.userModel.create(userData);
-
-        const payload = { id: newUser._id, email: newUser.email };
-        const accessToken = this.jwtService.sign(payload);
-
-        // Send welcome email asynchronously (non-blocking)
-        const emailsEnabled =
-          this.configService.get<string>('EMAILS_ENABLED') === 'true';
-        if (emailsEnabled) {
-          setImmediate(() => {
-            const isHost =
-              newUser.role === Role.premiumMember ||
-              newUser.role === Role.standardMember;
-            const welcomeHtml = isHost
-              ? welcomeEmailHost({
-                  userName: newUser.name,
-                  userEmail: newUser.email,
-                })
-              : welcomeEmailMember({
-                  userName: newUser.name,
-                  userEmail: newUser.email,
-                });
-            this.sendGridService
-              .sendMail({
-                to: newUser.email,
-                subject: 'Welcome to Active Circle!',
-                html: welcomeHtml,
-              })
-              .then(() => {
-                console.log('[REGISTER] Welcome email sent to:', newUser.email);
-              })
-              .catch((err) => {
-                console.error(
-                  '[REGISTER] Error sending welcome email:',
-                  err.message,
-                );
-                // Don't throw error - registration was successful
-              });
-          });
-        }
-
-        return {
-          data: newUser,
-          accessToken: accessToken,
-        };
-      } catch (err) {
-        throw new BadRequestException(err.message);
-      }
-    } else {
+    const emailNormalized = normalizeEmail(createUserDto.email);
+    const existing = await this.userModel.findOne({ email: emailNormalized });
+    if (existing) {
       throw new ConflictException('User already Exist');
     }
+
+    try {
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(createUserDto.password, salt);
+
+      const otp = this.generateOtp();
+      const otpHash = await bcrypt.hash(otp, 10);
+      const expiresAt = new Date(Date.now() + this.OTP_EXPIRY_MINUTES * 60 * 1000);
+
+      const userData: any = {
+        ...createUserDto,
+        email: emailNormalized,
+        password: hashedPassword,
+        role: createUserDto.role ?? Role.member,
+        grantRole: GrantRole.member,
+        emailVerified: false,
+        verificationOtpHash: otpHash,
+        verificationOtpExpiresAt: expiresAt,
+        verificationOtpAttempts: 0,
+        verificationOtpLastSentAt: new Date(),
+        radius: createUserDto.radius ?? 10,
+        interests: createUserDto.interests ?? [],
+      };
+
+      if (createUserDto.dateOfBirth) {
+        userData.dateOfBirth = new Date(createUserDto.dateOfBirth);
+      }
+
+      const newUser = await this.userModel.create(userData);
+
+      const emailsEnabled =
+        this.configService.get<string>('EMAILS_ENABLED') === 'true';
+      if (emailsEnabled) {
+        setImmediate(() => {
+          const html = emailVerificationOtp({
+            recipientName: newUser.name,
+            otp,
+            expiresInMinutes: this.OTP_EXPIRY_MINUTES,
+          });
+          this.sendGridService
+            .sendMail({
+              to: newUser.email,
+              subject: 'Verify your email – Active Circle',
+              html,
+            })
+            .then(() => {
+              console.log('[REGISTER] OTP email sent to:', newUser.email);
+            })
+            .catch((err) => {
+              console.error('[REGISTER] OTP email failed:', err.message);
+            });
+        });
+      }
+
+      const data = newUser.toObject ? newUser.toObject() : { ...newUser };
+      delete (data as any).password;
+      delete (data as any).verificationOtpHash;
+
+      return {
+        data,
+        requiresEmailVerification: true,
+        email: newUser.email,
+      };
+    } catch (err) {
+      throw new BadRequestException((err as Error).message);
+    }
+  }
+
+  async verifyEmail(email: string, otp: string) {
+    const emailNormalized = normalizeEmail(email);
+    const user = await this.userModel.findOne({ email: emailNormalized }).select('+verificationOtpHash');
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    if ((user as any).emailVerified) {
+      throw new BadRequestException('Email is already verified. You can log in.');
+    }
+    const now = new Date();
+    const expiresAt = (user as any).verificationOtpExpiresAt;
+    if (!expiresAt || new Date(expiresAt) < now) {
+      throw new BadRequestException('OTP has expired. Please request a new code.');
+    }
+    const attempts = (user as any).verificationOtpAttempts ?? 0;
+    if (attempts >= this.OTP_MAX_ATTEMPTS) {
+      throw new BadRequestException('Too many attempts. Please request a new code.');
+    }
+    const hash = (user as any).verificationOtpHash;
+    if (!hash) {
+      throw new BadRequestException('No verification pending. Please request a new code.');
+    }
+    const valid = await bcrypt.compare(otp, hash);
+    if (!valid) {
+      await this.userModel.findByIdAndUpdate(user._id, {
+        $inc: { verificationOtpAttempts: 1 },
+        updated_at: now,
+      });
+      throw new BadRequestException('Invalid OTP. Please try again.');
+    }
+
+    await this.userModel.findByIdAndUpdate(user._id, {
+      emailVerified: true,
+      emailVerifiedAt: now,
+      verificationOtpHash: null,
+      verificationOtpExpiresAt: null,
+      verificationOtpAttempts: 0,
+      verificationOtpLastSentAt: null,
+      updated_at: now,
+    });
+
+    const updatedUser = await this.userModel.findById(user._id).select('-password');
+    const payload = { id: updatedUser!._id, email: updatedUser!.email };
+    const accessToken = this.jwtService.sign(payload);
+
+    const emailsEnabled =
+      this.configService.get<string>('EMAILS_ENABLED') === 'true';
+    if (emailsEnabled) {
+      setImmediate(() => {
+        const isHost =
+          (updatedUser as any).role === Role.premiumMember ||
+          (updatedUser as any).role === Role.standardMember;
+        const welcomeHtml = isHost
+          ? welcomeEmailHost({
+              userName: (updatedUser as any).name,
+              userEmail: (updatedUser as any).email,
+            })
+          : welcomeEmailMember({
+              userName: (updatedUser as any).name,
+              userEmail: (updatedUser as any).email,
+            });
+        this.sendGridService
+          .sendMail({
+            to: (updatedUser as any).email,
+            subject: 'Welcome to Active Circle!',
+            html: welcomeHtml,
+          })
+          .catch((err) => console.error('[VERIFY] Welcome email failed:', err.message));
+      });
+    }
+
+    return {
+      data: updatedUser,
+      accessToken,
+    };
+  }
+
+  async resendVerificationOtp(email: string) {
+    const emailNormalized = normalizeEmail(email);
+    const user = await this.userModel.findOne({ email: emailNormalized });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    if ((user as any).emailVerified) {
+      throw new BadRequestException('Email is already verified. You can log in.');
+    }
+    const lastSent = (user as any).verificationOtpLastSentAt;
+    if (lastSent) {
+      const elapsed = (Date.now() - new Date(lastSent).getTime()) / 1000;
+      if (elapsed < this.RESEND_COOLDOWN_SECONDS) {
+        throw new BadRequestException(
+          `Please wait ${Math.ceil(this.RESEND_COOLDOWN_SECONDS - elapsed)} seconds before requesting a new code.`,
+        );
+      }
+    }
+
+    const otp = this.generateOtp();
+    const otpHash = await bcrypt.hash(otp, 10);
+    const expiresAt = new Date(Date.now() + this.OTP_EXPIRY_MINUTES * 60 * 1000);
+
+    await this.userModel.findByIdAndUpdate(user._id, {
+      verificationOtpHash: otpHash,
+      verificationOtpExpiresAt: expiresAt,
+      verificationOtpAttempts: 0,
+      verificationOtpLastSentAt: new Date(),
+      updated_at: new Date(),
+    });
+
+    const emailsEnabled =
+      this.configService.get<string>('EMAILS_ENABLED') === 'true';
+    if (emailsEnabled) {
+      const html = emailVerificationOtp({
+        recipientName: (user as any).name,
+        otp,
+        expiresInMinutes: this.OTP_EXPIRY_MINUTES,
+      });
+      await this.sendGridService.sendMail({
+        to: user.email,
+        subject: 'Verify your email – Active Circle',
+        html,
+      });
+    }
+
+    return { message: 'Verification code sent. Check your email.' };
   }
 
   async login(loginUserDto: LoginUserDto): Promise<any> {
     const { email, password } = loginUserDto;
-    const user = await this.userModel.findOne({ email: email });
+    const emailNormalized = normalizeEmail(email);
+    const user = await this.userModel.findOne({ email: emailNormalized });
     if (user) {
       // Prevent login for soft-deleted users
       if ((user as any).isDeleted || (user as any).deleted_at) {
@@ -128,6 +264,13 @@ export class AuthService {
       const isValid = await bcrypt.compare(password, user.password);
       if (!isValid) {
         throw new UnauthorizedException('Incorrect Email or Password');
+      }
+      if ((user as any).emailVerified === false) {
+        throw new ForbiddenException({
+          message: 'Please verify your email before logging in.',
+          code: 'EMAIL_NOT_VERIFIED',
+          email: user.email,
+        });
       }
 
       // Set role to 'host' if user has active subscription (permanent role)
@@ -187,12 +330,13 @@ export class AuthService {
 
     try {
       // 1. Check if user exists
+      const emailNormalized = normalizeEmail(email);
       console.log('[FORGOT_PASSWORD] Step 1: Looking up user in database...');
-      const user = await this.userModel.findOne({ email });
+      const user = await this.userModel.findOne({ email: emailNormalized });
       if (!user) {
         console.log(
           '[FORGOT_PASSWORD] ERROR: User not found for email:',
-          email,
+          emailNormalized,
         );
         throw new NotFoundException('User with this email not found');
       }
@@ -443,6 +587,7 @@ export class AuthService {
 
   async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<any> {
     const { email, password, confirmPassword } = resetPasswordDto;
+    const emailNormalized = normalizeEmail(email);
 
     // 1. Check if passwords match
     if (password !== confirmPassword) {
@@ -450,7 +595,7 @@ export class AuthService {
     }
 
     // 2. Find user by email
-    const user = await this.userModel.findOne({ email });
+    const user = await this.userModel.findOne({ email: emailNormalized });
     if (!user) {
       throw new NotFoundException('Email not found');
     }
