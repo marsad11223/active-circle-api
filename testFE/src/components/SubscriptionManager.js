@@ -52,29 +52,27 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
         },
       );
 
-      const { clientSecret, subscriptionId, invoiceId, status, requiresPaymentMethod, plan: resPlan } = response.data;
+      const {
+        clientSecret,
+        subscriptionId,
+        invoiceId,
+        status,
+        requiresPaymentMethod,
+        plan: resPlan,
+        message,
+      } = response.data;
       const effectivePlan = resPlan || plan;
 
-      if (clientSecret) {
-        setClientSecret(clientSecret);
-        setShowCheckout(true);
-        setSuccess(
-          status === 'trialing'
-            ? `Add your card below. No charge today — 3-month free trial, then ${amount}/month.`
-            : '💳 Complete payment to activate your subscription.',
-        );
-      } else if (requiresPaymentMethod || status === 'trialing') {
-        setClientSecret('');
-        setShowCheckout(true);
-        setSuccess(
-          `🎉 3-month free trial started! Add your card below. No charge today — we'll charge ${amount}/month at the start of month 4.`,
-        );
-      } else {
-        setSuccess(
-          'Subscription created! Click "Complete Payment" below to add your payment method and activate.',
-        );
-        await fetchSubscriptionStatus();
-      }
+      // Always show checkout to add payment method
+      // Trial will start after payment method is added
+      setClientSecret('');
+      setShowCheckout(true);
+      setSuccess(
+        message ||
+          `💳 Add your card to start your 3-month free trial. No charge today — we'll charge ${amount}/month after the trial ends.`,
+      );
+
+      await fetchSubscriptionStatus();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to create subscription');
     } finally {
@@ -128,6 +126,38 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
     }
   };
 
+  const handleUpgradeSubscription = async () => {
+    if (
+      !window.confirm(
+        'Upgrade to Premium? Your remaining trial time will be preserved.',
+      )
+    ) {
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await axios.post(
+        `${API_URL}/subscription/upgrade`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+
+      setSuccess(response.data.message);
+      await fetchSubscriptionStatus();
+      await fetchUserData();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to upgrade subscription');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handlePaymentSuccess = async (paymentIntentId) => {
     setLoading(true);
     setError('');
@@ -146,12 +176,16 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
       const isTrialActivated = response.data?.status === 'trialing_activated';
       const plan = response.data?.plan || selectedPlan;
       const amount = plan === 'standard' ? '£1.99' : '£5.99';
+      const trialEnd = response.data?.trialEnd;
 
       if (isTrialActivated) {
+        const trialEndDate = trialEnd
+          ? new Date(trialEnd).toLocaleDateString()
+          : '90 days';
         setSuccess(
           plan === 'standard'
-            ? `🎉 You're on a 3-month free trial (Standard)! 2 free + 1 paid activity per period. We'll charge ${amount} at the start of month 4.`
-            : `🎉 You're on a 3-month free trial! Full host access. No charge today — we'll charge ${amount} at the start of month 4.`,
+            ? `🎉 3-month free trial started! 2 free + 1 paid activity per period. First charge of ${amount} on ${trialEndDate}.`
+            : `🎉 3-month free trial started! Full host access. First charge of ${amount} on ${trialEndDate}.`,
         );
       } else if (wasMember) {
         setSuccess(
@@ -213,10 +247,13 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
               })()}
             </span>
           </p>
-          {(currentUser.role === 'member' || currentUser.grantRole === 'member') && (
+          {(currentUser.role === 'member' ||
+            currentUser.grantRole === 'member') && (
             <div className="info-box">
               ℹ️ You are currently a <strong>Member</strong>. Subscribe to
-              become a <strong>Premium Member</strong> or <strong>Standard Member</strong>. Your role updates after you add your card.
+              become a <strong>Premium Member</strong> or{' '}
+              <strong>Standard Member</strong>. Your role updates after you add
+              your card.
             </div>
           )}
         </div>
@@ -237,20 +274,26 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
                 <span className="status-badge plan-premium">Premium</span>
               )}
               {subscription.isTrialing && (
-                <span className="status-badge status-trialing-label">3-month free trial</span>
+                <span className="status-badge status-trialing-label">
+                  3-month free trial
+                </span>
               )}
             </h3>
             {subscription.plan === 'standard' && (
               <div className="detail-row plan-limits">
                 <span className="label">Plan limits:</span>
-                <span className="value">2 free + 1 paid activity per billing period</span>
+                <span className="value">
+                  2 free + 1 paid activity per billing period
+                </span>
               </div>
             )}
             {subscription.isTrialing && subscription.trialEnd && (
               <div className="detail-row trial-highlight">
                 <span className="label">Trial ends:</span>
                 <span className="value">
-                  {new Date(subscription.trialEnd).toLocaleDateString()} — first charge ({subscription.plan === 'standard' ? '£1.99' : '£5.99'}) on this date
+                  {new Date(subscription.trialEnd).toLocaleDateString()} — first
+                  charge ({subscription.plan === 'standard' ? '£1.99' : '£5.99'}
+                  ) on this date
                 </span>
               </div>
             )}
@@ -276,10 +319,12 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
                 {subscription.cancelAtPeriodEnd
                   ? '❌ Canceled (active until period end)'
                   : (() => {
-                      const amount = subscription.plan === 'standard' ? '£1.99' : '£5.99';
-                      const date = subscription.isTrialing && subscription.trialEnd
-                        ? new Date(subscription.trialEnd)
-                        : new Date(subscription.currentPeriodEnd);
+                      const amount =
+                        subscription.plan === 'standard' ? '£1.99' : '£5.99';
+                      const date =
+                        subscription.isTrialing && subscription.trialEnd
+                          ? new Date(subscription.trialEnd)
+                          : new Date(subscription.currentPeriodEnd);
                       return `${amount} on ${date.toLocaleDateString()}${subscription.isTrialing ? ' (after trial)' : ''}`;
                     })()}
               </span>
@@ -289,60 +334,80 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
           {subscription.status === 'incomplete' && (
             <div className="incomplete-actions">
               <div className="info-box" style={{ marginBottom: '15px' }}>
-                ⚠️ Your subscription is incomplete. Please complete the payment
-                to activate your subscription and become a host.
+                ⚠️ Add your payment card to start your 3-month free trial. No
+                charge today — you'll be charged after the trial ends.
               </div>
               <button
                 onClick={() => {
-                  // Simply show the checkout form
                   setShowCheckout(true);
                   setSuccess(
-                    'Please enter your card details to complete payment.',
+                    'Add your card details to start your free trial. No charge today!',
                   );
                 }}
                 className="btn-primary"
                 disabled={loading}
               >
-                Complete Payment
+                Add Card & Start Trial
               </button>
             </div>
           )}
 
-          {(subscription.status === 'active' || subscription.status === 'trialing') &&
+          {(subscription.status === 'active' ||
+            subscription.status === 'trialing') &&
             !subscription.cancelAtPeriodEnd && (
-              <button
-                onClick={handleCancelSubscription}
-                className="btn-danger"
-                disabled={loading}
-              >
-                Cancel Subscription
-              </button>
+              <>
+                {subscription.plan === 'standard' && (
+                  <button
+                    onClick={handleUpgradeSubscription}
+                    className="btn-primary"
+                    disabled={loading}
+                    style={{ marginRight: '10px' }}
+                  >
+                    Upgrade to Premium
+                  </button>
+                )}
+                <button
+                  onClick={handleCancelSubscription}
+                  className="btn-danger"
+                  disabled={loading}
+                >
+                  Cancel Subscription
+                </button>
+              </>
             )}
         </div>
       ) : (
         <div className="no-subscription">
-          <h3 style={{ marginBottom: '20px', color: '#1f2937' }}>Choose your plan</h3>
+          <h3 style={{ marginBottom: '20px', color: '#1f2937' }}>
+            Choose your plan
+          </h3>
           <div className="plan-cards">
             <div
               className={`pricing-card ${selectedPlan === 'premium' ? 'selected' : ''}`}
               onClick={() => setSelectedPlan('premium')}
             >
               <h3>Premium Member</h3>
-              <div className="trial-badge">3 months free, then £5.99/month</div>
+              <div className="trial-badge">
+                Add card to start 3-month free trial
+              </div>
               <div className="price">
                 <span className="currency">£</span>
                 <span className="amount">5.99</span>
                 <span className="period">/month after trial</span>
               </div>
               <ul className="features">
-                <li>✓ 3-month free trial</li>
+                <li>✓ 3-month free trial (starts when you add card)</li>
+                <li>✓ No charge today</li>
                 <li>✓ Unlimited activities</li>
                 <li>✓ Full host features</li>
                 <li>✓ Create and manage events</li>
                 <li>✓ Member management & payouts</li>
               </ul>
               <button
-                onClick={(e) => { e.stopPropagation(); handleCreateSubscription('premium'); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCreateSubscription('premium');
+                }}
                 className="btn-primary"
                 disabled={loading}
               >
@@ -355,21 +420,27 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
               onClick={() => setSelectedPlan('standard')}
             >
               <h3>Standard Member</h3>
-              <div className="trial-badge">3 months free, then £1.99/month</div>
+              <div className="trial-badge">
+                Add card to start 3-month free trial
+              </div>
               <div className="price">
                 <span className="currency">£</span>
                 <span className="amount">1.99</span>
                 <span className="period">/month after trial</span>
               </div>
               <ul className="features">
-                <li>✓ 3-month free trial</li>
+                <li>✓ 3-month free trial (starts when you add card)</li>
+                <li>✓ No charge today</li>
                 <li>✓ 2 free + 1 paid activity per period</li>
                 <li>✓ Host features (with limits)</li>
                 <li>✓ Create events, manage bookings</li>
                 <li>✓ Payouts for paid activities</li>
               </ul>
               <button
-                onClick={(e) => { e.stopPropagation(); handleCreateSubscription('standard'); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCreateSubscription('standard');
+                }}
                 className="btn-primary"
                 disabled={loading}
               >
@@ -378,8 +449,13 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
             </div>
           </div>
 
-          <div className="info-box" style={{ marginTop: '20px', fontSize: '0.9em' }}>
-            <strong>🧪 Test:</strong> Pick a plan, add your card to start the trial. No charge now. Use test card 4242 4242 4242 4242.
+          <div
+            className="info-box"
+            style={{ marginTop: '20px', fontSize: '0.9em' }}
+          >
+            <strong>🧪 Test:</strong> Pick a plan and add your card. Trial
+            starts immediately. No charge today. Use test card 4242 4242 4242
+            4242.
           </div>
         </div>
       )}
@@ -396,7 +472,11 @@ function SubscriptionManager({ token, user, onUserUpdate }) {
             >
               ×
             </button>
-            <h3>{clientSecret ? 'Complete Your Payment' : 'Add Card — Start Free Trial'}</h3>
+            <h3>
+              {clientSecret
+                ? 'Complete Your Payment'
+                : 'Add Card — Start Free Trial'}
+            </h3>
             <CheckoutForm
               clientSecret={clientSecret}
               isTrialFlow={!clientSecret}

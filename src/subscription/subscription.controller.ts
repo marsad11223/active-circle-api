@@ -100,6 +100,12 @@ export class SubscriptionController {
     );
   }
 
+  @Post('upgrade')
+  @UseGuards(JwtAuthGuard)
+  async upgradeSubscription(@GetUser() user: any) {
+    return this.subscriptionService.upgradeSubscription(user._id);
+  }
+
   @Post('webhook')
   async handleWebhook(
     @Headers('stripe-signature') signature: string,

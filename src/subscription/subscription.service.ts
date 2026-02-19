@@ -41,7 +41,11 @@ export class SubscriptionService {
   ) {
     const user = await this.userModel.findById(userId);
     if (!user) throw new NotFoundException('User not found');
-    if ((user as any).emailVerified === false) {
+
+    // Skip email verification check if disabled for testing
+    const skipEmailVerification =
+      this.configService.get<string>('SKIP_EMAIL_VERIFICATION') === 'true';
+    if (!skipEmailVerification && (user as any).emailVerified === false) {
       throw new BadRequestException(
         'Please verify your email before starting a subscription.',
       );
@@ -49,10 +53,62 @@ export class SubscriptionService {
 
     const existing = await this.subscriptionModel.findOne({
       userId,
-      status: { $in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING] },
+      status: {
+        $in: [
+          SubscriptionStatus.ACTIVE,
+          SubscriptionStatus.TRIALING,
+          SubscriptionStatus.INCOMPLETE,
+        ],
+      },
     });
+
     if (existing) {
-      throw new BadRequestException('User already has an active subscription');
+      // If subscription is active, don't allow new subscription
+      if (existing.status === SubscriptionStatus.ACTIVE) {
+        throw new BadRequestException(
+          'User already has an active subscription',
+        );
+      }
+
+      // Check if trialing subscription has a payment method
+      if (existing.status === SubscriptionStatus.TRIALING) {
+        try {
+          const customer = (await this.stripe.customers.retrieve(
+            existing.stripeCustomerId,
+          )) as Stripe.Customer;
+
+          // If customer has a default payment method, subscription is valid
+          if (customer.invoice_settings?.default_payment_method) {
+            throw new BadRequestException(
+              'User already has an active subscription',
+            );
+          }
+
+          // No payment method attached - clean up this abandoned trial
+          console.log(
+            'Found trialing subscription without payment method, cleaning up...',
+          );
+        } catch (error: any) {
+          if (error instanceof BadRequestException) {
+            throw error;
+          }
+          console.log('Error checking subscription:', error.message);
+        }
+      }
+
+      // Clean up incomplete or abandoned trialing subscription
+      console.log(`Cleaning up ${existing.status} subscription...`);
+      try {
+        await this.stripe.subscriptions.cancel(existing.stripeSubscriptionId);
+      } catch (error: any) {
+        console.log(
+          'Note: Could not cancel Stripe subscription:',
+          error.message,
+        );
+      }
+
+      await this.subscriptionModel.deleteOne({ _id: existing._id });
+      console.log('✅ Old subscription cleaned up');
     }
 
     let stripeCustomerId = user.stripeCustomerId;
@@ -67,7 +123,9 @@ export class SubscriptionService {
     }
 
     const planEnum =
-      plan === 'standard' ? SubscriptionPlan.STANDARD : SubscriptionPlan.PREMIUM;
+      plan === 'standard'
+        ? SubscriptionPlan.STANDARD
+        : SubscriptionPlan.PREMIUM;
     const priceId =
       plan === 'standard'
         ? this.configService.get<string>('STRIPE_PRICE_ID_STANDARD')
@@ -78,12 +136,16 @@ export class SubscriptionService {
       );
     }
 
-    console.log(`Creating ${plan} subscription with 3-month trial...`);
+    console.log(
+      `Creating ${plan} subscription (trial starts after payment method added)...`,
+    );
 
+    // Create subscription WITHOUT trial initially
+    // Trial will start only after payment method is attached
     const subscription = await this.stripe.subscriptions.create({
       customer: stripeCustomerId,
       items: [{ price: priceId }],
-      trial_period_days: 90,
+      // Don't set trial_period_days here - we'll add it when payment method is attached
       payment_behavior: 'default_incomplete',
       payment_settings: {
         save_default_payment_method: 'on_subscription',
@@ -228,11 +290,11 @@ export class SubscriptionService {
     });
 
     const clientSecret = paymentIntent?.client_secret ?? null;
-    const isTrialing = subscription.status === 'trialing';
+
+    // Since we're not starting trial until payment method is added,
+    // subscription will be 'incomplete' initially
     const requiresPaymentMethod =
-      isTrialing && !clientSecret
-        ? true
-        : !clientSecret && subscription.status === 'incomplete';
+      subscription.status === 'incomplete' || !clientSecret;
 
     return {
       subscriptionId: subscription.id,
@@ -241,12 +303,13 @@ export class SubscriptionService {
       status: subscription.status,
       requiresPaymentMethod: !!requiresPaymentMethod,
       plan: planEnum,
+      message: 'Add payment method to start your 3-month free trial',
     };
   }
 
-  // Pay invoice with payment method, or for trial: attach card only (no charge)
+  // Pay invoice with payment method, or for trial: attach card and start trial
   async payInvoiceWithPaymentMethod(userId: string, paymentMethodId: string) {
-    console.log('\n💳 Pay invoice / attach payment method...');
+    console.log('\n💳 Attaching payment method and starting trial...');
 
     const subscription = await this.subscriptionModel.findOne({
       userId,
@@ -262,6 +325,7 @@ export class SubscriptionService {
     }
 
     try {
+      // Attach payment method to customer
       await this.stripe.paymentMethods.attach(paymentMethodId, {
         customer: subscription.stripeCustomerId,
       });
@@ -272,6 +336,7 @@ export class SubscriptionService {
       });
       console.log('✅ Payment method attached and set as default');
 
+      // If already trialing (shouldn't happen with new flow, but handle it)
       if (subscription.status === SubscriptionStatus.TRIALING) {
         const role =
           subscription.plan === SubscriptionPlan.STANDARD
@@ -290,23 +355,81 @@ export class SubscriptionService {
         };
       }
 
-      const stripeSubscription = await this.stripe.subscriptions.retrieve(
-        subscription.stripeSubscriptionId,
-        { expand: ['latest_invoice'] },
+      // For incomplete subscription: Delete it and create a new one with trial
+      console.log(
+        'Deleting incomplete subscription and creating new one with trial...',
       );
-      const invoice = stripeSubscription.latest_invoice as Stripe.Invoice;
-      if (!invoice) {
-        throw new BadRequestException('No invoice found for subscription');
+
+      // Cancel the incomplete subscription in Stripe
+      try {
+        await this.stripe.subscriptions.cancel(
+          subscription.stripeSubscriptionId,
+        );
+        console.log('✅ Incomplete subscription canceled in Stripe');
+      } catch (error: any) {
+        console.log('Note: Could not cancel subscription:', error.message);
       }
 
-      const paidInvoice = await this.stripe.invoices.pay(invoice.id, {
-        payment_method: paymentMethodId,
-        expand: ['payment_intent'],
+      // Delete from database
+      await this.subscriptionModel.deleteOne({ _id: subscription._id });
+      console.log('✅ Incomplete subscription deleted from database');
+
+      // Calculate trial end date (90 days from now)
+      const trialEnd = Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60;
+
+      // Create new subscription with trial
+      const newStripeSubscription = await this.stripe.subscriptions.create({
+        customer: subscription.stripeCustomerId,
+        items: [{ price: subscription.stripePriceId }],
+        trial_end: trialEnd,
+        default_payment_method: paymentMethodId,
+        collection_method: 'charge_automatically',
       });
-      console.log('✅ Invoice paid successfully');
+
+      console.log(
+        '✅ New subscription created with trial:',
+        newStripeSubscription.id,
+      );
+      console.log('✅ Trial ends:', new Date(trialEnd * 1000));
+
+      // Save new subscription to database
+      const subAny = newStripeSubscription as any;
+      await this.subscriptionModel.create({
+        userId: subscription.userId,
+        stripeCustomerId: subscription.stripeCustomerId,
+        stripeSubscriptionId: newStripeSubscription.id,
+        stripePriceId: subscription.stripePriceId,
+        plan: subscription.plan,
+        status: newStripeSubscription.status,
+        currentPeriodStart: subAny.current_period_start
+          ? new Date(subAny.current_period_start * 1000)
+          : new Date(),
+        currentPeriodEnd: subAny.current_period_end
+          ? new Date(subAny.current_period_end * 1000)
+          : new Date(trialEnd * 1000),
+        trialStart: subAny.trial_start
+          ? new Date(subAny.trial_start * 1000)
+          : new Date(),
+        trialEnd: new Date(trialEnd * 1000),
+      });
+
+      // Grant user role
+      const role =
+        subscription.plan === SubscriptionPlan.STANDARD
+          ? Role.standardMember
+          : Role.premiumMember;
+      await this.userModel.findByIdAndUpdate(userId, {
+        role,
+        grantRole: GrantRole.host,
+        hasActiveSubscription: true,
+      });
+      console.log(`✅ User granted ${role} access (trial started)`);
+
       return {
-        status: 'payment_processing',
-        invoiceId: paidInvoice.id,
+        status: 'trialing_activated',
+        message: 'Trial started with payment method on file',
+        plan: subscription.plan,
+        trialEnd: new Date(trialEnd * 1000),
       };
     } catch (error: any) {
       console.error('❌ Error:', error.message);
@@ -484,6 +607,141 @@ export class SubscriptionService {
         ? new Date(canceledSubscription.cancel_at * 1000)
         : null,
     };
+  }
+
+  // Upgrade from Standard to Premium
+  async upgradeSubscription(userId: string) {
+    console.log('\n🔄 Upgrading subscription from Standard to Premium...');
+
+    const user = await this.userModel.findById(userId);
+    if (!user) throw new NotFoundException('User not found');
+
+    // Find current Standard subscription
+    const currentSubscription = await this.subscriptionModel.findOne({
+      userId,
+      plan: SubscriptionPlan.STANDARD,
+      status: {
+        $in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING],
+      },
+    });
+
+    if (!currentSubscription) {
+      throw new BadRequestException(
+        'No active Standard subscription found to upgrade',
+      );
+    }
+
+    try {
+      // Calculate remaining trial time
+      let remainingTrialDays = 0;
+      let trialEndTimestamp: number | undefined;
+
+      if (
+        currentSubscription.status === SubscriptionStatus.TRIALING &&
+        currentSubscription.trialEnd
+      ) {
+        const now = Date.now();
+        const trialEndMs = currentSubscription.trialEnd.getTime();
+        const remainingMs = trialEndMs - now;
+        remainingTrialDays = Math.max(
+          0,
+          Math.ceil(remainingMs / (1000 * 60 * 60 * 24)),
+        );
+
+        if (remainingTrialDays > 0) {
+          trialEndTimestamp = Math.floor(trialEndMs / 1000);
+          console.log(
+            `✅ ${remainingTrialDays} days of trial remaining, will be applied to Premium`,
+          );
+        } else {
+          console.log('⚠️ Trial already ended, Premium will start immediately');
+        }
+      }
+
+      // Cancel the current Standard subscription
+      console.log('Canceling Standard subscription...');
+      await this.stripe.subscriptions.cancel(
+        currentSubscription.stripeSubscriptionId,
+      );
+      console.log('✅ Standard subscription canceled');
+
+      // Delete from database
+      await this.subscriptionModel.deleteOne({ _id: currentSubscription._id });
+      console.log('✅ Standard subscription removed from database');
+
+      // Get Premium price ID
+      const premiumPriceId = this.configService.get<string>('STRIPE_PRICE_ID');
+      if (!premiumPriceId) {
+        throw new BadRequestException('Premium price ID not configured');
+      }
+
+      // Create new Premium subscription
+      const subscriptionParams: Stripe.SubscriptionCreateParams = {
+        customer: currentSubscription.stripeCustomerId,
+        items: [{ price: premiumPriceId }],
+        collection_method: 'charge_automatically',
+      };
+
+      // Add trial if there's remaining time
+      if (trialEndTimestamp) {
+        subscriptionParams.trial_end = trialEndTimestamp;
+        console.log(
+          `Setting trial end to: ${new Date(trialEndTimestamp * 1000).toISOString()}`,
+        );
+      }
+
+      const newStripeSubscription =
+        await this.stripe.subscriptions.create(subscriptionParams);
+
+      console.log('✅ Premium subscription created:', newStripeSubscription.id);
+
+      // Save new subscription to database
+      const subAny = newStripeSubscription as any;
+      const newSubscription = await this.subscriptionModel.create({
+        userId,
+        stripeCustomerId: currentSubscription.stripeCustomerId,
+        stripeSubscriptionId: newStripeSubscription.id,
+        stripePriceId: premiumPriceId,
+        plan: SubscriptionPlan.PREMIUM,
+        status: newStripeSubscription.status,
+        currentPeriodStart: subAny.current_period_start
+          ? new Date(subAny.current_period_start * 1000)
+          : new Date(),
+        currentPeriodEnd: subAny.current_period_end
+          ? new Date(subAny.current_period_end * 1000)
+          : new Date(),
+        trialStart: subAny.trial_start
+          ? new Date(subAny.trial_start * 1000)
+          : undefined,
+        trialEnd: subAny.trial_end
+          ? new Date(subAny.trial_end * 1000)
+          : undefined,
+      });
+
+      // Update user role to Premium Member
+      await this.userModel.findByIdAndUpdate(userId, {
+        role: Role.premiumMember,
+        grantRole: GrantRole.host,
+        hasActiveSubscription: true,
+      });
+      console.log('✅ User role updated to Premium Member');
+
+      return {
+        message:
+          remainingTrialDays > 0
+            ? `Successfully upgraded to Premium! You have ${remainingTrialDays} days of free trial remaining.`
+            : 'Successfully upgraded to Premium!',
+        subscriptionId: newStripeSubscription.id,
+        plan: SubscriptionPlan.PREMIUM,
+        status: newStripeSubscription.status,
+        remainingTrialDays,
+        trialEnd: newSubscription.trialEnd,
+        currentPeriodEnd: newSubscription.currentPeriodEnd,
+      };
+    } catch (error: any) {
+      console.error('❌ Error upgrading subscription:', error.message);
+      throw new BadRequestException(`Upgrade failed: ${error.message}`);
+    }
   }
 
   // ✅ WEBHOOK HANDLERS - Source of truth

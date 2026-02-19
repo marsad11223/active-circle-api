@@ -65,7 +65,13 @@ export class AuthService {
 
       const otp = this.generateOtp();
       const otpHash = await bcrypt.hash(otp, 10);
-      const expiresAt = new Date(Date.now() + this.OTP_EXPIRY_MINUTES * 60 * 1000);
+      const expiresAt = new Date(
+        Date.now() + this.OTP_EXPIRY_MINUTES * 60 * 1000,
+      );
+
+      // Check if email verification should be skipped
+      const skipEmailVerification =
+        this.configService.get<string>('SKIP_EMAIL_VERIFICATION') === 'true';
 
       const userData: any = {
         ...createUserDto,
@@ -73,11 +79,11 @@ export class AuthService {
         password: hashedPassword,
         role: createUserDto.role ?? Role.member,
         grantRole: GrantRole.member,
-        emailVerified: false,
-        verificationOtpHash: otpHash,
-        verificationOtpExpiresAt: expiresAt,
+        emailVerified: skipEmailVerification ? true : false, // Auto-verify if skipping
+        verificationOtpHash: skipEmailVerification ? null : otpHash,
+        verificationOtpExpiresAt: skipEmailVerification ? null : expiresAt,
         verificationOtpAttempts: 0,
-        verificationOtpLastSentAt: new Date(),
+        verificationOtpLastSentAt: skipEmailVerification ? null : new Date(),
         radius: createUserDto.radius ?? 10,
         interests: createUserDto.interests ?? [],
       };
@@ -88,9 +94,10 @@ export class AuthService {
 
       const newUser = await this.userModel.create(userData);
 
+      // Only send OTP email if verification is not skipped
       const emailsEnabled =
         this.configService.get<string>('EMAILS_ENABLED') === 'true';
-      if (emailsEnabled) {
+      if (emailsEnabled && !skipEmailVerification) {
         setImmediate(() => {
           const html = emailVerificationOtp({
             recipientName: newUser.name,
@@ -118,7 +125,7 @@ export class AuthService {
 
       return {
         data,
-        requiresEmailVerification: true,
+        requiresEmailVerification: !skipEmailVerification, // Don't require verification if skipped
         email: newUser.email,
       };
     } catch (err) {
@@ -128,25 +135,35 @@ export class AuthService {
 
   async verifyEmail(email: string, otp: string) {
     const emailNormalized = normalizeEmail(email);
-    const user = await this.userModel.findOne({ email: emailNormalized }).select('+verificationOtpHash');
+    const user = await this.userModel
+      .findOne({ email: emailNormalized })
+      .select('+verificationOtpHash');
     if (!user) {
       throw new NotFoundException('User not found');
     }
     if ((user as any).emailVerified) {
-      throw new BadRequestException('Email is already verified. You can log in.');
+      throw new BadRequestException(
+        'Email is already verified. You can log in.',
+      );
     }
     const now = new Date();
     const expiresAt = (user as any).verificationOtpExpiresAt;
     if (!expiresAt || new Date(expiresAt) < now) {
-      throw new BadRequestException('OTP has expired. Please request a new code.');
+      throw new BadRequestException(
+        'OTP has expired. Please request a new code.',
+      );
     }
     const attempts = (user as any).verificationOtpAttempts ?? 0;
     if (attempts >= this.OTP_MAX_ATTEMPTS) {
-      throw new BadRequestException('Too many attempts. Please request a new code.');
+      throw new BadRequestException(
+        'Too many attempts. Please request a new code.',
+      );
     }
     const hash = (user as any).verificationOtpHash;
     if (!hash) {
-      throw new BadRequestException('No verification pending. Please request a new code.');
+      throw new BadRequestException(
+        'No verification pending. Please request a new code.',
+      );
     }
     const valid = await bcrypt.compare(otp, hash);
     if (!valid) {
@@ -167,7 +184,9 @@ export class AuthService {
       updated_at: now,
     });
 
-    const updatedUser = await this.userModel.findById(user._id).select('-password');
+    const updatedUser = await this.userModel
+      .findById(user._id)
+      .select('-password');
     const payload = { id: updatedUser!._id, email: updatedUser!.email };
     const accessToken = this.jwtService.sign(payload);
 
@@ -193,7 +212,9 @@ export class AuthService {
             subject: 'Welcome to Active Circle!',
             html: welcomeHtml,
           })
-          .catch((err) => console.error('[VERIFY] Welcome email failed:', err.message));
+          .catch((err) =>
+            console.error('[VERIFY] Welcome email failed:', err.message),
+          );
       });
     }
 
@@ -210,7 +231,9 @@ export class AuthService {
       throw new NotFoundException('User not found');
     }
     if ((user as any).emailVerified) {
-      throw new BadRequestException('Email is already verified. You can log in.');
+      throw new BadRequestException(
+        'Email is already verified. You can log in.',
+      );
     }
     const lastSent = (user as any).verificationOtpLastSentAt;
     if (lastSent) {
@@ -224,7 +247,9 @@ export class AuthService {
 
     const otp = this.generateOtp();
     const otpHash = await bcrypt.hash(otp, 10);
-    const expiresAt = new Date(Date.now() + this.OTP_EXPIRY_MINUTES * 60 * 1000);
+    const expiresAt = new Date(
+      Date.now() + this.OTP_EXPIRY_MINUTES * 60 * 1000,
+    );
 
     await this.userModel.findByIdAndUpdate(user._id, {
       verificationOtpHash: otpHash,
@@ -265,7 +290,11 @@ export class AuthService {
       if (!isValid) {
         throw new UnauthorizedException('Incorrect Email or Password');
       }
-      if ((user as any).emailVerified === false) {
+
+      // Skip email verification check if disabled for testing
+      const skipEmailVerification =
+        this.configService.get<string>('SKIP_EMAIL_VERIFICATION') === 'true';
+      if (!skipEmailVerification && (user as any).emailVerified === false) {
         throw new ForbiddenException({
           message: 'Please verify your email before logging in.',
           code: 'EMAIL_NOT_VERIFIED',
