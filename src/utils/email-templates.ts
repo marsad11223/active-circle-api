@@ -4,6 +4,104 @@
  */
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+const LOGIN_URL = `${FRONTEND_URL}/login`;
+
+/**
+ * Reusable email wrapper that adds branded header, CTA button, and footer
+ * to any email body content.
+ */
+function wrapEmailTemplate(
+  title: string,
+  bodyHtml: string,
+  options?: { ctaText?: string; ctaUrl?: string; hideButton?: boolean },
+): string {
+  const ctaText = options?.ctaText || 'Go to Active Circle';
+  const ctaUrl = options?.ctaUrl || LOGIN_URL;
+  const hideButton = options?.hideButton || false;
+
+  const ctaSection = hideButton
+    ? ''
+    : `
+              <!-- CTA Button -->
+              <tr>
+                <td style="padding: 0 40px 30px 40px; text-align: center;">
+                  <a href="${ctaUrl}" 
+                     style="display: inline-block; background-color: #F98C01; color: #ffffff; font-size: 16px; font-weight: bold; padding: 14px 32px; text-decoration: none; border-radius: 6px; letter-spacing: 0.5px;">
+                    ${ctaText}
+                  </a>
+                </td>
+              </tr>`;
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        @media only screen and (max-width: 600px) {
+          .container { width: 100% !important; max-width: 100% !important; }
+          .content { padding: 30px 20px !important; }
+        }
+      </style>
+    </head>
+    <body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f3f4f6;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 20px;">
+        <tr>
+          <td align="center">
+            <table class="container" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; max-width: 600px; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+              
+              <!-- Branded Header -->
+              <tr>
+                <td style="padding: 32px 40px 24px 40px; text-align: center; background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);">
+                  <p style="margin: 0; color: #ffffff; font-size: 14px; letter-spacing: 1px;">MEET. MOVE. CONNECT.</p>
+                  <p style="margin: 8px 0 0 0; color: #F98C01; font-size: 20px; font-weight: bold;">Active Circle</p>
+                </td>
+              </tr>
+
+              <!-- Email Title -->
+              <tr>
+                <td style="padding: 24px 40px 0 40px;">
+                  <h1 style="color: #1a365d; font-size: 22px; margin: 0 0 16px 0; font-weight: bold;">${title}</h1>
+                </td>
+              </tr>
+
+              <!-- Email Body Content -->
+              <tr>
+                <td class="content" style="padding: 0 40px 24px 40px;">
+                  ${bodyHtml}
+                </td>
+              </tr>
+
+              ${ctaSection}
+
+              <!-- Footer -->
+              <tr>
+                <td style="padding: 20px 40px 30px 40px; border-top: 1px solid #e5e7eb; text-align: center;">
+                  <p style="color: #F98C01; font-size: 14px; font-weight: normal; margin: 0 0 8px 0;">
+                    Questions or need support?
+                  </p>
+                  <p style="margin: 0;">
+                    <a href="mailto:contact@theactivecircle.com" style="color: #1a365d; font-size: 14px; text-decoration: none;">
+                      contact@theactivecircle.com
+                    </a>
+                  </p>
+                  <p style="color: #9ca3af; font-size: 11px; margin: 16px 0 0 0;">
+                    &copy; ${new Date().getFullYear()} Active Circle. All rights reserved.
+                  </p>
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+}
+
+// ─── BOOKING TEMPLATES ───────────────────────────────────────────
 
 /**
  * Booking Request Sent (to Member)
@@ -15,16 +113,27 @@ export function bookingRequestSentToMember(data: {
   activityPrice: number;
 }): string {
   const { memberName, memberEmail, activityTitle, activityPrice } = data;
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2>${activityPrice > 0 ? 'Booking Request Sent' : 'Free Activity Booking Request'}</h2>
-      <p>Hello ${memberName || memberEmail},</p>
-      <p>Your booking request for <strong>${activityTitle}</strong> has been sent.</p>
-      <p>Status: <strong>Pending Host Approval</strong></p>
-      ${activityPrice > 0 ? `<p>Amount: $${activityPrice}</p>` : '<p>This is a free activity.</p>'}
-      <p>We'll notify you once the host responds.</p>
-    </div>
+  const body = `
+    <p style="color: #374151; font-size: 16px; margin: 0 0 12px 0;">Hello ${memberName || memberEmail},</p>
+    <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 12px 0;">
+      Your booking request for <strong>${activityTitle}</strong> has been sent.
+    </p>
+    <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 12px 0;">
+      Status: <strong>Pending Host Approval</strong>
+    </p>
+    ${
+      activityPrice > 0
+        ? `<p style="color: #333; font-size: 16px; margin: 0 0 12px 0;">Amount: £${activityPrice}</p>`
+        : '<p style="color: #333; font-size: 16px; margin: 0 0 12px 0;">This is a free activity.</p>'
+    }
+    <p style="color: #6b7280; font-size: 14px; margin: 0;">We'll notify you once the host responds.</p>
   `;
+  return wrapEmailTemplate(
+    activityPrice > 0
+      ? 'Booking Request Sent'
+      : 'Free Activity Booking Request',
+    body,
+  );
 }
 
 /**
@@ -46,16 +155,24 @@ export function newBookingRequestToHost(data: {
     memberEmail,
     activityPrice,
   } = data;
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2>New Booking Request</h2>
-      <p>Hello ${hostName || hostEmail},</p>
-      <p>You have a new booking request for <strong>${activityTitle}</strong>.</p>
-      <p>Member: <strong>${memberName || memberEmail}</strong></p>
-      ${activityPrice > 0 ? `<p>Amount: $${activityPrice}</p>` : '<p>This is a free activity.</p>'}
-      <p>Please review and approve or decline the booking.</p>
-    </div>
+  const body = `
+    <p style="color: #374151; font-size: 16px; margin: 0 0 12px 0;">Hello ${hostName || hostEmail},</p>
+    <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 12px 0;">
+      You have a new booking request for <strong>${activityTitle}</strong>.
+    </p>
+    <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 12px 0;">
+      Member: <strong>${memberName || memberEmail}</strong>
+    </p>
+    ${
+      activityPrice > 0
+        ? `<p style="color: #333; font-size: 16px; margin: 0 0 12px 0;">Amount: £${activityPrice}</p>`
+        : '<p style="color: #333; font-size: 16px; margin: 0 0 12px 0;">This is a free activity.</p>'
+    }
+    <p style="color: #6b7280; font-size: 14px; margin: 0;">Please review and approve or decline the booking.</p>
   `;
+  return wrapEmailTemplate('New Booking Request', body, {
+    ctaText: 'Review Booking',
+  });
 }
 
 /**
@@ -67,14 +184,14 @@ export function bookingConfirmedToMember(data: {
   activityTitle: string;
 }): string {
   const { memberName, memberEmail, activityTitle } = data;
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2>Booking Confirmed!</h2>
-      <p>Hello ${memberName || memberEmail},</p>
-      <p>Great news! Your booking for <strong>${activityTitle}</strong> has been confirmed by the host.</p>
-      <p>We look forward to seeing you at the activity!</p>
-    </div>
+  const body = `
+    <p style="color: #374151; font-size: 16px; margin: 0 0 12px 0;">Hello ${memberName || memberEmail},</p>
+    <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 12px 0;">
+      Great news! Your booking for <strong>${activityTitle}</strong> has been confirmed by the host.
+    </p>
+    <p style="color: #6b7280; font-size: 14px; margin: 0;">We look forward to seeing you at the activity!</p>
   `;
+  return wrapEmailTemplate('Booking Confirmed! ✅', body);
 }
 
 /**
@@ -89,15 +206,15 @@ export function bookingDeclinedToMember(data: {
 }): string {
   const { memberName, memberEmail, activityTitle, declineReason, isPaid } =
     data;
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2>Booking Declined</h2>
-      <p>Hello ${memberName || memberEmail},</p>
-      <p>Unfortunately, your booking for <strong>${activityTitle}</strong> has been declined by the host.</p>
-      ${declineReason ? `<p>Reason: ${declineReason}</p>` : ''}
-      ${isPaid ? '<p>Your payment has been refunded to your original payment method.</p>' : ''}
-    </div>
+  const body = `
+    <p style="color: #374151; font-size: 16px; margin: 0 0 12px 0;">Hello ${memberName || memberEmail},</p>
+    <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 12px 0;">
+      Unfortunately, your booking for <strong>${activityTitle}</strong> has been declined by the host.
+    </p>
+    ${declineReason ? `<p style="color: #333; font-size: 16px; margin: 0 0 12px 0;">Reason: ${declineReason}</p>` : ''}
+    ${isPaid ? '<p style="color: #333; font-size: 16px; margin: 0 0 12px 0;">Your payment has been refunded to your original payment method.</p>' : ''}
   `;
+  return wrapEmailTemplate('Booking Declined', body);
 }
 
 /**
@@ -110,14 +227,14 @@ export function bookingCancelledFreeToMember(data: {
   cancelReason?: string;
 }): string {
   const { memberName, memberEmail, activityTitle, cancelReason } = data;
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2>Booking Cancelled</h2>
-      <p>Hello ${memberName || memberEmail},</p>
-      <p>Your booking for <strong>${activityTitle}</strong> has been cancelled.</p>
-      ${cancelReason ? `<p>Reason: ${cancelReason}</p>` : ''}
-    </div>
+  const body = `
+    <p style="color: #374151; font-size: 16px; margin: 0 0 12px 0;">Hello ${memberName || memberEmail},</p>
+    <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 12px 0;">
+      Your booking for <strong>${activityTitle}</strong> has been cancelled.
+    </p>
+    ${cancelReason ? `<p style="color: #333; font-size: 16px; margin: 0 0 12px 0;">Reason: ${cancelReason}</p>` : ''}
   `;
+  return wrapEmailTemplate('Booking Cancelled', body);
 }
 
 /**
@@ -143,20 +260,24 @@ export function bookingCancelledWithRefundToMember(data: {
     refundPercentage,
     refundId,
   } = data;
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2>Booking Cancelled</h2>
-      <p>Hello ${memberName || memberEmail},</p>
-      <p>Your booking for <strong>${activityTitle}</strong> has been cancelled.</p>
-      ${cancelReason ? `<p>Reason: ${cancelReason}</p>` : ''}
-      <p><strong>Refund Details:</strong></p>
-      <p>Original Amount: $${originalAmount}</p>
-      <p>Refund Amount: $${(refundAmount / 100).toFixed(2)} (${refundPercentage}%)</p>
-      <p>Refund will be processed to your original payment method within 5-10 business days.</p>
-      <p>Refund ID: ${refundId}</p>
+  const body = `
+    <p style="color: #374151; font-size: 16px; margin: 0 0 12px 0;">Hello ${memberName || memberEmail},</p>
+    <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 12px 0;">
+      Your booking for <strong>${activityTitle}</strong> has been cancelled.
+    </p>
+    ${cancelReason ? `<p style="color: #333; font-size: 16px; margin: 0 0 12px 0;">Reason: ${cancelReason}</p>` : ''}
+    <div style="background-color: #f9fafb; border-radius: 6px; padding: 16px; margin: 16px 0;">
+      <p style="color: #1a365d; font-size: 16px; font-weight: bold; margin: 0 0 8px 0;">Refund Details</p>
+      <p style="color: #333; font-size: 14px; margin: 0 0 4px 0;">Original Amount: £${originalAmount}</p>
+      <p style="color: #333; font-size: 14px; margin: 0 0 4px 0;">Refund Amount: £${(refundAmount / 100).toFixed(2)} (${refundPercentage}%)</p>
+      <p style="color: #6b7280; font-size: 13px; margin: 8px 0 0 0;">Refund ID: ${refundId}</p>
     </div>
+    <p style="color: #6b7280; font-size: 14px; margin: 0;">Refund will be processed to your original payment method within 5-10 business days.</p>
   `;
+  return wrapEmailTemplate('Booking Cancelled — Refund Issued', body);
 }
+
+// ─── MESSAGE TEMPLATES ───────────────────────────────────────────
 
 /**
  * New Message (to Host)
@@ -169,23 +290,22 @@ export function newMessageToHost(data: {
   content: string;
 }): string {
   const { memberName, memberEmail, activityTitle, subject, content } = data;
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2>New Message from ${memberName || memberEmail}</h2>
-      <p><strong>Activity:</strong> ${activityTitle}</p>
-      <p><strong>Subject:</strong> ${subject}</p>
-      <p><strong>Message:</strong></p>
-      <p style="background-color: #f5f5f5; padding: 15px; border-radius: 5px;">
-        ${content.replace(/\n/g, '<br>')}
-      </p>
-      <p style="margin-top: 20px;">
-        <a href="${FRONTEND_URL}/messages" 
-           style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
-          View Message
-        </a>
-      </p>
+  const body = `
+    <p style="color: #333; font-size: 16px; margin: 0 0 12px 0;"><strong>Activity:</strong> ${activityTitle}</p>
+    <p style="color: #333; font-size: 16px; margin: 0 0 12px 0;"><strong>Subject:</strong> ${subject}</p>
+    <p style="color: #333; font-size: 16px; margin: 0 0 8px 0;"><strong>Message:</strong></p>
+    <div style="background-color: #f5f5f5; padding: 15px; border-radius: 6px; margin: 0 0 12px 0;">
+      <p style="color: #333; font-size: 14px; line-height: 1.6; margin: 0;">${content.replace(/\n/g, '<br>')}</p>
     </div>
   `;
+  return wrapEmailTemplate(
+    `New Message from ${memberName || memberEmail}`,
+    body,
+    {
+      ctaText: 'View Message',
+      ctaUrl: `${FRONTEND_URL}/messages`,
+    },
+  );
 }
 
 /**
@@ -200,26 +320,21 @@ export function replyToMessageToMember(data: {
 }): string {
   const { hostName, hostEmail, activityTitle, originalMessage, replyContent } =
     data;
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2>Reply from ${hostName || hostEmail}</h2>
-      <p><strong>Activity:</strong> ${activityTitle || 'N/A'}</p>
-      <p><strong>Original Message:</strong></p>
-      <p style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; border-left: 3px solid #007bff;">
-        ${originalMessage.replace(/\n/g, '<br>')}
-      </p>
-      <p><strong>Reply:</strong></p>
-      <p style="background-color: #e8f5e9; padding: 15px; border-radius: 5px; border-left: 3px solid #28a745;">
-        ${replyContent.replace(/\n/g, '<br>')}
-      </p>
-      <p style="margin-top: 20px;">
-        <a href="${FRONTEND_URL}/messages" 
-           style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
-          View Message
-        </a>
-      </p>
+  const body = `
+    <p style="color: #333; font-size: 16px; margin: 0 0 12px 0;"><strong>Activity:</strong> ${activityTitle || 'N/A'}</p>
+    <p style="color: #333; font-size: 16px; margin: 0 0 8px 0;"><strong>Original Message:</strong></p>
+    <div style="background-color: #f5f5f5; padding: 15px; border-radius: 6px; border-left: 3px solid #007bff; margin: 0 0 16px 0;">
+      <p style="color: #333; font-size: 14px; line-height: 1.6; margin: 0;">${originalMessage.replace(/\n/g, '<br>')}</p>
+    </div>
+    <p style="color: #333; font-size: 16px; margin: 0 0 8px 0;"><strong>Reply:</strong></p>
+    <div style="background-color: #e8f5e9; padding: 15px; border-radius: 6px; border-left: 3px solid #28a745; margin: 0 0 12px 0;">
+      <p style="color: #333; font-size: 14px; line-height: 1.6; margin: 0;">${replyContent.replace(/\n/g, '<br>')}</p>
     </div>
   `;
+  return wrapEmailTemplate(`Reply from ${hostName || hostEmail}`, body, {
+    ctaText: 'View Message',
+    ctaUrl: `${FRONTEND_URL}/messages`,
+  });
 }
 
 /**
@@ -241,28 +356,25 @@ export function broadcastMessageToMember(data: {
     subject,
     content,
   } = data;
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2>Message from ${hostName || hostEmail}</h2>
-      <p><strong>Activity:</strong> ${activityTitle}</p>
-      <p><strong>Type:</strong> ${broadcastType.replace('_', ' ').toUpperCase()}</p>
-      <p><strong>Subject:</strong> ${subject}</p>
-      <p><strong>Message:</strong></p>
-      <p style="background-color: #f5f5f5; padding: 15px; border-radius: 5px;">
-        ${content.replace(/\n/g, '<br>')}
-      </p>
-      <p style="margin-top: 20px;">
-        <a href="${FRONTEND_URL}/messages" 
-           style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
-          View Message
-        </a>
-      </p>
+  const body = `
+    <p style="color: #333; font-size: 16px; margin: 0 0 12px 0;"><strong>Activity:</strong> ${activityTitle}</p>
+    <p style="color: #333; font-size: 16px; margin: 0 0 12px 0;"><strong>Type:</strong> ${broadcastType.replace('_', ' ').toUpperCase()}</p>
+    <p style="color: #333; font-size: 16px; margin: 0 0 12px 0;"><strong>Subject:</strong> ${subject}</p>
+    <p style="color: #333; font-size: 16px; margin: 0 0 8px 0;"><strong>Message:</strong></p>
+    <div style="background-color: #f5f5f5; padding: 15px; border-radius: 6px; margin: 0 0 12px 0;">
+      <p style="color: #333; font-size: 14px; line-height: 1.6; margin: 0;">${content.replace(/\n/g, '<br>')}</p>
     </div>
   `;
+  return wrapEmailTemplate(`Message from ${hostName || hostEmail}`, body, {
+    ctaText: 'View Message',
+    ctaUrl: `${FRONTEND_URL}/messages`,
+  });
 }
 
+// ─── CONTACT US ──────────────────────────────────────────────────
+
 /**
- * Contact Us (to Admin)
+ * Contact Us (to Admin) — kept simple, admin-only
  */
 export function contactUsToAdmin(data: {
   name: string;
@@ -279,6 +391,8 @@ export function contactUsToAdmin(data: {
   `;
 }
 
+// ─── PASSWORD TEMPLATES ──────────────────────────────────────────
+
 /**
  * Password Reset Request
  */
@@ -288,21 +402,21 @@ export function passwordResetRequest(data: {
   resetLink: string;
 }): string {
   const { userName, userEmail, resetLink } = data;
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2>Password Reset Request</h2>
-      <p>Hello ${userName || userEmail},</p>
-      <p>You requested to reset your password. Please click the link below to reset your password:</p>
-      <p style="margin: 20px 0;">
-        <a href="${resetLink}" style="background-color: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Reset Password</a>
-      </p>
-      <p>Or copy and paste this link in your browser:</p>
-      <p style="word-break: break-all; color: #666;">${resetLink}</p>
-      <p style="color: #999; font-size: 12px; margin-top: 30px;">
-        If you did not request this password reset, please ignore this email. This link will expire in 24 hours.
-      </p>
-    </div>
+  const body = `
+    <p style="color: #374151; font-size: 16px; margin: 0 0 12px 0;">Hello ${userName || userEmail},</p>
+    <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
+      You requested to reset your password. Please click the button below to reset your password:
+    </p>
+    <p style="color: #6b7280; font-size: 13px; margin: 16px 0 0 0;">Or copy and paste this link in your browser:</p>
+    <p style="word-break: break-all; color: #666; font-size: 12px; margin: 4px 0 0 0;">${resetLink}</p>
+    <p style="color: #9ca3af; font-size: 12px; margin: 16px 0 0 0;">
+      If you did not request this password reset, please ignore this email. This link will expire in 24 hours.
+    </p>
   `;
+  return wrapEmailTemplate('Password Reset Request', body, {
+    ctaText: 'Reset Password',
+    ctaUrl: resetLink,
+  });
 }
 
 /**
@@ -313,14 +427,16 @@ export function passwordResetSuccessful(data: {
   userEmail: string;
 }): string {
   const { userName, userEmail } = data;
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2>Password Reset Successful</h2>
-      <p>Hello ${userName || userEmail},</p>
-      <p>Your password has been successfully reset.</p>
-      <p>If you did not make this change, please contact support immediately.</p>
-    </div>
+  const body = `
+    <p style="color: #374151; font-size: 16px; margin: 0 0 12px 0;">Hello ${userName || userEmail},</p>
+    <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 12px 0;">
+      Your password has been successfully reset.
+    </p>
+    <p style="color: #6b7280; font-size: 14px; margin: 0;">
+      If you did not make this change, please contact support immediately.
+    </p>
   `;
+  return wrapEmailTemplate('Password Reset Successful ✅', body);
 }
 
 /**
@@ -331,15 +447,19 @@ export function passwordChangedSuccessfully(data: {
   userEmail: string;
 }): string {
   const { userName, userEmail } = data;
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2>Password Changed Successfully</h2>
-      <p>Hello ${userName || userEmail},</p>
-      <p>Your password has been successfully changed.</p>
-      <p>If you did not make this change, please contact support immediately.</p>
-    </div>
+  const body = `
+    <p style="color: #374151; font-size: 16px; margin: 0 0 12px 0;">Hello ${userName || userEmail},</p>
+    <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 12px 0;">
+      Your password has been successfully changed.
+    </p>
+    <p style="color: #6b7280; font-size: 14px; margin: 0;">
+      If you did not make this change, please contact support immediately.
+    </p>
   `;
+  return wrapEmailTemplate('Password Changed Successfully ✅', body);
 }
+
+// ─── ACTIVITY TEMPLATES ──────────────────────────────────────────
 
 /**
  * Activity Cancelled by Host (Free Activity - to Member)
@@ -353,15 +473,15 @@ export function activityCancelledFreeToMember(data: {
 }): string {
   const { memberName, memberEmail, activityTitle, activityDate, cancelReason } =
     data;
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2>Activity Cancelled</h2>
-      <p>Hello ${memberName || memberEmail},</p>
-      <p>We regret to inform you that the activity <strong>${activityTitle}</strong> scheduled for ${activityDate} has been cancelled by the host.</p>
-      ${cancelReason ? `<p><strong>Reason:</strong> ${cancelReason}</p>` : ''}
-      <p>We apologize for any inconvenience this may cause.</p>
-    </div>
+  const body = `
+    <p style="color: #374151; font-size: 16px; margin: 0 0 12px 0;">Hello ${memberName || memberEmail},</p>
+    <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 12px 0;">
+      We regret to inform you that the activity <strong>${activityTitle}</strong> scheduled for ${activityDate} has been cancelled by the host.
+    </p>
+    ${cancelReason ? `<p style="color: #333; font-size: 16px; margin: 0 0 12px 0;"><strong>Reason:</strong> ${cancelReason}</p>` : ''}
+    <p style="color: #6b7280; font-size: 14px; margin: 0;">We apologize for any inconvenience this may cause.</p>
   `;
+  return wrapEmailTemplate('Activity Cancelled', body);
 }
 
 /**
@@ -387,21 +507,68 @@ export function activityCancelledWithRefundToMember(data: {
     refundAmount,
     refundId,
   } = data;
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2>Activity Cancelled</h2>
-      <p>Hello ${memberName || memberEmail},</p>
-      <p>We regret to inform you that the activity <strong>${activityTitle}</strong> scheduled for ${activityDate} has been cancelled by the host.</p>
-      ${cancelReason ? `<p><strong>Reason:</strong> ${cancelReason}</p>` : ''}
-      <p><strong>Refund Details:</strong></p>
-      <p>Original Amount: $${originalAmount.toFixed(2)}</p>
-      <p>Refund Amount: $${(refundAmount / 100).toFixed(2)}</p>
-      <p>Refund will be processed to your original payment method within 5-10 business days.</p>
-      <p>Refund ID: ${refundId}</p>
-      <p>We apologize for any inconvenience this may cause.</p>
+  const body = `
+    <p style="color: #374151; font-size: 16px; margin: 0 0 12px 0;">Hello ${memberName || memberEmail},</p>
+    <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 12px 0;">
+      We regret to inform you that the activity <strong>${activityTitle}</strong> scheduled for ${activityDate} has been cancelled by the host.
+    </p>
+    ${cancelReason ? `<p style="color: #333; font-size: 16px; margin: 0 0 12px 0;"><strong>Reason:</strong> ${cancelReason}</p>` : ''}
+    <div style="background-color: #f9fafb; border-radius: 6px; padding: 16px; margin: 16px 0;">
+      <p style="color: #1a365d; font-size: 16px; font-weight: bold; margin: 0 0 8px 0;">Refund Details</p>
+      <p style="color: #333; font-size: 14px; margin: 0 0 4px 0;">Original Amount: £${originalAmount.toFixed(2)}</p>
+      <p style="color: #333; font-size: 14px; margin: 0 0 4px 0;">Refund Amount: £${(refundAmount / 100).toFixed(2)}</p>
+      <p style="color: #6b7280; font-size: 13px; margin: 8px 0 0 0;">Refund ID: ${refundId}</p>
     </div>
+    <p style="color: #6b7280; font-size: 14px; margin: 0;">Refund will be processed to your original payment method within 5-10 business days.</p>
   `;
+  return wrapEmailTemplate('Activity Cancelled — Refund Issued', body);
 }
+
+// ─── SESSION REMINDER ────────────────────────────────────────────
+
+/**
+ * Session reminder (upcoming activity)
+ */
+export function sessionReminderEmail(data: {
+  memberName: string;
+  memberEmail: string;
+  activityTitle: string;
+  activityDate: Date;
+  location?: string;
+  hoursUntil?: number;
+}): string {
+  const {
+    memberName,
+    memberEmail,
+    activityTitle,
+    activityDate,
+    location,
+    hoursUntil,
+  } = data;
+  const dateStr = new Date(activityDate).toLocaleString(undefined, {
+    dateStyle: 'full',
+    timeStyle: 'short',
+  });
+  const when =
+    hoursUntil != null
+      ? `in ${hoursUntil} hour${hoursUntil !== 1 ? 's' : ''}`
+      : 'soon';
+  const body = `
+    <p style="color: #374151; font-size: 16px; margin: 0 0 12px 0;">Hello ${memberName || memberEmail},</p>
+    <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
+      This is a friendly reminder that you have a session coming up ${when}:
+    </p>
+    <div style="background-color: #f9fafb; border-radius: 6px; padding: 16px; margin: 0 0 16px 0;">
+      <p style="color: #1a365d; font-size: 18px; font-weight: bold; margin: 0 0 8px 0;">${activityTitle}</p>
+      <p style="color: #333; font-size: 14px; margin: 0 0 4px 0;">📅 ${dateStr}</p>
+      ${location ? `<p style="color: #333; font-size: 14px; margin: 0;">📍 ${location}</p>` : ''}
+    </div>
+    <p style="color: #6b7280; font-size: 14px; margin: 0;">We look forward to seeing you!</p>
+  `;
+  return wrapEmailTemplate('Session Reminder ⏰', body);
+}
+
+// ─── WELCOME EMAILS (already branded — kept as-is) ──────────────
 
 /**
  * Welcome Email for Member (on Sign Up)
@@ -419,28 +586,12 @@ export function welcomeEmailMember(data: {
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <style>
         @media only screen and (max-width: 600px) {
-          .container {
-            width: 100% !important;
-            max-width: 100% !important;
-          }
-          .content {
-            padding: 30px 20px !important;
-          }
-          .heading-large {
-            font-size: 36px !important;
-            line-height: 1.2 !important;
-          }
-          .heading-medium {
-            font-size: 24px !important;
-            line-height: 1.3 !important;
-          }
-          .text-small {
-            font-size: 14px !important;
-          }
-          .text-medium {
-            font-size: 18px !important;
-            line-height: 1.5 !important;
-          }
+          .container { width: 100% !important; max-width: 100% !important; }
+          .content { padding: 30px 20px !important; }
+          .heading-large { font-size: 36px !important; line-height: 1.2 !important; }
+          .heading-medium { font-size: 24px !important; line-height: 1.3 !important; }
+          .text-small { font-size: 14px !important; }
+          .text-medium { font-size: 18px !important; line-height: 1.5 !important; }
         }
       </style>
     </head>
@@ -489,8 +640,18 @@ export function welcomeEmailMember(data: {
               <tr>
                 <td class="content" style="padding: 0 40px 30px 40px; text-align: center;">
                   <p class="text-medium" style="color: #333333; font-size: 20px; font-weight: bold; margin: 0; line-height: 1.4;">
-                    You’re one step closer to building meaningful connections through movement
+                    You're one step closer to building meaningful connections through movement
                   </p>
+                </td>
+              </tr>
+
+              <!-- CTA Button -->
+              <tr>
+                <td style="padding: 0 40px 30px 40px; text-align: center;">
+                  <a href="${LOGIN_URL}" 
+                     style="display: inline-block; background-color: #F98C01; color: #ffffff; font-size: 16px; font-weight: bold; padding: 14px 32px; text-decoration: none; border-radius: 6px;">
+                    Get Started
+                  </a>
                 </td>
               </tr>
 
@@ -546,28 +707,12 @@ export function welcomeEmailHost(data: {
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <style>
         @media only screen and (max-width: 600px) {
-          .container {
-            width: 100% !important;
-            max-width: 100% !important;
-          }
-          .content {
-            padding: 30px 20px !important;
-          }
-          .heading-large {
-            font-size: 36px !important;
-            line-height: 1.2 !important;
-          }
-          .heading-medium {
-            font-size: 24px !important;
-            line-height: 1.3 !important;
-          }
-          .text-small {
-            font-size: 14px !important;
-          }
-          .text-medium {
-            font-size: 18px !important;
-            line-height: 1.5 !important;
-          }
+          .container { width: 100% !important; max-width: 100% !important; }
+          .content { padding: 30px 20px !important; }
+          .heading-large { font-size: 36px !important; line-height: 1.2 !important; }
+          .heading-medium { font-size: 24px !important; line-height: 1.3 !important; }
+          .text-small { font-size: 14px !important; }
+          .text-medium { font-size: 18px !important; line-height: 1.5 !important; }
         }
       </style>
     </head>
@@ -621,6 +766,16 @@ export function welcomeEmailHost(data: {
                 </td>
               </tr>
 
+              <!-- CTA Button -->
+              <tr>
+                <td style="padding: 0 40px 30px 40px; text-align: center;">
+                  <a href="${LOGIN_URL}" 
+                     style="display: inline-block; background-color: #F98C01; color: #ffffff; font-size: 16px; font-weight: bold; padding: 14px 32px; text-decoration: none; border-radius: 6px;">
+                    Get Started
+                  </a>
+                </td>
+              </tr>
+
               <!-- Real People / Real connections -->
               <tr>
                 <td class="content" style="padding: 0 40px 50px 40px; text-align: center;">
@@ -656,6 +811,8 @@ export function welcomeEmailHost(data: {
   `;
 }
 
+// ─── MARKETING EMAIL (already branded — kept as-is) ─────────────
+
 /**
  * Marketing / broadcast email (admin to all members)
  * Single template on backend – admin only sends subject (and optional message).
@@ -674,10 +831,11 @@ export function marketingBroadcastEmail(data: {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
-  const safeMessage = message && message.trim() ? escapeHtml(message).replace(/\n/g, '<br>') : '';
+  const safeMessage =
+    message && message.trim() ? escapeHtml(message).replace(/\n/g, '<br>') : '';
   const bodyContent = safeMessage
-      ? `<p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">${safeMessage}</p>`
-      : `
+    ? `<p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">${safeMessage}</p>`
+    : `
       <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
         We have new activities and updates for you. Log in to the app to discover what's happening near you.
       </p>
@@ -704,11 +862,24 @@ export function marketingBroadcastEmail(data: {
                 </td>
               </tr>
               <tr>
-                <td style="padding: 24px 40px 32px 40px;">
+                <td style="padding: 24px 40px 16px 40px;">
                   <h1 style="color: #1a365d; font-size: 22px; margin: 0 0 16px 0; font-weight: bold;">${subject}</h1>
                   <p style="color: #374151; font-size: 16px; margin: 0 0 20px 0;">${greeting}</p>
                   ${bodyContent}
-                  <p style="color: #6b7280; font-size: 12px; margin-top: 28px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                </td>
+              </tr>
+              <!-- CTA Button -->
+              <tr>
+                <td style="padding: 0 40px 24px 40px; text-align: center;">
+                  <a href="${LOGIN_URL}" 
+                     style="display: inline-block; background-color: #F98C01; color: #ffffff; font-size: 16px; font-weight: bold; padding: 14px 32px; text-decoration: none; border-radius: 6px;">
+                    Go to Active Circle
+                  </a>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 20px 40px 30px 40px; border-top: 1px solid #e5e7eb; text-align: center;">
+                  <p style="color: #6b7280; font-size: 12px; margin: 0;">
                     You received this email from Active Circle. To manage your preferences, visit your account settings.
                   </p>
                 </td>
@@ -722,36 +893,7 @@ export function marketingBroadcastEmail(data: {
   `;
 }
 
-/**
- * Session reminder (upcoming activity)
- */
-export function sessionReminderEmail(data: {
-  memberName: string;
-  memberEmail: string;
-  activityTitle: string;
-  activityDate: Date;
-  location?: string;
-  hoursUntil?: number;
-}): string {
-  const { memberName, memberEmail, activityTitle, activityDate, location, hoursUntil } = data;
-  const dateStr = new Date(activityDate).toLocaleString(undefined, {
-    dateStyle: 'full',
-    timeStyle: 'short',
-  });
-  const when = hoursUntil != null ? `in ${hoursUntil} hour${hoursUntil !== 1 ? 's' : ''}` : 'soon';
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2>Reminder: Your session is coming up</h2>
-      <p>Hello ${memberName || memberEmail},</p>
-      <p>This is a friendly reminder that you have a session coming up ${when}:</p>
-      <p><strong>${activityTitle}</strong></p>
-      <p>Date & time: ${dateStr}</p>
-      ${location ? `<p>Location: ${location}</p>` : ''}
-      <p>We look forward to seeing you!</p>
-      <p style="color: #6b7280; font-size: 12px;">Active Circle</p>
-    </div>
-  `;
-}
+// ─── EMAIL VERIFICATION OTP (already branded — kept as-is) ──────
 
 /**
  * Email verification OTP (sent after signup)

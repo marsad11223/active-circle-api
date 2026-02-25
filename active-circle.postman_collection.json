@@ -297,12 +297,21 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"email\": \"marsad11223@gmail.com\",\n  \"otp\": \"123456\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/auth/verify-email",
-							"host": ["{{base_url}}"],
-							"path": ["auth", "verify-email"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"verify-email"
+							]
 						},
 						"description": "Verify email with 6-digit OTP sent after signup. On success returns data + accessToken (use token to log in). OTP expires in 10 min; max 5 attempts."
 					},
@@ -316,12 +325,21 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"email\": \"marsad11223@gmail.com\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/auth/resend-email-otp",
-							"host": ["{{base_url}}"],
-							"path": ["auth", "resend-email-otp"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"resend-email-otp"
+							]
 						},
 						"description": "Resend verification OTP to email. 60 s cooldown between requests."
 					},
@@ -2433,12 +2451,22 @@
 								"body": {
 									"mode": "raw",
 									"raw": "{\n  \"subject\": \"Monthly update from Active Circle\",\n  \"message\": \"New activities are live. Log in to book your spot!\",\n  \"respectMarketingPreference\": true,\n  \"testMode\": true\n}",
-									"options": { "raw": { "language": "json" } }
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
 								},
 								"url": {
 									"raw": "{{base_url}}/users/admin/send-marketing-email",
-									"host": ["{{base_url}}"],
-									"path": ["users", "admin", "send-marketing-email"]
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"users",
+										"admin",
+										"send-marketing-email"
+									]
 								},
 								"description": "Admin only. Send one marketing email to every member. Template is on backend. Body: subject (required), message (optional), respectMarketingPreference (optional), testMode (optional). If testMode=true, sends only to TEST_EMAIL. Returns { sent, failed, total, message }."
 							},
@@ -2461,8 +2489,14 @@
 								"header": [],
 								"url": {
 									"raw": "{{base_url}}/users/admin/send-session-reminders?hoursAhead=24&testMode=true",
-									"host": ["{{base_url}}"],
-									"path": ["users", "admin", "send-session-reminders"],
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"users",
+										"admin",
+										"send-session-reminders"
+									],
 									"query": [
 										{
 											"key": "hoursAhead",
@@ -3369,6 +3403,36 @@
 							]
 						},
 						"description": "Cancel subscription at period end. Works for both active and trialing subscriptions. Hosts can cancel their own; superAdmin can pass hostId to cancel another host's subscription."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Email",
+			"item": [
+				{
+					"name": "Send Test Email",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/test-email?to=marsad11223@gmail.com",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"test-email"
+							],
+							"query": [
+								{
+									"key": "to",
+									"value": "marsad11223@gmail.com",
+									"description": "Recipient email address"
+								}
+							]
+						},
+						"description": "Send a test email to verify Resend email delivery is working. Change the 'to' query parameter to test with different email providers (Gmail, Hotmail, Outlook, etc.)."
 					},
 					"response": []
 				}

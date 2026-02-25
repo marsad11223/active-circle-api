@@ -1,30 +1,30 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import sgMail from '@sendgrid/mail';
+import { Resend } from 'resend';
 
 @Injectable()
 export class SendGridService {
+  private resend: Resend;
   private defaultFrom: string;
 
   constructor(private configService: ConfigService) {
-    const apiKey = this.configService.get<string>('SEND_GRID_API_KEY');
+    const apiKey = this.configService.get<string>('RESEND_API_KEY');
     if (!apiKey) {
-      throw new Error('SEND_GRID_API_KEY is not set in environment variables');
+      throw new Error('RESEND_API_KEY is not set in environment variables');
     }
-    sgMail.setApiKey(apiKey);
+    this.resend = new Resend(apiKey);
 
     // Set default from email (use EMAIL_USERNAME if available, otherwise use a default)
     const emailUsername = this.configService.get<string>('EMAIL_USERNAME');
-    this.defaultFrom = emailUsername || 'noreply@activecircle.com';
+    this.defaultFrom = emailUsername || 'noreply@mail.theactivecircle.com';
   }
 
   /**
-   * Send email using SendGrid
-   * Compatible with MailerService.sendMail() interface
+   * Send email using Resend
+   * Compatible with the existing sendMail() interface used across the app
    */
   async sendMail(options: {
     to: string | string[];
-    from?: string;
     subject: string;
     html: string;
     text?: string;
@@ -32,26 +32,28 @@ export class SendGridService {
     const emailsEnabled =
       this.configService.get<string>('EMAILS_ENABLED') === 'true';
     if (!emailsEnabled) {
-      console.log('[SendGrid] Emails disabled, skipping email send');
+      console.log('[Resend] Emails disabled, skipping email send');
       return;
     }
 
     try {
-      const msg = {
-        to: options.to,
-        from: options.from || `<${this.defaultFrom}>`,
+      // Ensure 'to' is always an array for Resend
+      const toAddresses = Array.isArray(options.to) ? options.to : [options.to];
+
+      const result = await this.resend.emails.send({
+        from: this.defaultFrom,
+        to: toAddresses,
         subject: options.subject,
         html: options.html,
-        text: options.text || options.html.replace(/<[^>]*>/g, ''), // Strip HTML tags for text version
-      };
+        text: options.text || options.html.replace(/<[^>]*>/g, ''),
+      });
 
-      const result = await sgMail.send(msg);
-      console.log('[SendGrid] Email sent successfully to:', options.to);
+      console.log('[Resend] Email sent successfully to:', options.to);
       return result;
     } catch (error: any) {
-      console.error('[SendGrid] Error sending email:', error);
-      if (error.response) {
-        console.error('[SendGrid] Error details:', error.response.body);
+      console.error('[Resend] Error sending email:', error);
+      if (error.message) {
+        console.error('[Resend] Error details:', error.message);
       }
       throw error;
     }
