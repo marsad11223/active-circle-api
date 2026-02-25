@@ -8,7 +8,7 @@ import { Activity, ActivitySchema } from 'src/schemas/activity.schema';
 import { User, UserSchema } from 'src/schemas/user.schema';
 import { AuthModule } from 'src/auth/auth.module';
 
-import { SendGridModule } from '../sendgrid/sendgrid.module';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
@@ -19,11 +19,10 @@ import { SendGridModule } from '../sendgrid/sendgrid.module';
       { name: User.name, schema: UserSchema },
     ]),
     forwardRef(() => AuthModule),
-    SendGridModule,
+    EmailModule,
   ],
   controllers: [MessageController],
   providers: [MessageService],
   exports: [MessageService],
 })
 export class MessageModule {}
-

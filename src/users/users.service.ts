@@ -20,8 +20,11 @@ import mongoose, { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { ContactUsDto } from './dto/contact-us.dto';
 import { SendMarketingEmailDto } from './dto/send-marketing-email.dto';
-import { SendGridService } from '../sendgrid/sendgrid.service';
-import { marketingBroadcastEmail, sessionReminderEmail } from 'src/utils/email-templates';
+import { EmailService } from '../email/email.service';
+import {
+  marketingBroadcastEmail,
+  sessionReminderEmail,
+} from 'src/utils/email-templates';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { contactUsToAdmin } from 'src/utils/email-templates';
@@ -42,14 +45,16 @@ export class UsersService {
     @InjectModel(Booking.name) private readonly bookingModel: Model<Booking>,
     @InjectModel(Subscription.name)
     private readonly subscriptionModel: Model<Subscription>,
-    private readonly sendGridService: SendGridService,
+    private readonly emailService: EmailService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) {}
 
   async validateUser(email: string) {
     const emailNormalized = normalizeEmail(email);
-    const user: User | null = await this.userModel.findOne({ email: emailNormalized });
+    const user: User | null = await this.userModel.findOne({
+      email: emailNormalized,
+    });
     if (user) {
       return user;
     } else {
@@ -94,7 +99,7 @@ export class UsersService {
 
     if (emailsEnabled) {
       try {
-        await this.sendGridService.sendMail({
+        await this.emailService.sendMail({
           to: 'marsad11223@gmail.com',
           subject: subject,
           html: contactUsToAdmin({
@@ -844,7 +849,7 @@ export class UsersService {
           subject: dto.subject,
           message: dto.message,
         });
-        await this.sendGridService.sendMail({
+        await this.emailService.sendMail({
           to: testEmail,
           subject: `[TEST] ${dto.subject}`,
           html,
@@ -871,10 +876,7 @@ export class UsersService {
     if (respect) {
       query.marketingEmails = true;
     }
-    const users = await this.userModel
-      .find(query)
-      .select('email name')
-      .lean();
+    const users = await this.userModel.find(query).select('email name').lean();
     let sent = 0;
     let failed = 0;
     const subject = dto.subject;
@@ -892,14 +894,18 @@ export class UsersService {
           subject,
           message,
         });
-        await this.sendGridService.sendMail({
+        await this.emailService.sendMail({
           to: email,
           subject,
           html,
         });
         sent++;
       } catch (err) {
-        console.error('[sendMarketingEmailToAll] Failed to send to', email, err);
+        console.error(
+          '[sendMarketingEmailToAll] Failed to send to',
+          email,
+          err,
+        );
         failed++;
       }
     }
@@ -953,7 +959,9 @@ export class UsersService {
       if (!activity || !member) continue;
       const activityDate = new Date(activity.date);
       if (activityDate < now || activityDate > cutoff) continue;
-      const hoursUntil = Math.round((activityDate.getTime() - now.getTime()) / (60 * 60 * 1000));
+      const hoursUntil = Math.round(
+        (activityDate.getTime() - now.getTime()) / (60 * 60 * 1000),
+      );
       inRange.push({
         memberId: (b as any).memberId?._id,
         memberName: member.name || member.email,
@@ -986,7 +994,7 @@ export class UsersService {
           location: item.location,
           hoursUntil: item.hoursUntil,
         });
-        await this.sendGridService.sendMail({
+        await this.emailService.sendMail({
           to: toEmail,
           subject: testMode
             ? `[TEST] Reminder: ${item.activityTitle} – ${new Date(item.activityDate).toLocaleString()}`

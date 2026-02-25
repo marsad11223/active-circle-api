@@ -20,7 +20,7 @@ import * as bcrypt from 'bcrypt';
 import { LoginUserDto } from './dto/login-user.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { SendGridService } from '../sendgrid/sendgrid.service';
+import { EmailService } from '../email/email.service';
 import { ConfigService } from '@nestjs/config';
 import {
   passwordResetRequest,
@@ -40,7 +40,7 @@ export class AuthService {
     @InjectModel(Subscription.name)
     private subscriptionModel: mongoose.Model<Subscription>,
     private jwtService: JwtService,
-    private readonly sendGridService: SendGridService,
+    private readonly emailService: EmailService,
     private configService: ConfigService,
   ) {}
 
@@ -104,7 +104,7 @@ export class AuthService {
             otp,
             expiresInMinutes: this.OTP_EXPIRY_MINUTES,
           });
-          this.sendGridService
+          this.emailService
             .sendMail({
               to: newUser.email,
               subject: 'Verify your email – Active Circle',
@@ -206,7 +206,7 @@ export class AuthService {
               userName: (updatedUser as any).name,
               userEmail: (updatedUser as any).email,
             });
-        this.sendGridService
+        this.emailService
           .sendMail({
             to: (updatedUser as any).email,
             subject: 'Welcome to Active Circle!',
@@ -267,7 +267,7 @@ export class AuthService {
         otp,
         expiresInMinutes: this.OTP_EXPIRY_MINUTES,
       });
-      await this.sendGridService.sendMail({
+      await this.emailService.sendMail({
         to: user.email,
         subject: 'Verify your email – Active Circle',
         html,
@@ -523,7 +523,7 @@ export class AuthService {
     }
 
     try {
-      const result: any = await this.sendGridService.sendMail(emailOptions);
+      const result: any = await this.emailService.sendMail(emailOptions);
       const emailDuration = Date.now() - startTime;
       const attemptDuration = Date.now() - attemptStartTime;
 
@@ -646,7 +646,7 @@ export class AuthService {
         this.configService.get<string>('EMAILS_ENABLED') === 'true';
       if (emailsEnabled) {
         try {
-          await this.sendGridService.sendMail({
+          await this.emailService.sendMail({
             to: user.email,
             subject: 'Password Reset Successful',
             html: passwordResetSuccessful({
@@ -718,7 +718,7 @@ export class AuthService {
         this.configService.get<string>('EMAILS_ENABLED') === 'true';
       if (emailsEnabled) {
         try {
-          await this.sendGridService.sendMail({
+          await this.emailService.sendMail({
             to: user.email,
             subject: 'Password Changed Successfully',
             html: passwordChangedSuccessfully({

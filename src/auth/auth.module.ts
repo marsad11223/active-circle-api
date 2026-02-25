@@ -13,13 +13,13 @@ import {
 } from 'src/schemas/subscription.schema';
 import { UsersModule } from 'src/users/users.module';
 
-import { SendGridModule } from '../sendgrid/sendgrid.module';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
     forwardRef(() => UsersModule),
     PassportModule,
-    SendGridModule,
+    EmailModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({

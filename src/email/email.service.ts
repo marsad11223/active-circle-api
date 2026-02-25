@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 
 @Injectable()
-export class SendGridService {
+export class EmailService {
   private resend: Resend;
   private defaultFrom: string;
 
@@ -21,7 +21,6 @@ export class SendGridService {
 
   /**
    * Send email using Resend
-   * Compatible with the existing sendMail() interface used across the app
    */
   async sendMail(options: {
     to: string | string[];

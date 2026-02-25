@@ -33,7 +33,7 @@ import {
 } from 'src/schemas/subscription.schema';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
-import { SendGridService } from '../sendgrid/sendgrid.service';
+import { EmailService } from '../email/email.service';
 
 const STANDARD_HOST_FREE_LIMIT = 2;
 const STANDARD_HOST_PAID_LIMIT = 1;
@@ -58,7 +58,7 @@ export class ActivityService {
     @InjectModel(Subscription.name)
     private readonly subscriptionModel: Model<Subscription>,
     private configService: ConfigService,
-    private readonly sendGridService: SendGridService,
+    private readonly emailService: EmailService,
   ) {
     const stripeSecretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (stripeSecretKey) {
@@ -1115,7 +1115,7 @@ export class ActivityService {
                       if (emailsEnabled) {
                         try {
                           const activityDate = new Date(activity.date);
-                          await this.sendGridService.sendMail({
+                          await this.emailService.sendMail({
                             to: member.email,
                             subject: 'Activity Cancelled - Refund Processed',
                             html: activityCancelledWithRefundToMember({
@@ -1190,7 +1190,7 @@ export class ActivityService {
             if (emailsEnabled) {
               try {
                 const activityDate = new Date(activity.date);
-                await this.sendGridService.sendMail({
+                await this.emailService.sendMail({
                   to: member.email,
                   subject: 'Activity Cancelled',
                   html: activityCancelledFreeToMember({
@@ -1229,7 +1229,7 @@ export class ActivityService {
             if (emailsEnabled) {
               try {
                 const activityDate = new Date(activity.date);
-                await this.sendGridService.sendMail({
+                await this.emailService.sendMail({
                   to: member.email,
                   subject: 'Activity Cancelled',
                   html: activityCancelledFreeToMember({

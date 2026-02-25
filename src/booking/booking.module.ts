@@ -8,7 +8,7 @@ import { User, UserSchema } from 'src/schemas/user.schema';
 import { Rating, RatingSchema } from 'src/schemas/rating.schema';
 import { AuthModule } from 'src/auth/auth.module';
 
-import { SendGridModule } from '../sendgrid/sendgrid.module';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
@@ -19,11 +19,10 @@ import { SendGridModule } from '../sendgrid/sendgrid.module';
       { name: Rating.name, schema: RatingSchema },
     ]),
     forwardRef(() => AuthModule),
-    SendGridModule,
+    EmailModule,
   ],
   controllers: [BookingController],
   providers: [BookingService],
   exports: [BookingService],
 })
 export class BookingModule {}
-

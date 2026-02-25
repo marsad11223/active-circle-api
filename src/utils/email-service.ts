@@ -1,7 +1,7 @@
 /**
  * Email service utility function
- * Compatible with both MailerService and SendGridService
- * @param mailservice - The email service instance (SendGridService or MailerService)
+ * Compatible with EmailService (Resend)
+ * @param mailservice - The email service instance (EmailService)
  * @param email - Recipient email address
  * @param content - HTML email content
  * @param title - Email subject

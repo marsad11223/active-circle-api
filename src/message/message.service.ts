@@ -13,7 +13,7 @@ import mongoose, { Model } from 'mongoose';
 import { SendMessageDto } from './dto/send-message.dto';
 import { ReplyMessageDto } from './dto/reply-message.dto';
 import { BroadcastMessageDto } from './dto/broadcast-message.dto';
-import { SendGridService } from '../sendgrid/sendgrid.service';
+import { EmailService } from '../email/email.service';
 import { ConfigService } from '@nestjs/config';
 import {
   newMessageToHost,
@@ -32,7 +32,7 @@ export class MessageService {
     private readonly activityModel: Model<Activity>,
     @InjectModel(User.name)
     private readonly userModel: Model<User>,
-    private readonly sendGridService: SendGridService,
+    private readonly emailService: EmailService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -109,7 +109,7 @@ export class MessageService {
         this.configService.get<string>('EMAILS_ENABLED') === 'true';
       if (emailsEnabled) {
         try {
-          await this.sendGridService.sendMail({
+          await this.emailService.sendMail({
             to: host.email,
             subject: `New Message: ${sendMessageDto.subject}`,
             html: newMessageToHost({
@@ -248,7 +248,7 @@ export class MessageService {
 
       // Send email to member
       try {
-        await this.sendGridService.sendMail({
+        await this.emailService.sendMail({
           to: memberDetails.email,
           subject: `Reply: ${originalMessage.subject}`,
           html: replyToMessageToMember({
@@ -388,7 +388,7 @@ export class MessageService {
         const emailsEnabled =
           this.configService.get<string>('EMAILS_ENABLED') === 'true';
         if (emailsEnabled) {
-          const emailPromise = this.sendGridService
+          const emailPromise = this.emailService
             .sendMail({
               to: member.email,
               subject: `[${broadcastDto.broadcastType.toUpperCase()}] ${broadcastDto.subject}`,

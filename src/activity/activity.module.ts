@@ -11,7 +11,7 @@ import {
   SubscriptionSchema,
 } from 'src/schemas/subscription.schema';
 import { AuthModule } from 'src/auth/auth.module';
-import { SendGridModule } from '../sendgrid/sendgrid.module';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
@@ -23,7 +23,7 @@ import { SendGridModule } from '../sendgrid/sendgrid.module';
       { name: Subscription.name, schema: SubscriptionSchema },
     ]),
     forwardRef(() => AuthModule),
-    SendGridModule,
+    EmailModule,
   ],
   controllers: [ActivityController],
   providers: [ActivityService],

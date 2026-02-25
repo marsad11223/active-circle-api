@@ -15,7 +15,7 @@ import { MessageModule } from './message/message.module';
 import { PayoutModule } from './payout/payout.module';
 
 import { APP_PIPE } from '@nestjs/core';
-import { SendGridModule } from './sendgrid/sendgrid.module';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -30,7 +30,7 @@ import { SendGridModule } from './sendgrid/sendgrid.module';
     PayoutModule,
 
     ConfigModule.forRoot({ isGlobal: true }),
-    SendGridModule,
+    EmailModule,
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {

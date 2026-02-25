@@ -1,5 +1,5 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { SendGridService } from './sendgrid.service';
+import { EmailService } from './email.service';
 import {
   bookingRequestSentToMember,
   newBookingRequestToHost,
@@ -23,8 +23,8 @@ import {
 } from '../utils/email-templates';
 
 @Controller('test-email')
-export class SendGridController {
-  constructor(private readonly sendGridService: SendGridService) {}
+export class EmailController {
+  constructor(private readonly emailService: EmailService) {}
 
   @Get()
   async sendTestEmail(@Query('to') to: string) {
@@ -43,7 +43,7 @@ export class SendGridController {
         activityTitle: 'Morning Yoga Session',
       });
 
-      const result = await this.sendGridService.sendMail({
+      const result = await this.emailService.sendMail({
         to,
         subject: '✅ Active Circle - Test Email',
         html,
@@ -288,7 +288,7 @@ export class SendGridController {
     // Send each template with a small delay to avoid rate limiting
     for (const template of templates) {
       try {
-        await this.sendGridService.sendMail({
+        await this.emailService.sendMail({
           to,
           subject: `[TEST] ${template.subject}`,
           html: template.html,
