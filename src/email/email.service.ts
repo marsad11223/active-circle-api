@@ -6,6 +6,8 @@ import { Resend } from 'resend';
 export class EmailService {
   private resend: Resend;
   private defaultFrom: string;
+  private lastSendTime: number = 0;
+  private readonly MIN_SEND_INTERVAL_MS = 500; // Resend limit: 2 emails/sec = 500ms apart
 
   constructor(private configService: ConfigService) {
     const apiKey = this.configService.get<string>('RESEND_API_KEY');
@@ -37,6 +39,18 @@ export class EmailService {
     }
 
     try {
+      // Rate limit: ensure at least 500ms between consecutive sends (Resend allows max 2/sec)
+      const now = Date.now();
+      const elapsed = now - this.lastSendTime;
+      if (elapsed < this.MIN_SEND_INTERVAL_MS) {
+        const delay = this.MIN_SEND_INTERVAL_MS - elapsed;
+        console.log(
+          `[Resend] Rate limiting: waiting ${delay}ms before next send`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+      this.lastSendTime = Date.now();
+
       // Ensure 'to' is always an array for Resend
       const toAddresses = Array.isArray(options.to) ? options.to : [options.to];
 
