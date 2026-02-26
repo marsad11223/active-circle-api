@@ -27,6 +27,7 @@ export class EmailService {
     subject: string;
     html: string;
     text?: string;
+    attachments?: { filename: string; content: Buffer }[];
   }): Promise<any> {
     const emailsEnabled =
       this.configService.get<string>('EMAILS_ENABLED') === 'true';
@@ -45,6 +46,9 @@ export class EmailService {
         subject: options.subject,
         html: options.html,
         text: options.text || options.html.replace(/<[^>]*>/g, ''),
+        ...(options.attachments?.length
+          ? { attachments: options.attachments }
+          : {}),
       });
 
       console.log('[Resend] Email sent successfully to:', options.to);

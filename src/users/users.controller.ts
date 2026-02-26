@@ -12,6 +12,7 @@ import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { AuthGuard } from '@nestjs/passport';
+import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
 import { User } from 'src/schemas/user.schema';
 import { GetUser } from 'src/auth/GetUser.Decorator';
 import { ContactUsDto } from './dto/contact-us.dto';
@@ -138,7 +139,8 @@ export class UsersController {
   }
 
   /** Admin: send marketing email to all members (one broadcast). Respects marketingEmails preference by default. */
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), ThrottlerGuard)
+  @Throttle({ default: { ttl: 60000, limit: 3 } })
   @Post('admin/send-marketing-email')
   sendMarketingEmail(
     @Body() dto: SendMarketingEmailDto,
@@ -149,7 +151,8 @@ export class UsersController {
   }
 
   /** Admin: send session reminders to members with confirmed bookings in the next X hours (default 24). Use ?testMode=true to send only to TEST_EMAIL. */
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), ThrottlerGuard)
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
   @Post('admin/send-session-reminders')
   sendSessionReminders(
     @Query('hoursAhead') hoursAheadStr: string,
@@ -158,7 +161,8 @@ export class UsersController {
   ) {
     IsAdmin(user);
     const hoursAhead = hoursAheadStr ? parseInt(hoursAheadStr, 10) : 24;
-    const hours = Number.isFinite(hoursAhead) && hoursAhead > 0 ? hoursAhead : 24;
+    const hours =
+      Number.isFinite(hoursAhead) && hoursAhead > 0 ? hoursAhead : 24;
     const testMode = testModeStr === 'true' || testModeStr === '1';
     return this.usersService.sendSessionReminders(hours, testMode);
   }

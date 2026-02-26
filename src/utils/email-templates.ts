@@ -936,3 +936,47 @@ export function emailVerificationOtp(data: {
     </html>
   `;
 }
+
+// ─── ADMIN EMAIL JOB REPORT ─────────────────────────────────────
+
+/**
+ * Admin report email sent after a background email job completes.
+ * Shows summary stats (total, sent, failed) and instructs admin to
+ * check the attached CSV for per-recipient details.
+ */
+export function adminEmailJobReport(data: {
+  jobType: string;
+  completedAt: Date;
+  total: number;
+  sent: number;
+  failed: number;
+}): string {
+  const { jobType, completedAt, total, sent, failed } = data;
+  const dateStr = completedAt.toLocaleString(undefined, {
+    dateStyle: 'full',
+    timeStyle: 'short',
+  });
+
+  const body = `
+    <p style="color: #374151; font-size: 16px; margin: 0 0 12px 0;">Hello Admin,</p>
+    <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
+      Your <strong>${jobType}</strong> job has completed. Here's a quick summary:
+    </p>
+    <div style="background-color: #f9fafb; border-radius: 6px; padding: 16px; margin: 0 0 16px 0;">
+      <p style="color: #1a365d; font-size: 16px; font-weight: bold; margin: 0 0 12px 0;">📊 Job Summary</p>
+      <table style="width: 100%; font-size: 14px; color: #333;" cellpadding="4" cellspacing="0">
+        <tr><td style="font-weight: bold;">Job Type</td><td>${jobType}</td></tr>
+        <tr><td style="font-weight: bold;">Completed At</td><td>${dateStr}</td></tr>
+        <tr><td style="font-weight: bold;">Total Recipients</td><td>${total}</td></tr>
+        <tr><td style="font-weight: bold; color: #16a34a;">Successful</td><td style="color: #16a34a;">${sent}</td></tr>
+        <tr><td style="font-weight: bold; color: #dc2626;">Failed</td><td style="color: #dc2626;">${failed}</td></tr>
+      </table>
+    </div>
+    <p style="color: #6b7280; font-size: 14px; margin: 0;">
+      Please see the attached CSV file for a detailed per-recipient breakdown.
+    </p>
+  `;
+  return wrapEmailTemplate(`${jobType} — Job Report`, body, {
+    hideButton: true,
+  });
+}

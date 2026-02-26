@@ -24,10 +24,11 @@ import { EmailService } from '../email/email.service';
 import {
   marketingBroadcastEmail,
   sessionReminderEmail,
+  adminEmailJobReport,
+  contactUsToAdmin,
 } from 'src/utils/email-templates';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { contactUsToAdmin } from 'src/utils/email-templates';
 import {
   AdminListUsersDto,
   UserSortBy,
@@ -831,17 +832,20 @@ export class UsersService {
   /**
    * Send marketing email to all members (admin only).
    * Optionally respects marketingEmails preference (default true).
-   * If testMode is true, sends only to TEST_EMAIL (no real members receive it).
+   * If testMode is true, sends only to TEST_EMAIL synchronously.
+   * Otherwise, returns immediately and sends emails in the background.
    */
   async sendMarketingEmailToAll(dto: SendMarketingEmailDto): Promise<{
-    sent: number;
-    failed: number;
+    sent?: number;
+    failed?: number;
     total: number;
     message: string;
+    queued?: boolean;
   }> {
     const testEmail =
       this.configService.get<string>('TEST_EMAIL') || 'marsad11223@gmail.com';
 
+    // ── Test mode: synchronous (only 1 email) ──
     if (dto.testMode) {
       try {
         const html = marketingBroadcastEmail({
@@ -871,26 +875,77 @@ export class UsersService {
       }
     }
 
+    // ── Production mode: query users, then fire-and-forget ──
     const respect = dto.respectMarketingPreference !== false;
     const query: any = { role: { $ne: Role.superAdmin }, deleted_at: null };
     if (respect) {
       query.marketingEmails = true;
     }
     const users = await this.userModel.find(query).select('email name').lean();
+
+    if (users.length === 0) {
+      return {
+        sent: 0,
+        failed: 0,
+        total: 0,
+        message: 'No eligible members found to send marketing email to.',
+      };
+    }
+
+    // Fire-and-forget: kick off background sending without awaiting
+    this._sendMarketingEmailsInBackground(
+      users,
+      dto.subject,
+      dto.message ?? '',
+    );
+
+    return {
+      queued: true,
+      total: users.length,
+      message: `Marketing email sending started in the background for ${users.length} member(s). Check server logs for progress.`,
+    };
+  }
+
+  /**
+   * Private helper — sends marketing emails in the background.
+   * Runs detached (not awaited by the caller) and logs results to console.
+   */
+  private async _sendMarketingEmailsInBackground(
+    users: any[],
+    subject: string,
+    message: string,
+  ): Promise<void> {
     let sent = 0;
     let failed = 0;
-    const subject = dto.subject;
-    const message = dto.message;
+    const results: {
+      email: string;
+      name: string;
+      status: string;
+      error: string;
+      sentAt: string;
+    }[] = [];
+
+    console.log(
+      `[MarketingEmail] Background send started — ${users.length} recipient(s)`,
+    );
 
     for (const u of users) {
       const email = (u as any).email;
+      const name = (u as any).name || '';
       if (!email) {
         failed++;
+        results.push({
+          email: 'N/A',
+          name,
+          status: 'failed',
+          error: 'No email address',
+          sentAt: new Date().toISOString(),
+        });
         continue;
       }
       try {
         const html = marketingBroadcastEmail({
-          recipientName: (u as any).name,
+          recipientName: name,
           subject,
           message,
         });
@@ -900,34 +955,55 @@ export class UsersService {
           html,
         });
         sent++;
-      } catch (err) {
-        console.error(
-          '[sendMarketingEmailToAll] Failed to send to',
+        results.push({
           email,
-          err,
-        );
+          name,
+          status: 'success',
+          error: '',
+          sentAt: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error('[MarketingEmail] Failed to send to', email, err);
         failed++;
+        results.push({
+          email,
+          name,
+          status: 'failed',
+          error: (err as Error).message || 'Unknown error',
+          sentAt: new Date().toISOString(),
+        });
       }
     }
 
-    return {
-      sent,
-      failed,
-      total: users.length,
-      message: `Marketing email sent to ${sent} of ${users.length} members${failed > 0 ? ` (${failed} failed)` : ''}.`,
-    };
+    console.log(
+      `[MarketingEmail] Background send complete — sent: ${sent}, failed: ${failed}, total: ${users.length}`,
+    );
+
+    // Build CSV and send admin report
+    const csvHeader = 'Email,Name,Status,Error,Sent At';
+    const csvRows = results.map(
+      (r) =>
+        `"${r.email}","${r.name}","${r.status}","${r.error}","${r.sentAt}"`,
+    );
+    const csv = [csvHeader, ...csvRows].join('\n');
+
+    await this._sendAdminReport(
+      'Marketing Email',
+      { sent, failed, total: users.length },
+      csv,
+    );
   }
 
   /**
    * Send session reminders to members with confirmed bookings in the next X hours (admin only).
    * Default 24 hours. If testMode is true, all reminders go to TEST_EMAIL only.
+   * Returns immediately (fire-and-forget). Admin receives a report email with CSV when done.
    */
   async sendSessionReminders(
     hoursAhead: number = 24,
     testMode: boolean = false,
   ): Promise<{
-    sent: number;
-    failed: number;
+    queued: boolean;
     total: number;
     message: string;
   }> {
@@ -973,16 +1049,77 @@ export class UsersService {
       });
     }
 
+    if (inRange.length === 0) {
+      return {
+        queued: false,
+        total: 0,
+        message: 'No upcoming sessions found in the specified time range.',
+      };
+    }
+
+    // Fire-and-forget: kick off background sending without awaiting
+    this._sendSessionRemindersInBackground(inRange, testMode);
+
+    return {
+      queued: true,
+      total: inRange.length,
+      message: `Session reminder sending started in the background for ${inRange.length} booking(s). You will receive a report email when complete.`,
+    };
+  }
+
+  /**
+   * Private helper — sends session reminders in the background.
+   * After completion, sends an admin report email with CSV attachment.
+   */
+  private async _sendSessionRemindersInBackground(
+    items: Array<{
+      memberId: any;
+      memberName: string;
+      memberEmail: string;
+      activityTitle: string;
+      activityDate: Date;
+      location?: string;
+      hoursUntil: number;
+    }>,
+    testMode: boolean,
+  ): Promise<void> {
     const testEmail =
       this.configService.get<string>('TEST_EMAIL') || 'marsad11223@gmail.com';
     const sendTo = testMode ? testEmail : null;
 
     let sent = 0;
     let failed = 0;
-    for (const item of inRange) {
+    const results: {
+      email: string;
+      name: string;
+      activityTitle: string;
+      activityDate: string;
+      location: string;
+      hoursUntil: number;
+      status: string;
+      error: string;
+      sentAt: string;
+    }[] = [];
+
+    console.log(
+      `[SessionReminders] Background send started — ${items.length} recipient(s)`,
+    );
+
+    for (const item of items) {
       const toEmail = sendTo || item.memberEmail;
       if (!toEmail) {
         failed++;
+        results.push({
+          email: 'N/A',
+          name: item.memberName,
+          activityTitle: item.activityTitle,
+          activityDate: item.activityDate.toISOString(),
+          location: item.location || '',
+          hoursUntil: item.hoursUntil,
+          status: 'failed',
+          error: 'No email address',
+          sentAt: new Date().toISOString(),
+        });
         continue;
       }
       try {
@@ -1002,19 +1139,94 @@ export class UsersService {
           html,
         });
         sent++;
+        results.push({
+          email: toEmail,
+          name: item.memberName,
+          activityTitle: item.activityTitle,
+          activityDate: item.activityDate.toISOString(),
+          location: item.location || '',
+          hoursUntil: item.hoursUntil,
+          status: 'success',
+          error: '',
+          sentAt: new Date().toISOString(),
+        });
       } catch (err) {
-        console.error('[sendSessionReminders] Failed to send to', toEmail, err);
+        console.error('[SessionReminders] Failed to send to', toEmail, err);
         failed++;
+        results.push({
+          email: toEmail,
+          name: item.memberName,
+          activityTitle: item.activityTitle,
+          activityDate: item.activityDate.toISOString(),
+          location: item.location || '',
+          hoursUntil: item.hoursUntil,
+          status: 'failed',
+          error: (err as Error).message || 'Unknown error',
+          sentAt: new Date().toISOString(),
+        });
       }
     }
 
-    return {
-      sent,
-      failed,
-      total: inRange.length,
-      message: testMode
-        ? `Test mode: ${sent} reminder(s) sent to ${testEmail} only. No members were emailed.`
-        : `Session reminders sent: ${sent} of ${inRange.length}${failed > 0 ? ` (${failed} failed)` : ''}.`,
-    };
+    console.log(
+      `[SessionReminders] Background send complete — sent: ${sent}, failed: ${failed}, total: ${items.length}`,
+    );
+
+    // Build CSV and send admin report
+    const csvHeader =
+      'Email,Name,Activity Title,Activity Date,Location,Hours Until,Status,Error,Sent At';
+    const csvRows = results.map(
+      (r) =>
+        `"${r.email}","${r.name}","${r.activityTitle}","${r.activityDate}","${r.location}","${r.hoursUntil}","${r.status}","${r.error}","${r.sentAt}"`,
+    );
+    const csv = [csvHeader, ...csvRows].join('\n');
+
+    await this._sendAdminReport(
+      'Session Reminders',
+      { sent, failed, total: items.length },
+      csv,
+    );
+  }
+
+  /**
+   * Shared helper — sends a summary report email to the admin with a CSV attachment.
+   */
+  private async _sendAdminReport(
+    jobType: string,
+    stats: { sent: number; failed: number; total: number },
+    csvContent: string,
+  ): Promise<void> {
+    try {
+      const adminEmail =
+        this.configService.get<string>('ADMIN_EMAIL') ||
+        this.configService.get<string>('TEST_EMAIL') ||
+        'marsad11223@gmail.com';
+
+      const html = adminEmailJobReport({
+        jobType,
+        completedAt: new Date(),
+        total: stats.total,
+        sent: stats.sent,
+        failed: stats.failed,
+      });
+
+      const dateStamp = new Date().toISOString().split('T')[0];
+      const filename = `${jobType.toLowerCase().replace(/\s+/g, '-')}-report-${dateStamp}.csv`;
+
+      await this.emailService.sendMail({
+        to: adminEmail,
+        subject: `${jobType} — Job Report (${stats.sent}/${stats.total} sent)`,
+        html,
+        attachments: [
+          {
+            filename,
+            content: Buffer.from(csvContent, 'utf-8'),
+          },
+        ],
+      });
+
+      console.log(`[AdminReport] ${jobType} report sent to ${adminEmail}`);
+    } catch (err) {
+      console.error(`[AdminReport] Failed to send ${jobType} report`, err);
+    }
   }
 }

@@ -4,6 +4,7 @@ import { AppService } from './app.service';
 
 import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { SubscriptionModule } from './subscription/subscription.module';
@@ -30,6 +31,7 @@ import { EmailModule } from './email/email.module';
     PayoutModule,
 
     ConfigModule.forRoot({ isGlobal: true }),
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 10 }]),
     EmailModule,
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
