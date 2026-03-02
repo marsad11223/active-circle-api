@@ -310,22 +310,26 @@ export class AuthService {
         updated_at: Date.now(),
       };
 
-      // Set permanent role to premiumMember or standardMember if user has active subscription
-      if (
-        user.hasActiveSubscription &&
+      // Set permanent role to premiumMember or standardMember if user has active subscription or is lifetime host
+      const canBeHost =
+        (user.hasActiveSubscription || user.isLifetimeHost) &&
         user.role !== Role.premiumMember &&
         user.role !== Role.standardMember &&
-        user.role !== Role.superAdmin
-      ) {
-        const sub = await this.subscriptionModel
-          .findOne({
-            userId: user._id,
-            status: { $in: ['active', 'trialing'] },
-          })
-          .select('plan')
-          .lean();
-        updateData.role =
-          sub?.plan === 'standard' ? Role.standardMember : Role.premiumMember;
+        user.role !== Role.superAdmin;
+      if (canBeHost) {
+        if (user.isLifetimeHost) {
+          updateData.role = Role.premiumMember;
+        } else {
+          const sub = await this.subscriptionModel
+            .findOne({
+              userId: user._id,
+              status: { $in: ['active', 'trialing'] },
+            })
+            .select('plan')
+            .lean();
+          updateData.role =
+            sub?.plan === 'standard' ? Role.standardMember : Role.premiumMember;
+        }
       }
 
       // Update user with new grantRole and lastLogin

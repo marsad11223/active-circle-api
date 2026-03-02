@@ -137,6 +137,10 @@ export class User {
   @Prop({ default: false })
   hasActiveSubscription: boolean;
 
+  /** When true, user is a lifetime-free host (no Stripe subscription; treat as premium host). Set via DB or admin. */
+  @Prop({ default: false })
+  isLifetimeHost?: boolean;
+
   // Member profile specific fields
   @Prop({ type: [String], default: [] })
   interests: string[]; // Array of activity interests (only for members)

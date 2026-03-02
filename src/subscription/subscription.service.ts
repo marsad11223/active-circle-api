@@ -538,6 +538,24 @@ export class SubscriptionService {
   }
 
   async getSubscriptionStatus(userId: string) {
+    const user = await this.userModel
+      .findById(userId)
+      .select('isLifetimeHost')
+      .lean();
+    if (user?.isLifetimeHost) {
+      return {
+        hasSubscription: true,
+        status: SubscriptionStatus.ACTIVE,
+        plan: SubscriptionPlan.PREMIUM,
+        currentPeriodStart: null,
+        currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
+        isTrialing: false,
+        trialEnd: null,
+        isLifetimeFree: true,
+      };
+    }
+
     const subscription = await this.subscriptionModel.findOne({ userId });
 
     if (!subscription) {

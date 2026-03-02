@@ -381,7 +381,9 @@ export class UsersService {
 
       if (currentGrantRole === GrantRole.member) {
         const canBeCreator =
-          user.role === Role.premiumMember || user.role === Role.standardMember;
+          user.role === Role.premiumMember ||
+          user.role === Role.standardMember ||
+          user.isLifetimeHost === true;
         if (!canBeCreator) {
           throw new BadRequestException(
             'Subscribe to a plan to switch to host mode',

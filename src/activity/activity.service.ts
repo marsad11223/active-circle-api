@@ -165,7 +165,8 @@ export class ActivityService {
         host.role === Role.premiumMember ||
         host.grantRole === GrantRole.host ||
         host.role === Role.standardMember ||
-        host.role === Role.superAdmin;
+        host.role === Role.superAdmin ||
+        host.isLifetimeHost === true;
 
       if (!canCreate) {
         throw new ForbiddenException(
@@ -173,7 +174,10 @@ export class ActivityService {
         );
       }
 
-      if (host.role === Role.standardMember) {
+      if (
+        host.role === Role.standardMember &&
+        !host.isLifetimeHost
+      ) {
         const sub = await this.subscriptionModel.findOne({
           userId: host._id,
           status: {
