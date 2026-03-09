@@ -279,8 +279,20 @@ export function bookingCancelledWithRefundToMember(data: {
 
 // ─── MESSAGE TEMPLATES ───────────────────────────────────────────
 
+/** Escape HTML in user-generated message content for safe display in emails */
+function escapeMessageHtml(s: string): string {
+  if (!s || typeof s !== 'string') return '';
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/\n/g, '<br>');
+}
+
 /**
- * New Message (to Host)
+ * New Message (to Host) — member sent a message to the host
  */
 export function newMessageToHost(data: {
   memberName: string;
@@ -290,26 +302,37 @@ export function newMessageToHost(data: {
   content: string;
 }): string {
   const { memberName, memberEmail, activityTitle, subject, content } = data;
+  const safeSubject = escapeMessageHtml(subject);
+  const safeContent = escapeMessageHtml(content);
+  const safeActivity = escapeMessageHtml(activityTitle);
+  const fromLabel = memberName
+    ? escapeMessageHtml(memberName)
+    : escapeMessageHtml(memberEmail);
   const body = `
-    <p style="color: #333; font-size: 16px; margin: 0 0 12px 0;"><strong>Activity:</strong> ${activityTitle}</p>
-    <p style="color: #333; font-size: 16px; margin: 0 0 12px 0;"><strong>Subject:</strong> ${subject}</p>
-    <p style="color: #333; font-size: 16px; margin: 0 0 8px 0;"><strong>Message:</strong></p>
-    <div style="background-color: #f5f5f5; padding: 15px; border-radius: 6px; margin: 0 0 12px 0;">
-      <p style="color: #333; font-size: 14px; line-height: 1.6; margin: 0;">${content.replace(/\n/g, '<br>')}</p>
-    </div>
+    <p style="color: #374151; font-size: 16px; margin: 0 0 16px 0;">You have a new message from a member.</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 20px 0; border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb;">
+      <tr><td style="background: #f9fafb; padding: 12px 16px; font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Activity</td></tr>
+      <tr><td style="padding: 12px 16px; font-size: 16px; color: #1a365d; font-weight: 600;">${safeActivity}</td></tr>
+      <tr><td style="background: #f9fafb; padding: 12px 16px; font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">From</td></tr>
+      <tr><td style="padding: 12px 16px; font-size: 16px; color: #374151;">${fromLabel}</td></tr>
+      <tr><td style="background: #f9fafb; padding: 12px 16px; font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Subject</td></tr>
+      <tr><td style="padding: 12px 16px; font-size: 16px; color: #1a365d;">${safeSubject}</td></tr>
+      <tr><td style="background: #f9fafb; padding: 12px 16px; font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Message</td></tr>
+      <tr><td style="padding: 16px; background: #ffffff; border-top: 1px solid #e5e7eb;"><p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0;">${safeContent}</p></td></tr>
+    </table>
   `;
   return wrapEmailTemplate(
-    `New Message from ${memberName || memberEmail}`,
+    `New message from ${memberName || memberEmail}`,
     body,
     {
-      ctaText: 'View Message',
+      ctaText: 'View & reply in Messages',
       ctaUrl: `${FRONTEND_URL}/messages`,
     },
   );
 }
 
 /**
- * Reply to Message (to Member)
+ * Reply to Message (to Member) — host replied to member's inquiry
  */
 export function replyToMessageToMember(data: {
   hostName: string;
@@ -320,25 +343,30 @@ export function replyToMessageToMember(data: {
 }): string {
   const { hostName, hostEmail, activityTitle, originalMessage, replyContent } =
     data;
+  const safeActivity = escapeMessageHtml(activityTitle || 'N/A');
+  const safeOriginal = escapeMessageHtml(originalMessage);
+  const safeReply = escapeMessageHtml(replyContent);
+  const fromLabel = hostName
+    ? escapeMessageHtml(hostName)
+    : escapeMessageHtml(hostEmail);
   const body = `
-    <p style="color: #333; font-size: 16px; margin: 0 0 12px 0;"><strong>Activity:</strong> ${activityTitle || 'N/A'}</p>
-    <p style="color: #333; font-size: 16px; margin: 0 0 8px 0;"><strong>Original Message:</strong></p>
-    <div style="background-color: #f5f5f5; padding: 15px; border-radius: 6px; border-left: 3px solid #007bff; margin: 0 0 16px 0;">
-      <p style="color: #333; font-size: 14px; line-height: 1.6; margin: 0;">${originalMessage.replace(/\n/g, '<br>')}</p>
-    </div>
-    <p style="color: #333; font-size: 16px; margin: 0 0 8px 0;"><strong>Reply:</strong></p>
-    <div style="background-color: #e8f5e9; padding: 15px; border-radius: 6px; border-left: 3px solid #28a745; margin: 0 0 12px 0;">
-      <p style="color: #333; font-size: 14px; line-height: 1.6; margin: 0;">${replyContent.replace(/\n/g, '<br>')}</p>
-    </div>
+    <p style="color: #374151; font-size: 16px; margin: 0 0 16px 0;">${fromLabel} has replied to your message.</p>
+    ${activityTitle ? `<p style="color: #6b7280; font-size: 14px; margin: 0 0 12px 0;"><strong>Activity:</strong> ${safeActivity}</p>` : ''}
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 16px 0; border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb;">
+      <tr><td style="background: #eff6ff; padding: 10px 16px; font-size: 12px; color: #1e40af; font-weight: 600;">Your message</td></tr>
+      <tr><td style="padding: 14px 16px; background: #f8fafc; border-bottom: 1px solid #e5e7eb;"><p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0;">${safeOriginal}</p></td></tr>
+      <tr><td style="background: #ecfdf5; padding: 10px 16px; font-size: 12px; color: #047857; font-weight: 600;">Reply from host</td></tr>
+      <tr><td style="padding: 14px 16px; background: #f0fdf4;"><p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0;">${safeReply}</p></td></tr>
+    </table>
   `;
   return wrapEmailTemplate(`Reply from ${hostName || hostEmail}`, body, {
-    ctaText: 'View Message',
+    ctaText: 'View in Messages',
     ctaUrl: `${FRONTEND_URL}/messages`,
   });
 }
 
 /**
- * Broadcast Message (to Member)
+ * Broadcast Message (to Member) — host sent a broadcast to activity members
  */
 export function broadcastMessageToMember(data: {
   hostName: string;
@@ -356,17 +384,26 @@ export function broadcastMessageToMember(data: {
     subject,
     content,
   } = data;
+  const safeActivity = escapeMessageHtml(activityTitle);
+  const safeSubject = escapeMessageHtml(subject);
+  const safeContent = escapeMessageHtml(content);
+  const typeLabel = escapeMessageHtml(broadcastType.replace(/_/g, ' '));
+  const typeDisplay = typeLabel.charAt(0).toUpperCase() + typeLabel.slice(1);
+  const fromLabel = hostName
+    ? escapeMessageHtml(hostName)
+    : escapeMessageHtml(hostEmail);
   const body = `
-    <p style="color: #333; font-size: 16px; margin: 0 0 12px 0;"><strong>Activity:</strong> ${activityTitle}</p>
-    <p style="color: #333; font-size: 16px; margin: 0 0 12px 0;"><strong>Type:</strong> ${broadcastType.replace('_', ' ').toUpperCase()}</p>
-    <p style="color: #333; font-size: 16px; margin: 0 0 12px 0;"><strong>Subject:</strong> ${subject}</p>
-    <p style="color: #333; font-size: 16px; margin: 0 0 8px 0;"><strong>Message:</strong></p>
-    <div style="background-color: #f5f5f5; padding: 15px; border-radius: 6px; margin: 0 0 12px 0;">
-      <p style="color: #333; font-size: 14px; line-height: 1.6; margin: 0;">${content.replace(/\n/g, '<br>')}</p>
-    </div>
+    <p style="color: #374151; font-size: 16px; margin: 0 0 16px 0;">${fromLabel} sent an update about an activity you're booked for.</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 20px 0; border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb;">
+      <tr><td style="background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%); padding: 14px 16px;"><p style="margin: 0; color: #ffffff; font-size: 14px; font-weight: 600;">${safeActivity}</p><p style="margin: 4px 0 0 0; color: #F98C01; font-size: 12px;">${typeDisplay}</p></td></tr>
+      <tr><td style="background: #f9fafb; padding: 10px 16px; font-size: 12px; color: #6b7280;">Subject</td></tr>
+      <tr><td style="padding: 12px 16px; font-size: 16px; color: #1a365d; font-weight: 600;">${safeSubject}</td></tr>
+      <tr><td style="background: #f9fafb; padding: 10px 16px; font-size: 12px; color: #6b7280;">Message</td></tr>
+      <tr><td style="padding: 16px; background: #ffffff; border-top: 1px solid #e5e7eb;"><p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0;">${safeContent}</p></td></tr>
+    </table>
   `;
-  return wrapEmailTemplate(`Message from ${hostName || hostEmail}`, body, {
-    ctaText: 'View Message',
+  return wrapEmailTemplate(`Update from ${hostName || hostEmail}`, body, {
+    ctaText: 'View in Messages',
     ctaUrl: `${FRONTEND_URL}/messages`,
   });
 }

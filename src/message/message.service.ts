@@ -246,24 +246,31 @@ export class MessageService {
         `[Reply Message] Created reply: ${reply._id}, Sender (Host): ${hostId}, Receiver (Member): ${memberId}`,
       );
 
-      // Send email to member
-      try {
-        await this.emailService.sendMail({
-          to: memberDetails.email,
-          subject: `Reply: ${originalMessage.subject}`,
-          html: replyToMessageToMember({
-            hostName: host.name,
-            hostEmail: host.email,
-            activityTitle: activity?.title,
-            originalMessage: originalMessage.content,
-            replyContent: replyDto.content,
-          }),
-        });
-
+      // Send email to member (when emails are enabled)
+      const emailsEnabled =
+        this.configService.get<string>('EMAILS_ENABLED') === 'true';
+      if (emailsEnabled) {
+        try {
+          await this.emailService.sendMail({
+            to: memberDetails.email,
+            subject: `Reply: ${originalMessage.subject}`,
+            html: replyToMessageToMember({
+              hostName: host.name,
+              hostEmail: host.email,
+              activityTitle: activity?.title,
+              originalMessage: originalMessage.content,
+              replyContent: replyDto.content,
+            }),
+          });
+          reply.isEmailSent = true;
+          await reply.save();
+        } catch (emailError: any) {
+          console.error('[Reply Message] Error sending email:', emailError);
+          // Don't throw — message is still saved
+        }
+      } else {
         reply.isEmailSent = true;
         await reply.save();
-      } catch (emailError: any) {
-        console.error('Error sending email:', emailError);
       }
 
       // Mark member as having new messages
