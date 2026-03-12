@@ -1059,9 +1059,9 @@ export class ActivityService {
           if (booking.amount > 0 && booking.paymentIntentId) {
             try {
               // Calculate refund amount (fee - stripe fee)
-              // Stripe fee: 2.9% + 30 cents
+              // Stripe fee: 2.9% + 20 pence (GBP)
               const stripeFeePercentage = 0.029;
-              const stripeFeeFixed = 30; // 30 cents
+              const stripeFeeFixed = 20; // 20 pence (GBP)
               const originalAmountCents = Math.round(booking.amount * 100);
               const stripeFee =
                 Math.round(originalAmountCents * stripeFeePercentage) +

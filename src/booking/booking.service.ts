@@ -191,8 +191,8 @@ export class BookingService {
         // Create Payment Intent with manual capture (escrow)
         // Payment will be authorized but not captured until host approves
         const paymentIntent = await this.stripe.paymentIntents.create({
-          amount: Math.round(activityPrice * 100), // Convert to cents
-          currency: 'usd',
+          amount: Math.round(activityPrice * 100), // Amount in smallest unit (pence for GBP)
+          currency: 'gbp',
           customer: customerId,
           payment_method: createBookingDto.paymentMethodId,
           capture_method: 'manual', // Don't capture immediately - hold in escrow
@@ -1131,10 +1131,10 @@ export class BookingService {
       let refundAmount: number;
       let refundPercentage: number;
       const stripeFeePercentage = 0.029; // 2.9%
-      const stripeFeeFixed = 30; // 30 cents
+      const stripeFeeFixed = 20; // 20 pence (GBP) – Stripe fixed fee
 
       if (hoursUntilEvent >= 48) {
-        // 48+ hours: refund = payment - (2.9% + 30¢) Stripe fees
+        // 48+ hours: refund = payment - (2.9% + 20p) Stripe fees
         const originalAmountCents = Math.round(booking.amount * 100);
         const stripeFee =
           Math.round(originalAmountCents * stripeFeePercentage) +
@@ -1144,13 +1144,13 @@ export class BookingService {
           (refundAmount / originalAmountCents) * 100,
         );
       } else if (hoursUntilEvent >= 24) {
-        // 24-48 hours: refund = payment - 50% of payment - (2.9% + 30¢) of payment
-        // Formula: payment - 50% - (2.9% + 30¢) - both calculated on original payment
+        // 24-48 hours: refund = payment - 50% of payment - (2.9% + 20p) of payment
+        // Formula: payment - 50% - (2.9% + 20p) - both calculated on original payment
         const originalAmountCents = Math.round(booking.amount * 100);
         const penaltyAmount = Math.round(originalAmountCents * 0.5); // 50% penalty
         const stripeFee =
           Math.round(originalAmountCents * stripeFeePercentage) +
-          stripeFeeFixed; // Fee on original amount
+          stripeFeeFixed; // Fee on original amount (pence)
         refundAmount = Math.max(
           0,
           originalAmountCents - penaltyAmount - stripeFee,
@@ -1184,7 +1184,7 @@ export class BookingService {
         // Create partial refund
         const refund = await this.stripe.refunds.create({
           charge: chargeId,
-          amount: refundAmount, // Amount in cents
+          amount: refundAmount, // Amount in pence (GBP)
           reason: 'requested_by_customer',
           metadata: {
             bookingId: bookingId,
