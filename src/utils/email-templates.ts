@@ -54,8 +54,18 @@ function wrapEmailTemplate(
               <!-- Branded Header -->
               <tr>
                 <td style="padding: 32px 40px 24px 40px; text-align: center; background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);">
-                  <p style="margin: 0; color: #ffffff; font-size: 14px; letter-spacing: 1px;">MEET. MOVE. CONNECT.</p>
-                  <p style="margin: 8px 0 0 0; color: #F98C01; font-size: 20px; font-weight: bold;">Active Circle</p>
+                  
+                  <img
+                    src="https://www.theactivecircle.com/logo.svg"
+                    alt="Active Circle"
+                    width="150"
+                    style="display:block;margin:0 auto 10px auto;border:0;outline:none;text-decoration:none;"
+                  />
+
+                  <p style="margin: 0; color: #ffffff; font-size: 14px; letter-spacing: 1px;">
+                    MEET. MOVE. CONNECT.
+                  </p>
+
                 </td>
               </tr>
 
