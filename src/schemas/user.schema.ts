@@ -160,7 +160,7 @@ export class User {
       {
         id: { type: String, required: true },
         iban: { type: String, required: false }, // Optional - either IBAN or accountNumber required
-        bankName: { type: String, required: true },
+        bankName: { type: String, required: false },
         accountHolderName: { type: String, required: true },
         accountNumber: { type: String, required: false }, // Optional - either IBAN or accountNumber required
         swiftCode: { type: String, required: true }, // Required
@@ -179,7 +179,7 @@ export class User {
   bankAccounts?: Array<{
     id: string;
     iban?: string; // Optional - either IBAN or accountNumber required
-    bankName: string;
+    bankName?: string;
     accountHolderName: string;
     accountNumber?: string; // Optional - either IBAN or accountNumber required
     swiftCode: string; // Required

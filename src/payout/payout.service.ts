@@ -610,7 +610,7 @@ export class PayoutService {
       const newBankAccount = {
         id: bankAccountId,
         iban: addBankAccountDto.iban || undefined,
-        bankName: addBankAccountDto.bankName,
+        bankName: addBankAccountDto.bankName || undefined,
         accountHolderName: addBankAccountDto.accountHolderName,
         accountNumber: addBankAccountDto.accountNumber || undefined,
         swiftCode: addBankAccountDto.swiftCode,

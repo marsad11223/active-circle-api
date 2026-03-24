@@ -1,9 +1,10 @@
 import { IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
 
 export class AddBankAccountDto {
+  @IsOptional()
   @IsNotEmpty()
   @IsString()
-  bankName: string; // Bank name (required)
+  bankName?: string; // Bank name (optional)
 
   @IsNotEmpty()
   @IsString()
@@ -43,4 +44,3 @@ export class AddBankAccountDto {
   @IsString()
   postalCode?: string; // Postal code (optional)
 }
-
