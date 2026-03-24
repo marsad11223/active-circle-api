@@ -613,7 +613,7 @@ export class PayoutService {
         bankName: addBankAccountDto.bankName || undefined,
         accountHolderName: addBankAccountDto.accountHolderName,
         accountNumber: addBankAccountDto.accountNumber || undefined,
-        swiftCode: addBankAccountDto.swiftCode,
+        swiftCode: addBankAccountDto.swiftCode || undefined,
         routingNumber: addBankAccountDto.routingNumber || undefined,
         address: addBankAccountDto.address || undefined,
         city: addBankAccountDto.city || undefined,

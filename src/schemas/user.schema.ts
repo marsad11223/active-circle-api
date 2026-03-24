@@ -163,7 +163,7 @@ export class User {
         bankName: { type: String, required: false },
         accountHolderName: { type: String, required: true },
         accountNumber: { type: String, required: false }, // Optional - either IBAN or accountNumber required
-        swiftCode: { type: String, required: true }, // Required
+        swiftCode: { type: String, required: false }, // Optional
         routingNumber: { type: String, required: false },
         address: { type: String, required: false },
         city: { type: String, required: false },
@@ -182,7 +182,7 @@ export class User {
     bankName?: string;
     accountHolderName: string;
     accountNumber?: string; // Optional - either IBAN or accountNumber required
-    swiftCode: string; // Required
+    swiftCode?: string; // Optional
     routingNumber?: string;
     address?: string;
     city?: string;
