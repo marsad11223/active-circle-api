@@ -24,7 +24,7 @@ export enum Gender {
 @Schema()
 export class User {
   @Prop()
-  name: string;
+  name!: string;
 
   @Prop({ required: false })
   firstName?: string;
@@ -33,13 +33,13 @@ export class User {
   lastName?: string;
 
   @Prop()
-  email: string;
+  email!: string;
 
   @Prop()
-  password: string;
+  password!: string;
 
   @Prop({ default: Role.member })
-  role: Role; // Permanent role: member | standardMember | premiumMember | superAdmin
+  role!: Role; // Permanent role: member | standardMember | premiumMember | premiumMember | superAdmin
 
   @Prop({ required: false })
   lastRole?: Role; // DEPRECATED: Legacy field for backward compatibility. Use grantRole instead.
@@ -51,7 +51,7 @@ export class User {
   lastLogin?: Date; // Tracks when user last logged in with current grantRole
 
   @Prop()
-  address: string;
+  address?: string;
 
   @Prop({ required: false })
   phoneNumber?: string;
@@ -67,38 +67,38 @@ export class User {
 
   // Notification Preferences
   @Prop({ default: true })
-  emailNotifications: boolean;
+  emailNotifications!: boolean;
 
   @Prop({ default: true })
-  marketingEmails: boolean;
+  marketingEmails!: boolean;
 
   @Prop({ default: true })
-  activityUpdates: boolean;
+  activityUpdates!: boolean;
 
   @Prop({ default: true })
-  bookingNotifications: boolean;
+  bookingNotifications!: boolean;
 
   @Prop({ default: true })
-  paymentNotifications: boolean;
+  paymentNotifications!: boolean;
 
   // New unread / unseen notification flags
   @Prop({ default: false })
-  hasNewBookings: boolean; // true for hosts/admins when there's a new booking request
+  hasNewBookings!: boolean; // true for hosts/admins when there's a new booking request
 
   @Prop({ default: false })
-  hasNewMessages: boolean; // true for hosts or members when there's a new message
+  hasNewMessages!: boolean; // true for hosts or members when there's a new message
 
   @Prop({ default: false })
-  hasNewPayoutRequests: boolean; // true for admins when a host creates a payout request
+  hasNewPayoutRequests!: boolean; // true for admins when a host creates a payout request
 
   @Prop({ default: Date.now })
-  created_at: Date;
+  created_at!: Date;
 
   @Prop({ default: Date.now })
-  updated_at: Date;
+  updated_at!: Date;
 
   @Prop({ default: null })
-  deleted_at: Date;
+  deleted_at!: Date;
 
   @Prop({ default: false })
   isDeleted?: boolean;
@@ -132,10 +132,10 @@ export class User {
   suspended_at?: Date;
 
   @Prop()
-  stripeCustomerId: string;
+  stripeCustomerId!: string;
 
   @Prop({ default: false })
-  hasActiveSubscription: boolean;
+  hasActiveSubscription!: boolean;
 
   /** When true, user is a lifetime-free host (no Stripe subscription; treat as premium host). Set via DB or admin. */
   @Prop({ default: false })
@@ -143,10 +143,10 @@ export class User {
 
   // Member profile specific fields
   @Prop({ type: [String], default: [] })
-  interests: string[]; // Array of activity interests (only for members)
+  interests!: string[]; // Array of activity interests (only for members)
 
   @Prop({ default: 10 })
-  radius: number; // Search radius in km for activities (default 10km, only for members)
+  radius!: number; // Search radius in km for activities (default 10km, only for members)
 
   @Prop({
     type: [{ type: mongoose.Types.ObjectId, ref: 'Activity' }],

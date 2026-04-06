@@ -16,7 +16,10 @@ import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
 import { BrowseActivitiesDto } from './dto/browse-activities.dto';
 import { ReoccurActivityDto } from './dto/reoccur-activity.dto';
-import { AdminListActivitiesDto } from './dto/admin-list-activities.dto';
+import {
+  AdminListActivitiesDto,
+  ActivityStatusFilter,
+} from './dto/admin-list-activities.dto';
 import { GetUser } from 'src/auth/GetUser.Decorator';
 import { OptionalJwtAuthGuard } from 'src/auth/optional-jwt.guard';
 import { IsAdmin } from 'src/utils/helper';
@@ -90,9 +93,13 @@ export class ActivityController {
 
   @UseGuards(AuthGuard('jwt'))
   @Get('host/past')
-  getPastActivities(@GetUser() user: any) {
-    // Get past/completed activities for the current host with summary statistics
-    return this.activityService.getPastActivities(user._id.toString());
+  getPastActivities(
+    @GetUser() user: any,
+    @Query('status') status?: ActivityStatusFilter | ActivityStatusFilter[],
+  ) {
+    // Get past activities strictly before today for the current host
+    // Optional status filter can narrow results to active, completed, or cancelled
+    return this.activityService.getPastActivities(user._id.toString(), status);
   }
 
   @UseGuards(AuthGuard('jwt'))

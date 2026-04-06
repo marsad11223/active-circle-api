@@ -174,10 +174,7 @@ export class ActivityService {
         );
       }
 
-      if (
-        host.role === Role.standardMember &&
-        !host.isLifetimeHost
-      ) {
+      if (host.role === Role.standardMember && !host.isLifetimeHost) {
         const sub = await this.subscriptionModel.findOne({
           userId: host._id,
           status: {
@@ -939,6 +936,8 @@ export class ActivityService {
         description: originalActivity.description,
         category: originalActivity.category,
         location: originalActivity.location,
+        coordinates: originalActivity.coordinates,
+        difficultyLevel: originalActivity.difficultyLevel,
         date: newDate,
         time: newTime,
         maxParticipants: originalActivity.maxParticipants,
@@ -1273,7 +1272,10 @@ export class ActivityService {
     }
   }
 
-  async getPastActivities(hostId: string): Promise<any[]> {
+  async getPastActivities(
+    hostId: string,
+    statusFilter?: string | string[],
+  ): Promise<any[]> {
     try {
       const isValidID = mongoose.isValidObjectId(hostId);
       if (!isValidID) {
@@ -1283,19 +1285,39 @@ export class ActivityService {
       const now = new Date();
       now.setHours(0, 0, 0, 0); // Start of today
 
-      // Get all completed activities (date < today OR status = COMPLETED)
+      const allowedStatuses = new Set<string>([
+        ActivityStatus.ACTIVE,
+        ActivityStatus.COMPLETED,
+        ActivityStatus.CANCELLED,
+      ]);
+
+      const requestedStatuses = Array.isArray(statusFilter)
+        ? statusFilter
+        : statusFilter
+          ? statusFilter.split(',')
+          : [];
+
+      const normalizedStatuses = requestedStatuses
+        .map((value) => value.trim())
+        .filter((value) => value && value !== ActivityStatusFilter.ALL)
+        .filter((value) => allowedStatuses.has(value));
+
+      const query: any = {
+        hostId: new mongoose.Types.ObjectId(hostId),
+        deleted_at: null,
+        date: { $lt: now },
+      };
+
+      if (normalizedStatuses.length > 0) {
+        query.status =
+          normalizedStatuses.length === 1
+            ? normalizedStatuses[0]
+            : { $in: normalizedStatuses };
+      }
+
+      // Get only activities from before today, with optional status filtering
       const activities = await this.activityModel
-        .find({
-          hostId: new mongoose.Types.ObjectId(hostId),
-          deleted_at: null,
-          $or: [
-            { status: ActivityStatus.COMPLETED },
-            {
-              status: ActivityStatus.ACTIVE,
-              date: { $lt: now },
-            },
-          ],
-        })
+        .find(query)
         .populate('hostId', 'name email profilePhoto')
         .sort({ date: -1 }); // Sort by date descending (most recent first)
 
@@ -1392,8 +1414,12 @@ export class ActivityService {
           description: activity.description,
           category: activity.category,
           location: activity.location,
+          coordinates: activity.coordinates,
+          difficultyLevel: activity.difficultyLevel,
           date: activity.date,
           time: activity.time,
+          recurring: activity.recurring,
+          additionalInformation: activity.additionalInformation,
           picture: activity.picture,
           maxParticipants: activity.maxParticipants,
           price: activity.price || 0,
@@ -1648,8 +1674,12 @@ export class ActivityService {
           description: activity.description,
           category: activity.category,
           location: activity.location,
+          coordinates: activity.coordinates,
+          difficultyLevel: activity.difficultyLevel,
           date: activity.date,
           time: activity.time,
+          recurring: activity.recurring,
+          additionalInformation: activity.additionalInformation,
           picture: activity.picture,
           maxParticipants: activity.maxParticipants,
           price: activity.price || 0,

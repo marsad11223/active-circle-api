@@ -8,40 +8,63 @@ import {
   IsArray,
   Min,
   Max,
+  ValidateNested,
 } from 'class-validator';
 import { RecurringType } from 'src/schemas/activity.schema';
+import { Type } from 'class-transformer';
+
+class ActivityCoordinatesDto {
+  @IsNotEmpty()
+  @Type(() => Number)
+  @IsNumber()
+  lat!: number;
+
+  @IsNotEmpty()
+  @Type(() => Number)
+  @IsNumber()
+  lng!: number;
+}
 
 export class CreateActivityDto {
   @IsNotEmpty()
   @IsString()
-  title: string;
+  title!: string;
 
   @IsNotEmpty()
   @IsString()
-  description: string;
+  description!: string;
 
   @IsNotEmpty()
   @IsArray()
   @IsString({ each: true })
-  category: string[]; // Array of categories
+  category!: string[]; // Array of categories
 
   @IsNotEmpty()
   @IsString()
-  location: string;
+  location!: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ActivityCoordinatesDto)
+  coordinates?: ActivityCoordinatesDto;
+
+  @IsOptional()
+  @IsString()
+  difficultyLevel?: string;
 
   @IsNotEmpty()
   @IsDateString()
-  date: string; // ISO date string
+  date!: string; // ISO date string
 
   @IsNotEmpty()
   @IsString()
-  time: string; // Time string (e.g., "14:00" or "2:00 PM")
+  time!: string; // Time string (e.g., "14:00" or "2:00 PM")
 
   @IsNotEmpty()
   @IsNumber()
   @Min(1)
   @Max(1000)
-  maxParticipants: number;
+  maxParticipants!: number;
 
   @IsOptional()
   @IsNumber()
@@ -58,6 +81,5 @@ export class CreateActivityDto {
 
   @IsNotEmpty()
   @IsString()
-  picture: string; // Picture URL
+  picture!: string; // Picture URL
 }
-

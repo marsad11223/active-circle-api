@@ -15,6 +15,11 @@ export enum ActivityStatus {
   CANCELLED = 'cancelled', // Activity was cancelled
 }
 
+export type ActivityCoordinates = {
+  lat?: number;
+  lng?: number;
+};
+
 @Schema()
 export class Activity extends Document {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
@@ -31,6 +36,18 @@ export class Activity extends Document {
 
   @Prop({ required: true })
   location: string; // Activity location
+
+  @Prop({
+    type: {
+      lat: Number,
+      lng: Number,
+    },
+    required: false,
+  })
+  coordinates?: ActivityCoordinates; // Optional location coordinates
+
+  @Prop({ required: false })
+  difficultyLevel?: string; // Optional difficulty level (e.g. Beginner, Intermediate, Advanced)
 
   @Prop({ required: true })
   date: Date; // Activity date

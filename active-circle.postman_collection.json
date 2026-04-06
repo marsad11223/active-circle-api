@@ -982,7 +982,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"title\": \"Morning Yoga Session\",\n  \"description\": \"Join us for a rejuvenating morning yoga session in the park. All levels welcome!\",\n  \"category\": [\"Wellness & Mindfulness\", \"Sports & Fitness\"],\n  \"location\": \"Springfield Park\",\n  \"date\": \"2024-12-28T00:00:00.000Z\",\n  \"time\": \"08:00\",\n  \"maxParticipants\": 20,\n  \"price\": 15,\n  \"recurring\": \"one-time\",\n  \"additionalInformation\": \"Please bring your own yoga mat and water bottle.\",\n  \"picture\": \"https://example.com/yoga-image.jpg\"\n}"
+									"raw": "{\n  \"title\": \"Morning Yoga Session\",\n  \"description\": \"Join us for a rejuvenating morning yoga session in the park. All levels welcome!\",\n  \"category\": [\"Wellness & Mindfulness\", \"Sports & Fitness\"],\n  \"location\": \"Springfield Park\",\n  \"coordinates\": {\n    \"lat\": 37.7749,\n    \"lng\": -122.4194\n  },\n  \"difficultyLevel\": \"Beginner\",\n  \"date\": \"2024-12-28T00:00:00.000Z\",\n  \"time\": \"08:00\",\n  \"maxParticipants\": 20,\n  \"price\": 15,\n  \"recurring\": \"one-time\",\n  \"additionalInformation\": \"Please bring your own yoga mat and water bottle.\",\n  \"picture\": \"https://example.com/yoga-image.jpg\"\n}"
 								},
 								"url": {
 									"raw": "{{base_url}}/activities",
@@ -1000,7 +1000,8 @@
 										"description": "Host ID when admin cancels/deletes an activity (disabled)",
 										"disabled": true
 									}
-								]
+								],
+								"description": "Create a new activity. Optional fields: coordinates ({ lat, lng }) and difficultyLevel."
 							},
 							"response": []
 						},
@@ -1122,7 +1123,7 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{base_url}}/activities/host/past",
+									"raw": "{{base_url}}/activities/host/past?status=completed",
 									"host": [
 										"{{base_url}}"
 									],
@@ -1130,9 +1131,16 @@
 										"activities",
 										"host",
 										"past"
+									],
+									"query": [
+										{
+											"key": "status",
+											"value": "completed",
+											"description": "Optional filter: active, completed, cancelled, or all. Can repeat the query param for multiple statuses."
+										}
 									]
 								},
-								"description": "Get past/completed activities for the current host. Returns activities with status = COMPLETED or date < today. Includes attendance breakdown, reviews & ratings (including from original activity if re-occurred), and earnings generated. Sorted by date descending (most recent first)."
+								"description": "Get past activities for the current host. Returns only activities before today, with optional status filtering. Includes attendance breakdown, reviews & ratings (including from original activity if re-occurred), and earnings generated. Sorted by date descending (most recent first)."
 							},
 							"response": []
 						},
@@ -1884,7 +1892,8 @@
 									"path": [
 										"activities"
 									]
-								}
+								},
+								"description": "Get all active activities. Each activity includes coordinates, difficultyLevel, recurring, and additionalInformation when available."
 							},
 							"response": []
 						},
@@ -1948,7 +1957,8 @@
 										"activities",
 										"{{activity_id}}"
 									]
-								}
+								},
+								"description": "Get a single activity by ID. The response includes coordinates, difficultyLevel, recurring, and additionalInformation when present."
 							},
 							"response": []
 						},
@@ -2007,7 +2017,8 @@
 									"path": [
 										"users"
 									]
-								}
+								},
+								"description": "Get paginated list of all activities for admin. Returned activities include coordinates, difficultyLevel, recurring, and additionalInformation when available."
 							},
 							"response": []
 						},
