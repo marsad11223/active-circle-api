@@ -41,6 +41,14 @@ import {
   activityCancelledFreeToMember,
   activityCancelledWithRefundToMember,
 } from 'src/utils/email-templates';
+import { DateTime } from 'luxon';
+import {
+  UK_TZ,
+  HOST_SCHEDULE_MAX_RANGE_DAYS,
+  activityStartDateTimeLondon,
+  eachLondonDayInclusive,
+} from 'src/utils/uk-time';
+import { HostScheduleQueryDto } from './dto/host-schedule-query.dto';
 
 @Injectable()
 export class ActivityService {
@@ -1718,6 +1726,164 @@ export class ActivityService {
       };
     } catch (err) {
       throw new BadRequestException(err.message);
+    }
+  }
+
+  /**
+   * Public host schedule: hourly buckets (0–23) per UK calendar day for a date range.
+   * All wall-clock times use Europe/London (GMT/BST), not server local time.
+   */
+  async getHostSchedule(
+    hostId: string,
+    dto: HostScheduleQueryDto,
+  ): Promise<{
+    timeZone: string;
+    hostId: string;
+    from: string;
+    to: string;
+    days: Array<{
+      date: string;
+      offsetLabel: string;
+      hours: Array<{
+        hour: number;
+        activities: Array<Record<string, unknown>>;
+      }>;
+    }>;
+  }> {
+    try {
+      const isValidID = mongoose.isValidObjectId(hostId);
+      if (!isValidID) {
+        throw new BadRequestException('Invalid host ID');
+      }
+
+      const host = await this.userModel
+        .findById(hostId)
+        .select('_id deleted_at');
+      if (!host || host.deleted_at) {
+        throw new NotFoundException('Host not found');
+      }
+
+      const from = DateTime.fromISO(dto.from, { zone: UK_TZ }).startOf('day');
+      const to = DateTime.fromISO(dto.to, { zone: UK_TZ }).startOf('day');
+      if (!from.isValid || !to.isValid) {
+        throw new BadRequestException(
+          'from and to must be valid ISO dates (YYYY-MM-DD)',
+        );
+      }
+      if (to < from) {
+        throw new BadRequestException('to must be on or after from');
+      }
+      const spanDays = to.diff(from, 'days').days + 1;
+      if (spanDays > HOST_SCHEDULE_MAX_RANGE_DAYS) {
+        throw new BadRequestException(
+          `Date range must not exceed ${HOST_SCHEDULE_MAX_RANGE_DAYS} days`,
+        );
+      }
+
+      const queryFrom = from
+        .minus({ days: 2 })
+        .startOf('day')
+        .toUTC()
+        .toJSDate();
+      const queryTo = to.plus({ days: 2 }).endOf('day').toUTC().toJSDate();
+
+      const rawActivities = await this.activityModel
+        .find({
+          hostId: new mongoose.Types.ObjectId(hostId),
+          deleted_at: null,
+          status: { $ne: ActivityStatus.CANCELLED },
+          date: { $gte: queryFrom, $lte: queryTo },
+        })
+        .select(
+          'title description category location date time picture price maxParticipants recurring status',
+        )
+        .sort({ date: 1 })
+        .lean();
+
+      const dayKeys: string[] = [];
+      for (const d of eachLondonDayInclusive(dto.from, dto.to)) {
+        dayKeys.push(d.toFormat('yyyy-MM-dd'));
+      }
+
+      type HourMap = Map<number, Array<Record<string, unknown>>>;
+      const byDayHour = new Map<string, HourMap>();
+      for (const dk of dayKeys) {
+        const m: HourMap = new Map();
+        for (let h = 0; h < 24; h++) {
+          m.set(h, []);
+        }
+        byDayHour.set(dk, m);
+      }
+
+      for (const act of rawActivities) {
+        const start = activityStartDateTimeLondon(
+          new Date(act.date as Date),
+          (act.time as string) || '',
+        );
+        if (!start || !start.isValid) {
+          continue;
+        }
+        const ymd = start.toFormat('yyyy-MM-dd');
+        const dayBuckets = byDayHour.get(ymd);
+        if (!dayBuckets) {
+          continue;
+        }
+        const hour = start.hour;
+        const list = dayBuckets.get(hour);
+        if (!list) {
+          continue;
+        }
+        list.push({
+          _id: act._id,
+          title: act.title,
+          description: act.description,
+          category: act.category,
+          location: act.location,
+          date: act.date,
+          time: act.time,
+          picture: act.picture,
+          price: act.price ?? 0,
+          maxParticipants: act.maxParticipants,
+          recurring: act.recurring,
+          status: act.status,
+        });
+      }
+
+      const days = dayKeys.map((dateStr) => {
+        const d = DateTime.fromISO(dateStr, { zone: UK_TZ }).startOf('day');
+        const hourMap = byDayHour.get(dateStr)!;
+        const hours: Array<{
+          hour: number;
+          activities: Array<Record<string, unknown>>;
+        }> = [];
+        for (let h = 0; h < 24; h++) {
+          hours.push({
+            hour: h,
+            activities: hourMap.get(h) ?? [],
+          });
+        }
+        return {
+          date: dateStr,
+          offsetLabel: d.toFormat('ZZ'),
+          hours,
+        };
+      });
+
+      return {
+        timeZone: UK_TZ,
+        hostId,
+        from: from.toFormat('yyyy-MM-dd'),
+        to: to.toFormat('yyyy-MM-dd'),
+        days,
+      };
+    } catch (err) {
+      if (
+        err instanceof NotFoundException ||
+        err instanceof BadRequestException
+      ) {
+        throw err;
+      }
+      throw new BadRequestException((err as Error).message);
     }
   }
 }

@@ -15,6 +15,7 @@ import { ActivityService } from './activity.service';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
 import { BrowseActivitiesDto } from './dto/browse-activities.dto';
+import { HostScheduleQueryDto } from './dto/host-schedule-query.dto';
 import { ReoccurActivityDto } from './dto/reoccur-activity.dto';
 import {
   AdminListActivitiesDto,
@@ -66,6 +67,15 @@ export class ActivityController {
   findOneForMember(@Param('id') id: string, @GetUser() user: any) {
     // Authenticated endpoint for members - includes booking status
     return this.activityService.findOne(id, user._id.toString());
+  }
+
+  /** Public: hourly UK-time schedule for a host (for member host profile). */
+  @Get('host/:hostId/schedule')
+  getHostSchedule(
+    @Param('hostId') hostId: string,
+    @Query() query: HostScheduleQueryDto,
+  ) {
+    return this.activityService.getHostSchedule(hostId, query);
   }
 
   @UseGuards(OptionalJwtAuthGuard)
