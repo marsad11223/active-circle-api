@@ -15,6 +15,7 @@ import { ActivityService } from './activity.service';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
 import { BrowseActivitiesDto } from './dto/browse-activities.dto';
+import { NearbyActivitiesDto } from './dto/nearby-activities.dto';
 import { HostScheduleQueryDto } from './dto/host-schedule-query.dto';
 import { ReoccurActivityDto } from './dto/reoccur-activity.dto';
 import {
@@ -60,6 +61,18 @@ export class ActivityController {
     // Uses member's radius preference if maxDistance not provided
     const memberId = user._id.toString();
     return this.activityService.browseActivities(filters, memberId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('member/nearby')
+  getNearbyActivitiesForMember(
+    @Query() query: NearbyActivitiesDto,
+    @GetUser() user: any,
+  ) {
+    return this.activityService.getNearbyActivitiesForMember(
+      query,
+      user._id.toString(),
+    );
   }
 
   @UseGuards(AuthGuard('jwt'))

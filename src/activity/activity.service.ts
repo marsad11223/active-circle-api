@@ -17,6 +17,7 @@ import mongoose, { Model } from 'mongoose';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
 import { BrowseActivitiesDto, PriceFilter } from './dto/browse-activities.dto';
+import { NearbyActivitiesDto } from './dto/nearby-activities.dto';
 import {
   AdminListActivitiesDto,
   ActivitySortBy,
@@ -37,6 +38,8 @@ import { EmailService } from '../email/email.service';
 
 const STANDARD_HOST_FREE_LIMIT = 2;
 const STANDARD_HOST_PAID_LIMIT = 1;
+const EARTH_RADIUS_MILES = 3958.8;
+const MEMBER_NEARBY_RADIUS_MILES = 25;
 import {
   activityCancelledFreeToMember,
   activityCancelledWithRefundToMember,
@@ -652,6 +655,140 @@ export class ActivityService {
     } catch (err) {
       throw new BadRequestException(err.message);
     }
+  }
+
+  async getNearbyActivitiesForMember(
+    query: NearbyActivitiesDto,
+    memberId: string,
+  ): Promise<{ activities: any[]; total: number }> {
+    try {
+      const selectedDate = DateTime.fromISO(query.date, {
+        zone: UK_TZ,
+      }).startOf('day');
+      if (!selectedDate.isValid) {
+        throw new BadRequestException('date must be a valid ISO date');
+      }
+
+      const startOfDayUtc = selectedDate.toUTC().toJSDate();
+      const endOfDayUtc = selectedDate.endOf('day').toUTC().toJSDate();
+
+      const activities = await this.activityModel
+        .find({
+          deleted_at: null,
+          status: ActivityStatus.ACTIVE,
+          date: {
+            $gte: startOfDayUtc,
+            $lte: endOfDayUtc,
+          },
+          'coordinates.lat': { $type: 'number' },
+          'coordinates.lng': { $type: 'number' },
+        })
+        .populate('hostId', 'name email profilePhoto')
+        .sort({ date: 1, title: 1 });
+
+      const activitiesWithRatings =
+        await this.addRatingsToActivities(activities);
+
+      const nearbyActivities = activitiesWithRatings
+        .map((activity) => {
+          const lat = activity?.coordinates?.lat;
+          const lng = activity?.coordinates?.lng;
+          if (typeof lat !== 'number' || typeof lng !== 'number') {
+            return null;
+          }
+
+          const distanceMiles = this.calculateDistanceMiles(
+            query.lat,
+            query.lng,
+            lat,
+            lng,
+          );
+
+          if (distanceMiles > MEMBER_NEARBY_RADIUS_MILES) {
+            return null;
+          }
+
+          return {
+            ...activity,
+            distanceMiles: Number(distanceMiles.toFixed(2)),
+          };
+        })
+        .filter((activity): activity is any => activity !== null)
+        .sort((a, b) => {
+          if (a.distanceMiles !== b.distanceMiles) {
+            return a.distanceMiles - b.distanceMiles;
+          }
+          if (a.date && b.date) {
+            return new Date(a.date).getTime() - new Date(b.date).getTime();
+          }
+          return (a.title || '').localeCompare(b.title || '');
+        });
+
+      const activityIds = nearbyActivities.map((activity) => activity._id);
+      const bookings = await this.bookingModel.find({
+        memberId: new mongoose.Types.ObjectId(memberId),
+        activityId: { $in: activityIds },
+        status: { $in: [BookingStatus.PENDING, BookingStatus.CONFIRMED] },
+        deleted_at: null,
+      });
+
+      const bookingMap = new Map();
+      bookings.forEach((booking) => {
+        bookingMap.set((booking.activityId as any).toString(), {
+          isBooked: true,
+          bookingStatus: booking.status,
+          bookingId: booking._id,
+        });
+      });
+
+      const activitiesWithBookingStatus = nearbyActivities.map((activity) => {
+        const memberBookingStatus = bookingMap.get(activity._id.toString()) || {
+          isBooked: false,
+          bookingStatus: null,
+          bookingId: null,
+        };
+
+        return {
+          ...activity,
+          isBooked: memberBookingStatus.isBooked,
+          bookingStatus: memberBookingStatus.bookingStatus,
+          bookingId: memberBookingStatus.bookingId,
+        };
+      });
+
+      return {
+        activities: activitiesWithBookingStatus,
+        total: activitiesWithBookingStatus.length,
+      };
+    } catch (err) {
+      if (err instanceof BadRequestException) {
+        throw err;
+      }
+      throw new BadRequestException((err as Error).message);
+    }
+  }
+
+  private calculateDistanceMiles(
+    fromLat: number,
+    fromLng: number,
+    toLat: number,
+    toLng: number,
+  ): number {
+    const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
+    const deltaLat = toRadians(toLat - fromLat);
+    const deltaLng = toRadians(toLng - fromLng);
+    const originLat = toRadians(fromLat);
+    const destinationLat = toRadians(toLat);
+
+    const haversine =
+      Math.sin(deltaLat / 2) ** 2 +
+      Math.cos(originLat) *
+        Math.cos(destinationLat) *
+        Math.sin(deltaLng / 2) ** 2;
+
+    const angularDistance =
+      2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+    return EARTH_RADIUS_MILES * angularDistance;
   }
 
   async findOne(id: string, memberId?: string): Promise<any> {
@@ -1817,8 +1954,8 @@ export class ActivityService {
 
       for (const act of rawActivities) {
         const start = activityStartDateTimeLondon(
-          new Date(act.date as Date),
-          (act.time as string) || '',
+          new Date(act.date),
+          act.time || '',
         );
         if (!start || !start.isValid) {
           continue;

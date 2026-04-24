@@ -451,6 +451,53 @@
 							"response": []
 						},
 						{
+							"name": "Get Nearby Activities (Member)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/activities/member/nearby?lat=51.5074&lng=-0.1278&date=2026-04-24",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"activities",
+										"member",
+										"nearby"
+									],
+									"query": [
+										{
+											"key": "lat",
+											"value": "51.5074",
+											"description": "Required. Member latitude."
+										},
+										{
+											"key": "lng",
+											"value": "-0.1278",
+											"description": "Required. Member longitude."
+										},
+										{
+											"key": "date",
+											"value": "2026-04-24",
+											"description": "Required. ISO date (YYYY-MM-DD). UK/London day boundaries are used."
+										}
+									]
+								},
+								"description": "Get nearby activities for authenticated member within a fixed 25-mile radius from provided lat/lng. Returns only active activities for the requested date using UK/London day boundaries. Activities without coordinates are excluded. Response includes activities, total, distanceMiles, rating/booking info, and member booking status fields (isBooked, bookingStatus, bookingId)."
+							},
+							"response": []
+						},
+						{
 							"name": "Get Activity by ID (Member)",
 							"request": {
 								"auth": {
