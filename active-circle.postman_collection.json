@@ -397,7 +397,7 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{base_url}}/activities/browse/member?category=Sports&category=Outdoor Adventures&date=2024-01-22&price=paid",
+									"raw": "{{base_url}}/activities/browse/member?page=1&limit=10&category=Sports&category=Outdoor Adventures&date=2026-04-24&price=paid",
 									"host": [
 										"{{base_url}}"
 									],
@@ -407,6 +407,16 @@
 										"member"
 									],
 									"query": [
+										{
+											"key": "page",
+											"value": "1",
+											"description": "Page number (default: 1)"
+										},
+										{
+											"key": "limit",
+											"value": "10",
+											"description": "Items per page (default: 20, max: 100)"
+										},
 										{
 											"key": "search",
 											"value": "",
@@ -431,8 +441,8 @@
 										},
 										{
 											"key": "date",
-											"value": "2024-01-22",
-											"description": "Filter by date (ISO format)"
+											"value": "2026-04-24",
+											"description": "Filter by date (ISO format, UK/London day boundaries)"
 										},
 										{
 											"key": "price",
@@ -446,7 +456,8 @@
 											"disabled": true
 										}
 									]
-								}
+								},
+								"description": "Browse activities for authenticated member. Returns only active, non-past activities by default (past activities are excluded). Supports pagination with page/limit."
 							},
 							"response": []
 						},
@@ -1986,7 +1997,7 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{base_url}}/activities/browse?search=yoga&category=Wellness & Mindfulness&date=2024-01-20&price=free",
+									"raw": "{{base_url}}/activities/browse?page=1&limit=10&search=yoga&category=Wellness & Mindfulness&date=2026-04-24&price=free",
 									"host": [
 										"{{base_url}}"
 									],
@@ -1995,6 +2006,16 @@
 										"browse"
 									],
 									"query": [
+										{
+											"key": "page",
+											"value": "1",
+											"description": "Page number (default: 1)"
+										},
+										{
+											"key": "limit",
+											"value": "10",
+											"description": "Items per page (default: 20, max: 100)"
+										},
 										{
 											"key": "search",
 											"value": "yoga",
@@ -2007,8 +2028,8 @@
 										},
 										{
 											"key": "date",
-											"value": "2024-01-20",
-											"description": "Filter by date (ISO format)"
+											"value": "2026-04-24",
+											"description": "Filter by date (ISO format, UK/London day boundaries)"
 										},
 										{
 											"key": "price",
@@ -2016,7 +2037,8 @@
 											"description": "Price filter: all, free, or paid"
 										}
 									]
-								}
+								},
+								"description": "Browse public activities. Returns only active, non-past activities by default (past activities are excluded). Supports pagination with page/limit."
 							},
 							"response": []
 						},
