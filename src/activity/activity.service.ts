@@ -505,13 +505,31 @@ export class ActivityService {
   async browseActivities(
     filters: BrowseActivitiesDto,
     memberId?: string,
-  ): Promise<{ activities: any[]; total: number }> {
+  ): Promise<{
+    activities: any[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
     try {
+      const page = filters.page || 1;
+      const limit = filters.limit || 20;
+      const skip = (page - 1) * limit;
+
       // Build query
       const query: any = {
         deleted_at: null,
         status: ActivityStatus.ACTIVE, // Only show active activities by default
       };
+
+      // Exclude past activities from browse results by default
+      const todayUkStartUtc = DateTime.now()
+        .setZone(UK_TZ)
+        .startOf('day')
+        .toUTC()
+        .toJSDate();
+      query.date = { $gte: todayUkStartUtc };
 
       // Search filter (title or description)
       if (filters.search) {
@@ -544,11 +562,11 @@ export class ActivityService {
 
       // Date filter
       if (filters.date) {
-        const filterDate = new Date(filters.date);
-        const startOfDay = new Date(filterDate);
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(filterDate);
-        endOfDay.setHours(23, 59, 59, 999);
+        const selectedDate = DateTime.fromISO(filters.date, {
+          zone: UK_TZ,
+        }).startOf('day');
+        const startOfDay = selectedDate.toUTC().toJSDate();
+        const endOfDay = selectedDate.endOf('day').toUTC().toJSDate();
         query.date = {
           $gte: startOfDay,
           $lte: endOfDay,
@@ -582,7 +600,9 @@ export class ActivityService {
       const activities = await this.activityModel
         .find(query)
         .populate('hostId', 'name email profilePhoto')
-        .sort({ created_at: -1 });
+        .sort({ date: 1, created_at: -1 })
+        .skip(skip)
+        .limit(limit);
 
       // Get total count
       const total = await this.activityModel.countDocuments(query);
@@ -651,6 +671,9 @@ export class ActivityService {
       return {
         activities: activitiesWithBookingStatus,
         total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
       };
     } catch (err) {
       throw new BadRequestException(err.message);
