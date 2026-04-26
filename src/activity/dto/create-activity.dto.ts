@@ -79,7 +79,12 @@ export class CreateActivityDto {
   @IsString()
   additionalInformation?: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  picture!: string; // Picture URL
+  picture?: string; // Primary image URL (backward compatible)
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  pictures?: string[]; // Multiple image URLs
 }

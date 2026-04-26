@@ -73,6 +73,9 @@ export class Activity extends Document {
   @Prop({ required: true })
   picture: string; // Picture URL to display
 
+  @Prop({ type: [String], default: [] })
+  pictures?: string[]; // Gallery images
+
   @Prop({
     enum: ActivityStatus,
     default: ActivityStatus.ACTIVE,

@@ -227,11 +227,28 @@ export class ActivityService {
       }
 
       const activityDate = new Date(createActivityDto.date);
+      const normalizedPicture = createActivityDto.picture?.trim();
+      const normalizedPictures = (createActivityDto.pictures || [])
+        .filter((img): img is string => typeof img === 'string')
+        .map((img) => img.trim())
+        .filter((img) => img.length > 0);
+
+      const primaryPicture = normalizedPicture || normalizedPictures[0];
+      if (!primaryPicture) {
+        throw new BadRequestException(
+          'At least one image is required (picture or pictures)',
+        );
+      }
+
+      const pictures =
+        normalizedPictures.length > 0 ? normalizedPictures : [primaryPicture];
 
       const newActivity = await this.activityModel.create({
         ...createActivityDto,
         hostId: new mongoose.Types.ObjectId(hostId),
         date: activityDate,
+        picture: primaryPicture,
+        pictures,
         price: createActivityDto.price ?? 0, // Default to 0 if not provided
         recurring: createActivityDto.recurring ?? RecurringType.ONE_TIME,
         status: ActivityStatus.ACTIVE, // New activities are active by default
@@ -1113,6 +1130,7 @@ export class ActivityService {
         recurring: originalActivity.recurring,
         additionalInformation: originalActivity.additionalInformation,
         picture: originalActivity.picture,
+        pictures: originalActivity.pictures || [originalActivity.picture],
         status: ActivityStatus.ACTIVE, // New activity starts as active
         originalActivityId: originalActivityId, // Link to original activity for ratings
         created_at: new Date(),
