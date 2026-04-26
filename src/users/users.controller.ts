@@ -7,6 +7,7 @@ import {
   Delete,
   UseGuards,
   Put,
+  ForbiddenException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -21,6 +22,7 @@ import { ToggleFavoriteDto } from './dto/toggle-favorite.dto';
 import { IsAdmin, canAccessResource } from 'src/utils/helper';
 import { AdminListUsersDto } from './dto/admin-list-users.dto';
 import { Query } from '@nestjs/common';
+import { GrantRole, Role } from 'src/schemas/user.schema';
 
 @Controller('users')
 export class UsersController {
@@ -175,8 +177,20 @@ export class UsersController {
     @Query('includeRatings') includeRatings?: string,
     @Query('includePaymentHistory') includePaymentHistory?: string,
   ) {
-    // Check authorization: superAdmin can view anyone, users can only view themselves
-    canAccessResource(user, id);
+    // Public profile access for authenticated admin/host/member users.
+    const isAdmin = user.role === Role.superAdmin;
+    const isHost =
+      user.grantRole === GrantRole.host ||
+      user.role === Role.standardMember ||
+      user.role === Role.premiumMember;
+    const isMember =
+      user.grantRole === GrantRole.member || user.role === Role.member;
+
+    if (!isAdmin && !isHost && !isMember) {
+      throw new ForbiddenException(
+        'Only admin, host, or member can access this endpoint',
+      );
+    }
 
     const options = {
       includeRatings: includeRatings === 'true',
