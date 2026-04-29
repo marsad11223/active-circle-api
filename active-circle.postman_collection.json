@@ -2094,6 +2094,85 @@
 			"name": "General",
 			"item": [
 				{
+					"name": "notifications",
+					"item": [
+						{
+							"name": "Register Push Token",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"token\": \"{{expo_push_token}}\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/notifications/register",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"notifications",
+										"register"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Send Test Notification (Self)",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"title\": \"Test Notification\",\n  \"body\": \"Push is working from backend\",\n  \"data\": {\n    \"screen\": \"/(tabs)/home\"\n  }\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/notifications/test",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"notifications",
+										"test"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
 					"name": "users",
 					"item": [
 						{

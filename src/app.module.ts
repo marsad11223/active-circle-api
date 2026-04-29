@@ -14,6 +14,7 @@ import { RatingModule } from './rating/rating.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { MessageModule } from './message/message.module';
 import { PayoutModule } from './payout/payout.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 import { APP_PIPE } from '@nestjs/core';
 import { EmailModule } from './email/email.module';
@@ -29,6 +30,7 @@ import { EmailModule } from './email/email.module';
     CloudinaryModule,
     MessageModule,
     PayoutModule,
+    NotificationsModule,
 
     ConfigModule.forRoot({ isGlobal: true }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 10 }]),
