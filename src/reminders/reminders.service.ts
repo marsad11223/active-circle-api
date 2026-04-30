@@ -6,7 +6,7 @@ import { DateTime } from 'luxon';
 import { OutboxService } from 'src/notifications/outbox.service';
 import { buildNotificationData } from 'src/notifications/notification-payload.util';
 import { activityStartDateTimeLondon, UK_TZ } from 'src/utils/uk-time';
-import { Activity } from 'src/schemas/activity.schema';
+import { Activity, ActivityStatus } from 'src/schemas/activity.schema';
 import { Booking, BookingStatus } from 'src/schemas/booking.schema';
 import { NotificationToken } from 'src/schemas/notifications.schema';
 
@@ -23,6 +23,119 @@ export class RemindersService {
     private readonly notificationTokenModel: Model<NotificationToken>,
     private readonly outboxService: OutboxService,
   ) {}
+
+  /**
+   * Auto-complete past activities so hosts don't need to mark completion manually.
+   */
+  @Cron('*/15 * * * *')
+  async autoCompletePastActivities(): Promise<void> {
+    try {
+      const nowLondon = DateTime.now().setZone(UK_TZ);
+      const queryFromUtc = nowLondon
+        .minus({ days: 2 })
+        .startOf('day')
+        .toUTC()
+        .toJSDate();
+      const queryToUtc = nowLondon.endOf('day').toUTC().toJSDate();
+
+      const activities = await this.activityModel
+        .find({
+          status: ActivityStatus.ACTIVE,
+          deleted_at: null,
+          date: { $gte: queryFromUtc, $lte: queryToUtc },
+        })
+        .select('_id title date time status')
+        .lean();
+
+      let completedCount = 0;
+      let reviewEventsEnqueued = 0;
+
+      for (const activity of activities) {
+        const activityId = this.toStringId(activity._id);
+        if (!activityId) {
+          continue;
+        }
+
+        const activityStart = activityStartDateTimeLondon(
+          new Date(activity.date),
+          activity.time || '',
+        );
+        if (!activityStart) {
+          continue;
+        }
+
+        if (activityStart > nowLondon) {
+          continue;
+        }
+
+        const updated = await this.activityModel.findOneAndUpdate(
+          { _id: activity._id, status: ActivityStatus.ACTIVE },
+          {
+            $set: {
+              status: ActivityStatus.COMPLETED,
+              updated_at: new Date(),
+            },
+          },
+          { new: true },
+        );
+
+        if (!updated) {
+          continue;
+        }
+        completedCount++;
+
+        const bookings = await this.bookingModel
+          .find({
+            activityId: new Types.ObjectId(activityId),
+            status: BookingStatus.CONFIRMED,
+            deleted_at: null,
+          })
+          .select('_id memberId')
+          .lean();
+
+        for (const booking of bookings) {
+          const bookingId = this.toStringId(booking._id);
+          if (!bookingId) {
+            continue;
+          }
+          const userId = booking.memberId.toString();
+          await this.bookingModel.updateOne(
+            { _id: booking._id, completedAt: null },
+            { $set: { completedAt: new Date() } },
+          );
+
+          const payload = buildNotificationData(
+            'review_request',
+            'WriteReview',
+            bookingId,
+            {
+              activityTitle: activity.title || '',
+              hostName: '',
+            },
+          );
+
+          await this.outboxService.enqueue(null, {
+            type: 'review_request',
+            entityId: bookingId,
+            recipientUserId: userId,
+            recipientTokens: await this.getTokensByUserId(userId),
+            payload,
+            idempotencyKey: `review_request:${bookingId}:${userId}`,
+          });
+          reviewEventsEnqueued++;
+        }
+      }
+
+      this.logger.log(
+        `Auto-complete cron finished. Completed ${completedCount} activities and enqueued ${reviewEventsEnqueued} review requests.`,
+      );
+    } catch (error) {
+      this.logger.error(
+        'Auto-complete cron failed',
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+  }
 
   /**
    * Enqueue 24-hour activity reminders for confirmed bookings.
@@ -213,7 +326,10 @@ export class RemindersService {
           status: 'completed',
           completedAt: { $gte: windowStart, $lte: windowEnd },
           deleted_at: null,
-          $or: [{ reviewRequested: false }, { reviewRequested: { $exists: false } }],
+          $or: [
+            { reviewRequested: false },
+            { reviewRequested: { $exists: false } },
+          ],
         })
         .populate('activityId', 'title')
         .populate('hostId', 'name')
@@ -222,12 +338,11 @@ export class RemindersService {
 
       let enqueued = 0;
       for (const booking of bookings) {
+        const bookingId = this.toStringId(booking._id);
         const userId = this.toStringId(booking.memberId);
-        if (!userId) {
+        if (!userId || !bookingId) {
           continue;
         }
-
-        const bookingId = booking._id.toString();
         const activityTitle = this.extractField(booking.activityId, 'title');
         const hostName = this.extractField(booking.hostId, 'name');
 
@@ -274,7 +389,10 @@ export class RemindersService {
   @Cron('*/10 * * * *')
   async cleanupAbandonedPendingBookings(): Promise<void> {
     try {
-      const olderThan = DateTime.now().minus({ minutes: 30 }).toUTC().toJSDate();
+      const olderThan = DateTime.now()
+        .minus({ minutes: 30 })
+        .toUTC()
+        .toJSDate();
 
       const bookings = await this.bookingModel
         .find({
@@ -287,6 +405,10 @@ export class RemindersService {
 
       let enqueued = 0;
       for (const booking of bookings) {
+        const bookingId = this.toStringId(booking._id);
+        if (!bookingId) {
+          continue;
+        }
         const updated = await this.bookingModel.findOneAndUpdate(
           {
             _id: booking._id,
@@ -305,8 +427,6 @@ export class RemindersService {
         if (!updated) {
           continue;
         }
-
-        const bookingId = booking._id.toString();
         const activityId = booking.activityId.toString();
         const memberId = booking.memberId.toString();
         const hostId = booking.hostId.toString();
@@ -361,10 +481,7 @@ export class RemindersService {
     return [...new Set(tokens.map((tokenDoc) => tokenDoc.token))];
   }
 
-  private extractField(
-    candidate: unknown,
-    field: string,
-  ): string {
+  private extractField(candidate: unknown, field: string): string {
     if (!candidate || typeof candidate !== 'object') {
       return '';
     }
