@@ -74,6 +74,12 @@ export class Booking extends Document {
   })
   attendanceStatus?: AttendanceStatus; // Attendance status (pending/present/absent)
 
+  @Prop({ default: false })
+  reviewRequested: boolean;
+
+  @Prop({ type: Date, default: null })
+  completedAt?: Date | null;
+
   @Prop({ default: Date.now })
   created_at: Date;
 

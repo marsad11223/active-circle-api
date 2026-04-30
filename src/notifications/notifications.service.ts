@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { NotificationToken } from 'src/schemas/notifications.schema';
 import { buildNotificationData } from './notification-payload.util';
+import { OutboxService } from './outbox.service';
 
 type PushPayload = Record<string, unknown>;
 type PushMessage = {
@@ -37,9 +38,13 @@ export class NotificationsService {
   constructor(
     @InjectModel(NotificationToken.name)
     private readonly notificationTokenModel: Model<NotificationToken>,
+    private readonly outboxService: OutboxService,
   ) {}
 
-  async registerToken(userId: string, token: string): Promise<NotificationToken> {
+  async registerToken(
+    userId: string,
+    token: string,
+  ): Promise<NotificationToken> {
     const trimmedUserId = userId?.trim();
     const trimmedToken = token?.trim();
 
@@ -74,12 +79,23 @@ export class NotificationsService {
     body: string,
     data?: PushPayload,
   ): Promise<PushTicket[]> {
+    const typedPayload = this.asTypedPayload(data);
     const tokens = await this.notificationTokenModel
       .find({ userId: userId.trim() })
       .select('token -_id')
       .lean();
 
     const userTokens = tokens.map((item) => item.token);
+    if (typedPayload) {
+      await this.enqueueOutboxEvent(
+        typedPayload,
+        userId.trim(),
+        userTokens,
+        null,
+        null,
+      );
+      return [{ status: 'ok' }];
+    }
     return this.sendWithTokens(userTokens, title, body, data);
   }
 
@@ -101,10 +117,30 @@ export class NotificationsService {
       return [];
     }
 
+    const typedPayload = this.asTypedPayload(data);
     const tokens = await this.notificationTokenModel
       .find({ userId: { $in: normalizedUserIds } })
-      .select('token -_id')
+      .select('userId token -_id')
       .lean();
+    if (typedPayload) {
+      const tokensByUser = new Map<string, string[]>();
+      for (const item of tokens) {
+        if (!tokensByUser.has(item.userId)) {
+          tokensByUser.set(item.userId, []);
+        }
+        tokensByUser.get(item.userId)!.push(item.token);
+      }
+      for (const [recipientUserId, recipientTokens] of tokensByUser.entries()) {
+        await this.enqueueOutboxEvent(
+          typedPayload,
+          recipientUserId,
+          [...new Set(recipientTokens)],
+          null,
+          null,
+        );
+      }
+      return [{ status: 'ok' }];
+    }
 
     const userTokens = [...new Set(tokens.map((item) => item.token))];
     return this.sendWithTokens(userTokens, title, body, data);
@@ -115,13 +151,56 @@ export class NotificationsService {
     body: string,
     data?: PushPayload,
   ): Promise<PushTicket[]> {
+    const typedPayload = this.asTypedPayload(data);
     const tokens = await this.notificationTokenModel
       .find({})
-      .select('token -_id')
+      .select('userId token -_id')
       .lean();
+    if (typedPayload) {
+      const tokensByUser = new Map<string, string[]>();
+      for (const item of tokens) {
+        if (!tokensByUser.has(item.userId)) {
+          tokensByUser.set(item.userId, []);
+        }
+        tokensByUser.get(item.userId)!.push(item.token);
+      }
+      for (const [recipientUserId, recipientTokens] of tokensByUser.entries()) {
+        await this.enqueueOutboxEvent(
+          typedPayload,
+          recipientUserId,
+          [...new Set(recipientTokens)],
+          null,
+          null,
+        );
+      }
+      return [{ status: 'ok' }];
+    }
 
     const allTokens = [...new Set(tokens.map((item) => item.token))];
     return this.sendWithTokens(allTokens, title, body, data);
+  }
+
+  async sendOutboxPushByTokens(
+    recipientTokens: string[],
+    payload: {
+      type?: string;
+      screen?: string;
+      entityId?: string;
+      params?: Record<string, string>;
+      sentAt?: string;
+    },
+  ): Promise<PushTicket[]> {
+    if (!recipientTokens.length) {
+      return [];
+    }
+    const content = this.getPushContent(payload.type);
+    return this.sendWithTokens(recipientTokens, content.title, content.body, {
+      type: payload.type || 'feature_announcement',
+      screen: payload.screen || '/(tabs)/index',
+      entityId: payload.entityId || 'unknown',
+      params: payload.params || {},
+      sentAt: payload.sentAt || new Date().toISOString(),
+    });
   }
 
   // TODO: wire these helpers with a scheduler/cron module.
@@ -220,8 +299,7 @@ export class NotificationsService {
 
     for (const chunk of chunks) {
       try {
-        const chunkTickets =
-          await expoClient.sendPushNotificationsAsync(chunk);
+        const chunkTickets = await expoClient.sendPushNotificationsAsync(chunk);
         tickets.push(...chunkTickets);
       } catch (error) {
         this.logger.error('Failed to send Expo notification chunk', error);
@@ -232,8 +310,152 @@ export class NotificationsService {
     return tickets;
   }
 
+  private asTypedPayload(data?: PushPayload): {
+    type: string;
+    screen: string;
+    entityId: string;
+    params: Record<string, string>;
+    sentAt: string;
+  } | null {
+    if (!data) {
+      return null;
+    }
+
+    const candidate = data as {
+      type?: unknown;
+      screen?: unknown;
+      entityId?: unknown;
+      params?: unknown;
+      sentAt?: unknown;
+    };
+    if (
+      typeof candidate.type !== 'string' ||
+      typeof candidate.screen !== 'string' ||
+      typeof candidate.entityId !== 'string' ||
+      typeof candidate.sentAt !== 'string' ||
+      !candidate.params ||
+      typeof candidate.params !== 'object' ||
+      Array.isArray(candidate.params)
+    ) {
+      return null;
+    }
+
+    const params: Record<string, string> = {};
+    for (const [key, value] of Object.entries(candidate.params)) {
+      if (typeof value === 'string') {
+        params[key] = value;
+      }
+    }
+
+    return {
+      type: candidate.type,
+      screen: candidate.screen,
+      entityId: candidate.entityId,
+      params,
+      sentAt: candidate.sentAt,
+    };
+  }
+
+  private async enqueueOutboxEvent(
+    payload: {
+      type: string;
+      screen: string;
+      entityId: string;
+      params: Record<string, string>;
+      sentAt: string;
+    },
+    recipientUserId: string,
+    recipientTokens: string[],
+    recipientEmail: string | null,
+    emailTemplate: { templateId: string; data: Record<string, unknown> } | null,
+  ): Promise<void> {
+    const idempotencyKey = `${payload.type}:${payload.entityId}:${recipientUserId}`;
+    await this.outboxService.enqueue({
+      type: payload.type,
+      entityId: payload.entityId,
+      payload,
+      recipientTokens,
+      recipientEmail,
+      emailTemplate,
+      idempotencyKey,
+    });
+  }
+
+  private getPushContent(type?: string): { title: string; body: string } {
+    switch (type) {
+      case 'booking_confirmed':
+        return {
+          title: 'Booking Confirmed',
+          body: 'Your session has been booked successfully.',
+        };
+      case 'new_booking_host':
+        return {
+          title: 'New Booking',
+          body: 'Someone just booked your session.',
+        };
+      case 'booking_pending':
+        return {
+          title: 'Booking Pending',
+          body: 'Your booking request is pending host approval.',
+        };
+      case 'booking_approved':
+        return {
+          title: 'Booking Approved',
+          body: 'Your booking request was approved.',
+        };
+      case 'booking_declined':
+        return {
+          title: 'Booking Declined',
+          body: 'Your booking request was declined.',
+        };
+      case 'activity_updated':
+        return {
+          title: 'Activity Updated',
+          body: 'An activity you joined has been updated.',
+        };
+      case 'activity_cancelled':
+        return {
+          title: 'Activity Cancelled',
+          body: 'An activity you joined was cancelled.',
+        };
+      case 'activity_reminder_24h':
+        return {
+          title: 'Activity Reminder',
+          body: 'Your activity starts in 24 hours.',
+        };
+      case 'activity_reminder_1h':
+        return {
+          title: 'Activity Reminder',
+          body: 'Your activity starts in 1 hour.',
+        };
+      case 'new_message':
+        return {
+          title: 'New Message',
+          body: 'You received a new message.',
+        };
+      case 'host_broadcast':
+        return {
+          title: 'Host Update',
+          body: 'Your host posted a new update.',
+        };
+      case 'review_request':
+        return {
+          title: 'Share Your Feedback',
+          body: 'How was your activity? Leave a quick review.',
+        };
+      case 'feature_announcement':
+      default:
+        return {
+          title: 'New Feature',
+          body: 'Check out what is new in The Active Circle!',
+        };
+    }
+  }
+
   private logTicketErrors(tickets: PushTicket[]): void {
-    const erroredTickets = tickets.filter((ticket) => ticket.status === 'error');
+    const erroredTickets = tickets.filter(
+      (ticket) => ticket.status === 'error',
+    );
 
     for (const ticket of erroredTickets) {
       this.logger.error(

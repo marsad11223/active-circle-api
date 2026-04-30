@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { SubscriptionModule } from './subscription/subscription.module';
@@ -18,6 +19,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 
 import { APP_PIPE } from '@nestjs/core';
 import { EmailModule } from './email/email.module';
+import { RemindersModule } from './reminders/reminders.module';
 
 @Module({
   imports: [
@@ -31,9 +33,11 @@ import { EmailModule } from './email/email.module';
     MessageModule,
     PayoutModule,
     NotificationsModule,
+    RemindersModule,
 
     ConfigModule.forRoot({ isGlobal: true }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 10 }]),
+    ScheduleModule.forRoot(),
     EmailModule,
     MongooseModule.forRootAsync({
       imports: [ConfigModule],

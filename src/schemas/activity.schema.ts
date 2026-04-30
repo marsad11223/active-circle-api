@@ -82,6 +82,12 @@ export class Activity extends Document {
   })
   status: ActivityStatus; // Activity status (active, completed, cancelled)
 
+  @Prop({ default: false })
+  reminded24h: boolean;
+
+  @Prop({ default: false })
+  reminded1h: boolean;
+
   @Prop({ type: Types.ObjectId, ref: 'Activity', required: false })
   originalActivityId?: Types.ObjectId; // Reference to original activity if this is a re-occurred activity
 
