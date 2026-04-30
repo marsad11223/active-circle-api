@@ -27,7 +27,7 @@ export class RemindersService {
   /**
    * Auto-complete past activities so hosts don't need to mark completion manually.
    */
-  @Cron('*/15 * * * *')
+  @Cron('*/30 * * * *')
   async autoCompletePastActivities(): Promise<void> {
     try {
       const nowLondon = DateTime.now().setZone(UK_TZ);
@@ -140,7 +140,7 @@ export class RemindersService {
   /**
    * Enqueue 24-hour activity reminders for confirmed bookings.
    */
-  @Cron('*/15 * * * *')
+  @Cron('0 * * * *')
   async enqueueActivityReminder24h(): Promise<void> {
     try {
       const now = DateTime.now().setZone(UK_TZ);
@@ -227,7 +227,7 @@ export class RemindersService {
   /**
    * Enqueue 1-hour activity reminders for confirmed bookings.
    */
-  @Cron('*/15 * * * *')
+  @Cron('*/10 * * * *')
   async enqueueActivityReminder1h(): Promise<void> {
     try {
       const now = DateTime.now().setZone(UK_TZ);
