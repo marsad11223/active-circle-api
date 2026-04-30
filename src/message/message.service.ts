@@ -20,6 +20,8 @@ import {
   replyToMessageToMember,
   broadcastMessageToMember,
 } from 'src/utils/email-templates';
+import { NotificationsService } from 'src/notifications/notifications.service';
+import { buildNotificationData } from 'src/notifications/notification-payload.util';
 
 @Injectable()
 export class MessageService {
@@ -34,6 +36,7 @@ export class MessageService {
     private readonly userModel: Model<User>,
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async sendMessage(
@@ -141,6 +144,22 @@ export class MessageService {
         });
       } catch (err) {
         console.error('Failed to set host hasNewMessages flag:', err);
+      }
+
+      try {
+        const messageId = (message._id as any).toString();
+        const activityId = (activity._id as any).toString();
+        await this.notificationsService.sendToUser(
+          hostId,
+          'New Message',
+          'You received a new message.',
+          buildNotificationData('new_message', '/(tabs)/messages', messageId, {
+            messageId,
+            activityId,
+          }),
+        );
+      } catch (pushError) {
+        console.error('Failed to send push notification for new message:', pushError);
       }
 
       // Populate for response
@@ -280,6 +299,22 @@ export class MessageService {
         });
       } catch (err) {
         console.error('Failed to set member hasNewMessages flag:', err);
+      }
+
+      try {
+        const replyId = (reply._id as any).toString();
+        const activityId = activity?._id?.toString?.() || '';
+        await this.notificationsService.sendToUser(
+          memberId,
+          'New Message',
+          'You received a new message.',
+          buildNotificationData('new_message', '/(tabs)/messages', replyId, {
+            messageId: replyId,
+            activityId,
+          }),
+        );
+      } catch (pushError) {
+        console.error('Failed to send push notification for reply message:', pushError);
       }
 
       // Populate for response
@@ -428,6 +463,32 @@ export class MessageService {
 
       // Wait for all emails to be sent (or fail)
       await Promise.all(emailPromises);
+
+      try {
+        const recipientIds = [
+          ...new Set(
+            bookings.map((booking) => {
+              const member = booking.memberId as any;
+              return (member._id || member).toString();
+            }),
+          ),
+        ];
+        const activityId = broadcastDto.activityId;
+        await this.notificationsService.sendToMultipleUsers(
+          recipientIds,
+          'Host Update',
+          'Your host posted a new update.',
+          buildNotificationData('host_broadcast', '/(tabs)/messages', activityId, {
+            activityId,
+            tab: 'notifications',
+          }),
+        );
+      } catch (pushError) {
+        console.error(
+          'Failed to send push notification for host broadcast:',
+          pushError,
+        );
+      }
 
       return {
         message: 'Broadcast message sent successfully',

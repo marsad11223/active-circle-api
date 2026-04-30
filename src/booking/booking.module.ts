@@ -9,6 +9,7 @@ import { Rating, RatingSchema } from 'src/schemas/rating.schema';
 import { AuthModule } from 'src/auth/auth.module';
 
 import { EmailModule } from '../email/email.module';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { EmailModule } from '../email/email.module';
     ]),
     forwardRef(() => AuthModule),
     EmailModule,
+    NotificationsModule,
   ],
   controllers: [BookingController],
   providers: [BookingService],

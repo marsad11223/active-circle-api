@@ -52,6 +52,8 @@ import {
   eachLondonDayInclusive,
 } from 'src/utils/uk-time';
 import { HostScheduleQueryDto } from './dto/host-schedule-query.dto';
+import { NotificationsService } from 'src/notifications/notifications.service';
+import { buildNotificationData } from 'src/notifications/notification-payload.util';
 
 @Injectable()
 export class ActivityService {
@@ -70,6 +72,7 @@ export class ActivityService {
     private readonly subscriptionModel: Model<Subscription>,
     private configService: ConfigService,
     private readonly emailService: EmailService,
+    private readonly notificationsService: NotificationsService,
   ) {
     const stripeSecretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (stripeSecretKey) {
@@ -831,6 +834,58 @@ export class ActivityService {
     return EARTH_RADIUS_MILES * angularDistance;
   }
 
+  private async getConfirmedMemberIdsForActivity(
+    activityId: string,
+  ): Promise<string[]> {
+    const bookings = await this.bookingModel
+      .find({
+        activityId: new mongoose.Types.ObjectId(activityId),
+        status: BookingStatus.CONFIRMED,
+        deleted_at: null,
+      })
+      .select('memberId')
+      .lean();
+
+    return [
+      ...new Set(
+        bookings
+          .map((booking) => booking.memberId?.toString())
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+  }
+
+  private async sendBulkActivityNotificationSafely(
+    memberIds: string[],
+    title: string,
+    body: string,
+    type: 'activity_updated' | 'activity_cancelled' | 'review_request',
+    activityId: string,
+  ): Promise<void> {
+    if (!memberIds.length) {
+      return;
+    }
+
+    try {
+      const screen =
+        type === 'review_request' ? '/(tabs)/reviews' : '/(tabs)/browse-detail';
+      await this.notificationsService.sendToMultipleUsers(
+        memberIds,
+        title,
+        body,
+        buildNotificationData(type, screen, activityId, {
+          id: activityId,
+          activityId,
+        }),
+      );
+    } catch (error) {
+      console.error(
+        `[Push] Failed to send ${type} notifications for activity ${activityId}:`,
+        error,
+      );
+    }
+  }
+
   async findOne(id: string, memberId?: string): Promise<any> {
     try {
       const isValidID = mongoose.isValidObjectId(id);
@@ -912,6 +967,14 @@ export class ActivityService {
     userId: string,
   ): Promise<Activity> {
     try {
+      const existingActivity = await this.activityModel.findOne({
+        _id: id,
+        deleted_at: null,
+      });
+      if (!existingActivity) {
+        throw new NotFoundException('Activity not found');
+      }
+
       const activity = await this.findOne(id);
       if (!activity) {
         throw new NotFoundException('Activity not found');
@@ -953,6 +1016,12 @@ export class ActivityService {
         updateData.date = new Date(updateActivityDto.date);
       }
 
+      const significantFieldUpdated =
+        updateActivityDto.date !== undefined ||
+        updateActivityDto.time !== undefined ||
+        updateActivityDto.location !== undefined ||
+        updateActivityDto.coordinates !== undefined;
+
       const updatedActivity = await this.activityModel.findByIdAndUpdate(
         id,
         updateData,
@@ -961,6 +1030,17 @@ export class ActivityService {
 
       if (!updatedActivity) {
         throw new NotFoundException('Activity not found after update');
+      }
+
+      if (significantFieldUpdated) {
+        const memberIds = await this.getConfirmedMemberIdsForActivity(id);
+        await this.sendBulkActivityNotificationSafely(
+          memberIds,
+          'Activity Updated',
+          'An activity you joined has been updated.',
+          'activity_updated',
+          (existingActivity._id as any).toString(),
+        );
       }
 
       return updatedActivity;
@@ -1062,6 +1142,16 @@ export class ActivityService {
       activity.status = ActivityStatus.COMPLETED;
       activity.updated_at = new Date();
       await activity.save();
+
+      const activityId = (activity._id as any).toString();
+      const memberIds = await this.getConfirmedMemberIdsForActivity(activityId);
+      await this.sendBulkActivityNotificationSafely(
+        memberIds,
+        'Share Your Feedback',
+        'How was your activity? Leave a quick review.',
+        'review_request',
+        activityId,
+      );
 
       return activity;
     } catch (err) {
@@ -1441,6 +1531,21 @@ export class ActivityService {
           }
         }
       }
+
+      const recipientMemberIds = [
+        ...new Set(
+          [...confirmedBookings, ...pendingBookings]
+            .map((booking) => booking.memberId?.toString())
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ];
+      await this.sendBulkActivityNotificationSafely(
+        recipientMemberIds,
+        'Activity Cancelled',
+        'An activity you joined was cancelled.',
+        'activity_cancelled',
+        id,
+      );
 
       return {
         message: 'Activity cancelled successfully',

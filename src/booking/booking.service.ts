@@ -33,6 +33,11 @@ import {
   bookingCancelledFreeToMember,
   bookingCancelledWithRefundToMember,
 } from 'src/utils/email-templates';
+import { NotificationsService } from 'src/notifications/notifications.service';
+import {
+  NotificationEventType,
+  buildNotificationData,
+} from 'src/notifications/notification-payload.util';
 
 @Injectable()
 export class BookingService {
@@ -49,6 +54,7 @@ export class BookingService {
     private readonly ratingModel: Model<Rating>,
     private configService: ConfigService,
     private readonly emailService: EmailService,
+    private readonly notificationsService: NotificationsService,
   ) {
     const stripeSecretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!stripeSecretKey) {
@@ -307,6 +313,37 @@ export class BookingService {
         console.error('Failed to set admin hasNewBookings flag:', err);
       }
 
+      const bookingDocId = (booking._id as any).toString();
+      const activityId = (activity._id as any).toString();
+      await this.sendPushSafely(
+        memberId,
+        'Booking Pending',
+        'Your booking request is pending host approval.',
+        'booking_pending',
+        '/(tabs)/booking-detail',
+        bookingDocId,
+        {
+          id: bookingDocId,
+          bookingId: bookingDocId,
+          activityId,
+        },
+      );
+
+      await this.sendPushSafely(
+        hostId,
+        'New Booking',
+        'Someone just booked your session.',
+        'new_booking_host',
+        '/(host)/bookings',
+        bookingDocId,
+        {
+          id: bookingDocId,
+          bookingId: bookingDocId,
+          activityId,
+          tab: 'pending',
+        },
+      );
+
       return booking;
     } catch (err) {
       if (
@@ -434,6 +471,35 @@ export class BookingService {
         }
       }
 
+      const bookingDocId = (booking._id as any).toString();
+      const activityRef = booking.activityId as any;
+      const activityId = (activityRef?._id || activityRef)?.toString();
+      const memberId = (booking.memberId as any)._id
+        ? (booking.memberId as any)._id.toString()
+        : (booking.memberId as any).toString();
+      const approvalEvent: NotificationEventType =
+        booking.amount > 0 ? 'booking_confirmed' : 'booking_approved';
+      const approvalTitle =
+        booking.amount > 0 ? 'Booking Confirmed' : 'Booking Approved';
+      const approvalBody =
+        booking.amount > 0
+          ? 'Your session has been booked successfully.'
+          : 'Your booking request was approved.';
+
+      await this.sendPushSafely(
+        memberId,
+        approvalTitle,
+        approvalBody,
+        approvalEvent,
+        '/(tabs)/booking-detail',
+        bookingDocId,
+        {
+          id: bookingDocId,
+          bookingId: bookingDocId,
+          activityId: activityId || '',
+        },
+      );
+
       return booking;
     } catch (err) {
       if (
@@ -539,6 +605,27 @@ export class BookingService {
           console.error('Error sending cancellation email:', emailError);
         }
       }
+
+      const bookingDocId = (booking._id as any).toString();
+      const activityRef = booking.activityId as any;
+      const activityId = (activityRef?._id || activityRef)?.toString();
+      const memberId = (booking.memberId as any)._id
+        ? (booking.memberId as any)._id.toString()
+        : (booking.memberId as any).toString();
+
+      await this.sendPushSafely(
+        memberId,
+        'Booking Declined',
+        'Your booking request was declined.',
+        'booking_declined',
+        '/(tabs)/booking-detail',
+        bookingDocId,
+        {
+          id: bookingDocId,
+          bookingId: bookingDocId,
+          activityId: activityId || '',
+        },
+      );
 
       return booking;
     } catch (err) {
@@ -1050,6 +1137,25 @@ export class BookingService {
           }
         }
 
+        const bookingDocId = (booking._id as any).toString();
+        const hostId = (booking.hostId as any)._id
+          ? (booking.hostId as any)._id.toString()
+          : (booking.hostId as any).toString();
+        await this.sendPushSafely(
+          hostId,
+          'Booking Cancelled',
+          'A member cancelled their booking request.',
+          'booking_declined',
+          '/(host)/bookings',
+          bookingDocId,
+          {
+            id: bookingDocId,
+            bookingId: bookingDocId,
+            activityId: activity._id?.toString?.() || '',
+            tab: 'pending',
+          },
+        );
+
         return booking;
       }
 
@@ -1112,6 +1218,25 @@ export class BookingService {
             console.error('Error sending withdrawal email:', emailError);
           }
         }
+
+        const bookingDocId = (booking._id as any).toString();
+        const hostId = (booking.hostId as any)._id
+          ? (booking.hostId as any)._id.toString()
+          : (booking.hostId as any).toString();
+        await this.sendPushSafely(
+          hostId,
+          'Booking Cancelled',
+          'A member withdrew a pending booking request.',
+          'booking_declined',
+          '/(host)/bookings',
+          bookingDocId,
+          {
+            id: bookingDocId,
+            bookingId: bookingDocId,
+            activityId: activity._id?.toString?.() || '',
+            tab: 'pending',
+          },
+        );
 
         return booking;
       }
@@ -1227,6 +1352,24 @@ export class BookingService {
           }
         }
 
+        const bookingDocId = (booking._id as any).toString();
+        const hostId = (booking.hostId as any)._id
+          ? (booking.hostId as any)._id.toString()
+          : (booking.hostId as any).toString();
+        await this.sendPushSafely(
+          hostId,
+          'Booking Cancelled',
+          'A member cancelled a confirmed booking.',
+          'booking_declined',
+          '/(host)/bookings',
+          bookingDocId,
+          {
+            id: bookingDocId,
+            bookingId: bookingDocId,
+            activityId: activity._id?.toString?.() || '',
+          },
+        );
+
         return booking;
       } catch (refundError: any) {
         console.error('Error processing refund:', refundError);
@@ -1243,6 +1386,30 @@ export class BookingService {
         throw err;
       }
       throw new BadRequestException(err.message);
+    }
+  }
+
+  private async sendPushSafely(
+    recipientId: string,
+    title: string,
+    body: string,
+    type: NotificationEventType,
+    screen: string,
+    entityId: string,
+    params: Record<string, string>,
+  ): Promise<void> {
+    try {
+      await this.notificationsService.sendToUser(
+        recipientId,
+        title,
+        body,
+        buildNotificationData(type, screen, entityId, params),
+      );
+    } catch (error) {
+      console.error(
+        `[Push] Failed to send ${type} notification to user ${recipientId}:`,
+        error,
+      );
     }
   }
 

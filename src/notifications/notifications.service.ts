@@ -1,17 +1,38 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import type { ExpoPushMessage, ExpoPushTicket } from 'expo-server-sdk';
 import { NotificationToken } from 'src/schemas/notifications.schema';
+import { buildNotificationData } from './notification-payload.util';
 
 type PushPayload = Record<string, unknown>;
-type ExpoSdkModule = typeof import('expo-server-sdk');
+type PushMessage = {
+  to: string;
+  sound: 'default';
+  title: string;
+  body: string;
+  data?: PushPayload;
+};
+type PushTicket = {
+  status: 'ok' | 'error';
+  message?: string;
+  details?: Record<string, unknown>;
+};
+type ExpoClient = {
+  chunkPushNotifications(messages: PushMessage[]): PushMessage[][];
+  sendPushNotificationsAsync(chunk: PushMessage[]): Promise<PushTicket[]>;
+};
+type ExpoSdkModule = {
+  Expo: {
+    new (): ExpoClient;
+    isExpoPushToken(token: string): boolean;
+  };
+};
 
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
   private expoSdk: ExpoSdkModule | null = null;
-  private expoClient: InstanceType<ExpoSdkModule['Expo']> | null = null;
+  private expoClient: ExpoClient | null = null;
 
   constructor(
     @InjectModel(NotificationToken.name)
@@ -52,7 +73,7 @@ export class NotificationsService {
     title: string,
     body: string,
     data?: PushPayload,
-  ): Promise<ExpoPushTicket[]> {
+  ): Promise<PushTicket[]> {
     const tokens = await this.notificationTokenModel
       .find({ userId: userId.trim() })
       .select('token -_id')
@@ -67,7 +88,7 @@ export class NotificationsService {
     title: string,
     body: string,
     data?: PushPayload,
-  ): Promise<ExpoPushTicket[]> {
+  ): Promise<PushTicket[]> {
     if (!Array.isArray(userIds) || userIds.length === 0) {
       return [];
     }
@@ -93,7 +114,7 @@ export class NotificationsService {
     title: string,
     body: string,
     data?: PushPayload,
-  ): Promise<ExpoPushTicket[]> {
+  ): Promise<PushTicket[]> {
     const tokens = await this.notificationTokenModel
       .find({})
       .select('token -_id')
@@ -103,12 +124,65 @@ export class NotificationsService {
     return this.sendWithTokens(allTokens, title, body, data);
   }
 
+  // TODO: wire these helpers with a scheduler/cron module.
+  async sendActivityReminder24h(
+    userIds: string[],
+    activityId: string,
+  ): Promise<PushTicket[]> {
+    return this.sendToMultipleUsers(
+      userIds,
+      'Activity Reminder',
+      'Your activity starts in 24 hours.',
+      buildNotificationData(
+        'activity_reminder_24h',
+        '/(tabs)/browse-detail',
+        activityId,
+        {
+          id: activityId,
+          activityId,
+        },
+      ),
+    );
+  }
+
+  // TODO: wire these helpers with a scheduler/cron module.
+  async sendActivityReminder1h(
+    userIds: string[],
+    activityId: string,
+  ): Promise<PushTicket[]> {
+    return this.sendToMultipleUsers(
+      userIds,
+      'Activity Reminder',
+      'Your activity starts in 1 hour.',
+      buildNotificationData(
+        'activity_reminder_1h',
+        '/(tabs)/browse-detail',
+        activityId,
+        {
+          id: activityId,
+          activityId,
+        },
+      ),
+    );
+  }
+
+  async sendFeatureAnnouncement(
+    title: string,
+    body: string,
+  ): Promise<PushTicket[]> {
+    return this.sendToAll(
+      title,
+      body,
+      buildNotificationData('feature_announcement', '/(tabs)/index', 'all', {}),
+    );
+  }
+
   private async sendWithTokens(
     tokens: string[],
     title: string,
     body: string,
     data?: PushPayload,
-  ): Promise<ExpoPushTicket[]> {
+  ): Promise<PushTicket[]> {
     if (!Array.isArray(tokens) || tokens.length === 0) {
       return [];
     }
@@ -133,7 +207,7 @@ export class NotificationsService {
       return [];
     }
 
-    const messages: ExpoPushMessage[] = validTokens.map((token) => ({
+    const messages: PushMessage[] = validTokens.map((token) => ({
       to: token,
       sound: 'default',
       title,
@@ -142,7 +216,7 @@ export class NotificationsService {
     }));
 
     const chunks = expoClient.chunkPushNotifications(messages);
-    const tickets: ExpoPushTicket[] = [];
+    const tickets: PushTicket[] = [];
 
     for (const chunk of chunks) {
       try {
@@ -158,10 +232,8 @@ export class NotificationsService {
     return tickets;
   }
 
-  private logTicketErrors(tickets: ExpoPushTicket[]): void {
-    const erroredTickets = tickets.filter(
-      (ticket) => ticket.status === 'error',
-    );
+  private logTicketErrors(tickets: PushTicket[]): void {
+    const erroredTickets = tickets.filter((ticket) => ticket.status === 'error');
 
     for (const ticket of erroredTickets) {
       this.logger.error(
@@ -173,12 +245,12 @@ export class NotificationsService {
 
   private async getExpoSdk(): Promise<ExpoSdkModule> {
     if (!this.expoSdk) {
-      this.expoSdk = await import('expo-server-sdk');
+      this.expoSdk = (await import('expo-server-sdk')) as ExpoSdkModule;
     }
     return this.expoSdk;
   }
 
-  private async getExpoClient(): Promise<InstanceType<ExpoSdkModule['Expo']>> {
+  private async getExpoClient(): Promise<ExpoClient> {
     if (!this.expoClient) {
       const expoSdk = await this.getExpoSdk();
       this.expoClient = new expoSdk.Expo();
