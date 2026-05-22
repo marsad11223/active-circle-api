@@ -27,21 +27,31 @@ import { OptionalJwtAuthGuard } from 'src/auth/optional-jwt.guard';
 import { IsAdmin } from 'src/utils/helper';
 import { User, Role } from 'src/schemas/user.schema';
 
+type AuthUser = User & {
+  _id: {
+    toString(): string;
+  };
+  role: Role;
+};
+
 @Controller('activities')
 export class ActivityController {
   constructor(private readonly activityService: ActivityService) {}
 
   @UseGuards(AuthGuard('jwt'))
   @Post()
-  create(@Body() createActivityDto: CreateActivityDto, @GetUser() user: any) {
+  create(
+    @Body() createActivityDto: CreateActivityDto,
+    @GetUser() user: AuthUser,
+  ) {
     // Only hosts can create activities
     return this.activityService.create(createActivityDto, user._id.toString());
   }
 
   @Get()
-  findAll() {
+  findAll(@Query('includePast') includePast?: string) {
     // Public endpoint - anyone can view activities
-    return this.activityService.findAll();
+    return this.activityService.findAll(includePast === 'true');
   }
 
   @Get('browse')
@@ -55,7 +65,7 @@ export class ActivityController {
   @Get('browse/member')
   browseActivitiesForMember(
     @Query() filters: BrowseActivitiesDto,
-    @GetUser() user: any,
+    @GetUser() user: AuthUser,
   ) {
     // Browse activities with filters for authenticated members
     // Uses member's radius preference if maxDistance not provided
@@ -67,7 +77,7 @@ export class ActivityController {
   @Get('member/nearby')
   getNearbyActivitiesForMember(
     @Query() query: NearbyActivitiesDto,
-    @GetUser() user: any,
+    @GetUser() user: AuthUser,
   ) {
     return this.activityService.getNearbyActivitiesForMember(
       query,
@@ -77,7 +87,7 @@ export class ActivityController {
 
   @UseGuards(AuthGuard('jwt'))
   @Get('member/:id')
-  findOneForMember(@Param('id') id: string, @GetUser() user: any) {
+  findOneForMember(@Param('id') id: string, @GetUser() user: AuthUser) {
     // Authenticated endpoint for members - includes booking status
     return this.activityService.findOne(id, user._id.toString());
   }
@@ -93,7 +103,7 @@ export class ActivityController {
 
   @UseGuards(OptionalJwtAuthGuard)
   @Get(':id')
-  findOne(@Param('id') id: string, @GetUser() user?: any) {
+  findOne(@Param('id') id: string, @GetUser() user?: AuthUser | null) {
     // Public endpoint - anyone can view a specific activity
     // If user is authenticated, includes booking status
     const memberId = user?._id?.toString();
@@ -102,14 +112,14 @@ export class ActivityController {
 
   @UseGuards(AuthGuard('jwt'))
   @Get('host/my-activities')
-  findByHost(@GetUser() user: any) {
+  findByHost(@GetUser() user: AuthUser) {
     // Get all activities created by the current host
     return this.activityService.findByHost(user._id.toString());
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Get('host/upcoming')
-  getUpcomingActivities(@GetUser() user: any) {
+  getUpcomingActivities(@GetUser() user: AuthUser) {
     // Get upcoming activities for the current host (date >= today, status = ACTIVE)
     return this.activityService.getUpcomingActivities(user._id.toString());
   }
@@ -117,7 +127,7 @@ export class ActivityController {
   @UseGuards(AuthGuard('jwt'))
   @Get('host/past')
   getPastActivities(
-    @GetUser() user: any,
+    @GetUser() user: AuthUser,
     @Query('status') status?: ActivityStatusFilter | ActivityStatusFilter[],
   ) {
     // Get past activities strictly before today for the current host
@@ -129,7 +139,7 @@ export class ActivityController {
   @Get(':id/members')
   async getActivityMembers(
     @Param('id') id: string,
-    @GetUser() user: any,
+    @GetUser() user: AuthUser,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
@@ -148,7 +158,7 @@ export class ActivityController {
   cancelActivity(
     @Param('id') id: string,
     @Body() body: { cancelReason?: string },
-    @GetUser() user: any,
+    @GetUser() user: AuthUser,
     @Query('hostId') hostId?: string,
   ) {
     // Cancel an activity (host only). Admin can pass hostId to act on behalf of a host.
@@ -168,7 +178,7 @@ export class ActivityController {
   update(
     @Param('id') id: string,
     @Body() updateActivityDto: UpdateActivityDto,
-    @GetUser() user: any,
+    @GetUser() user: AuthUser,
   ) {
     // Only the host who created the activity or superAdmin can update
     return this.activityService.update(
@@ -180,14 +190,14 @@ export class ActivityController {
 
   @UseGuards(AuthGuard('jwt'))
   @Delete(':id')
-  remove(@Param('id') id: string, @GetUser() user: any) {
+  remove(@Param('id') id: string, @GetUser() user: AuthUser) {
     // Only the host who created the activity or superAdmin can delete
     return this.activityService.remove(id, user._id.toString());
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Post(':id/complete')
-  markAsCompleted(@Param('id') id: string, @GetUser() user: any) {
+  markAsCompleted(@Param('id') id: string, @GetUser() user: AuthUser) {
     // Mark activity as completed (held)
     return this.activityService.markAsCompleted(id, user._id.toString());
   }
@@ -197,7 +207,7 @@ export class ActivityController {
   reoccurActivity(
     @Param('id') id: string,
     @Body() reoccurActivityDto: ReoccurActivityDto,
-    @GetUser() user: any,
+    @GetUser() user: AuthUser,
   ) {
     // Re-occur an activity with new date and time
     // Previous bookings remain with the original activity

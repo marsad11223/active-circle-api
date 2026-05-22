@@ -271,13 +271,23 @@ export class ActivityService {
     }
   }
 
-  async findAll(): Promise<any[]> {
+  async findAll(includePast: boolean = false): Promise<any[]> {
     try {
+      const query: any = {
+        deleted_at: null,
+        status: includePast
+          ? { $in: [ActivityStatus.ACTIVE, ActivityStatus.COMPLETED] }
+          : ActivityStatus.ACTIVE, // Only show active activities by default
+      };
+
+      if (!includePast) {
+        query.date = {
+          $gte: DateTime.now().setZone(UK_TZ).startOf('day').toUTC().toJSDate(),
+        };
+      }
+
       const activities = await this.activityModel
-        .find({
-          deleted_at: null,
-          status: ActivityStatus.ACTIVE, // Only show active activities
-        })
+        .find(query)
         .populate('hostId', 'name email profilePhoto')
         .sort({ created_at: -1 });
 
@@ -729,11 +739,13 @@ export class ActivityService {
           year = DateTime.now().setZone(UK_TZ).year;
         }
 
-        const startOfMonth = DateTime.fromObject({
-          year,
-          month: monthNum,
-          zone: UK_TZ,
-        }).startOf('month');
+        const startOfMonth = DateTime.fromObject(
+          {
+            year,
+            month: monthNum,
+          },
+          { zone: UK_TZ },
+        ).startOf('month');
 
         if (!startOfMonth.isValid) {
           throw new BadRequestException('month must be between 1 and 12');
