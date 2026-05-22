@@ -705,23 +705,68 @@ export class ActivityService {
     memberId: string,
   ): Promise<{ activities: any[]; total: number }> {
     try {
-      const selectedDate = DateTime.fromISO(query.date, {
-        zone: UK_TZ,
-      }).startOf('day');
-      if (!selectedDate.isValid) {
-        throw new BadRequestException('date must be a valid ISO date');
-      }
+      // Determine date range: either a specific day (when `date` provided)
+      // or a whole month when `month` is provided. If `month` is present
+      // and `date` is provided, use the year from `date`; otherwise use
+      // the current year in UK time.
+      let startUtc: Date;
+      let endUtc: Date;
 
-      const startOfDayUtc = selectedDate.toUTC().toJSDate();
-      const endOfDayUtc = selectedDate.endOf('day').toUTC().toJSDate();
+      if (query.month !== undefined && query.month !== null) {
+        const monthNum = Math.floor(query.month);
+
+        // Determine year precedence: explicit `query.year` -> year from
+        // `query.date` -> current UK year.
+        let year: number;
+        if (query.year !== undefined && query.year !== null) {
+          year = Math.floor(query.year);
+          if (year < 1900 || year > 3000) {
+            throw new BadRequestException('year must be between 1900 and 3000');
+          }
+        } else if (query.date) {
+          year = DateTime.fromISO(query.date, { zone: UK_TZ }).year;
+        } else {
+          year = DateTime.now().setZone(UK_TZ).year;
+        }
+
+        const startOfMonth = DateTime.fromObject({
+          year,
+          month: monthNum,
+          zone: UK_TZ,
+        }).startOf('month');
+
+        if (!startOfMonth.isValid) {
+          throw new BadRequestException('month must be between 1 and 12');
+        }
+
+        const endOfMonth = startOfMonth.endOf('month');
+        startUtc = startOfMonth.toUTC().toJSDate();
+        endUtc = endOfMonth.toUTC().toJSDate();
+      } else {
+        if (!query.date) {
+          throw new BadRequestException(
+            'date is required when month is not provided',
+          );
+        }
+
+        const selectedDate = DateTime.fromISO(query.date, {
+          zone: UK_TZ,
+        }).startOf('day');
+        if (!selectedDate.isValid) {
+          throw new BadRequestException('date must be a valid ISO date');
+        }
+
+        startUtc = selectedDate.toUTC().toJSDate();
+        endUtc = selectedDate.endOf('day').toUTC().toJSDate();
+      }
 
       const activities = await this.activityModel
         .find({
           deleted_at: null,
           status: ActivityStatus.ACTIVE,
           date: {
-            $gte: startOfDayUtc,
-            $lte: endOfDayUtc,
+            $gte: startUtc,
+            $lte: endUtc,
           },
           'coordinates.lat': { $type: 'number' },
           'coordinates.lng': { $type: 'number' },
