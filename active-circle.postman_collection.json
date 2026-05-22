@@ -500,11 +500,21 @@
 										{
 											"key": "date",
 											"value": "2026-04-24",
-											"description": "Required. ISO date (YYYY-MM-DD). UK/London day boundaries are used."
+											"description": "ISO date (YYYY-MM-DD). If `month` is not provided, `date` is required. UK/London day boundaries are used."
+										},
+										{
+											"key": "month",
+											"value": "",
+											"description": "Optional. Month number (1-12). When provided, returns activities for that month in the specified `year` (or derived year)."
+										},
+										{
+											"key": "year",
+											"value": "",
+											"description": "Optional. Year to use with `month` (e.g. 2026). If omitted, year is derived from `date` or current UK year."
 										}
 									]
 								},
-								"description": "Get nearby activities for authenticated member within a fixed 25-mile radius from provided lat/lng. Returns only active activities for the requested date using UK/London day boundaries. Activities without coordinates are excluded. Response includes activities, total, distanceMiles, rating/booking info, and member booking status fields (isBooked, bookingStatus, bookingId)."
+								"description": "Get nearby activities for authenticated member within a fixed 25-mile radius from provided lat/lng. Returns only active activities for the requested date or month using UK/London day boundaries. Activities without coordinates are excluded. Response includes activities, total, distanceMiles, rating/booking info, and member booking status fields (isBooked, bookingStatus, bookingId). Use `date` for a single day or `month` (+ optional `year`) to list activities across a month."
 							},
 							"response": []
 						},
@@ -1976,12 +1986,19 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{base_url}}/activities",
+									"raw": "{{base_url}}/activities?includePast=false",
 									"host": [
 										"{{base_url}}"
 									],
 									"path": [
 										"activities"
+									],
+									"query": [
+										{
+											"key": "includePast",
+											"value": "false",
+											"description": "Optional. Set to true to include completed/past activities in the public list. Defaults to false."
+										}
 									]
 								},
 								"description": "Get all active activities. Each activity includes coordinates, difficultyLevel, recurring, and additionalInformation when available."
