@@ -12,6 +12,8 @@ import {
   Subscription,
   SubscriptionStatus,
   SubscriptionPlan,
+  SubscriptionSource,
+  SubscriptionPlatform,
 } from '../schemas/subscription.schema';
 import { GrantRole, User, Role } from '../schemas/user.schema';
 
@@ -74,7 +76,7 @@ export class SubscriptionService {
       if (existing.status === SubscriptionStatus.TRIALING) {
         try {
           const customer = (await this.stripe.customers.retrieve(
-            existing.stripeCustomerId,
+            existing.stripeCustomerId!,
           )) as Stripe.Customer;
 
           // If customer has a default payment method, subscription is valid
@@ -99,7 +101,7 @@ export class SubscriptionService {
       // Clean up incomplete or abandoned trialing subscription
       console.log(`Cleaning up ${existing.status} subscription...`);
       try {
-        await this.stripe.subscriptions.cancel(existing.stripeSubscriptionId);
+        await this.stripe.subscriptions.cancel(existing.stripeSubscriptionId!);
       } catch (error: any) {
         console.log(
           'Note: Could not cancel Stripe subscription:',
@@ -270,6 +272,8 @@ export class SubscriptionService {
     const subAny = subscription as any;
     await this.subscriptionModel.create({
       userId,
+      source: SubscriptionSource.STRIPE,
+      platform: SubscriptionPlatform.WEB,
       stripeCustomerId,
       stripeSubscriptionId: subscription.id,
       stripePriceId: priceId,
@@ -329,7 +333,7 @@ export class SubscriptionService {
       await this.stripe.paymentMethods.attach(paymentMethodId, {
         customer: subscription.stripeCustomerId,
       });
-      await this.stripe.customers.update(subscription.stripeCustomerId, {
+      await this.stripe.customers.update(subscription.stripeCustomerId!, {
         invoice_settings: {
           default_payment_method: paymentMethodId,
         },
@@ -363,7 +367,7 @@ export class SubscriptionService {
       // Cancel the incomplete subscription in Stripe
       try {
         await this.stripe.subscriptions.cancel(
-          subscription.stripeSubscriptionId,
+          subscription.stripeSubscriptionId!,
         );
         console.log('✅ Incomplete subscription canceled in Stripe');
       } catch (error: any) {
@@ -396,6 +400,8 @@ export class SubscriptionService {
       const subAny = newStripeSubscription as any;
       await this.subscriptionModel.create({
         userId: subscription.userId,
+        source: SubscriptionSource.STRIPE,
+        platform: SubscriptionPlatform.WEB,
         stripeCustomerId: subscription.stripeCustomerId,
         stripeSubscriptionId: newStripeSubscription.id,
         stripePriceId: subscription.stripePriceId,
@@ -451,7 +457,7 @@ export class SubscriptionService {
     }
 
     const stripeSubscription = await this.stripe.subscriptions.retrieve(
-      subscription.stripeSubscriptionId,
+      subscription.stripeSubscriptionId!,
       { expand: ['latest_invoice.payment_intent'] },
     );
 
@@ -602,10 +608,21 @@ export class SubscriptionService {
     const subscription = await this.subscriptionModel.findOne({
       userId: new mongoose.Types.ObjectId(userId),
       status: { $in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING] },
+      $or: [
+        { source: { $exists: false } },
+        { source: SubscriptionSource.STRIPE },
+        { stripeSubscriptionId: { $exists: true, $ne: null } },
+      ],
     });
 
     if (!subscription) {
-      throw new NotFoundException('No active subscription found');
+      throw new NotFoundException('No active Stripe subscription found');
+    }
+
+    if (!subscription.stripeSubscriptionId) {
+      throw new BadRequestException(
+        'Mobile subscriptions must be cancelled through the App Store or Play Store',
+      );
     }
 
     const canceledSubscription = await this.stripe.subscriptions.update(
@@ -679,7 +696,7 @@ export class SubscriptionService {
       // Cancel the current Standard subscription
       console.log('Canceling Standard subscription...');
       await this.stripe.subscriptions.cancel(
-        currentSubscription.stripeSubscriptionId,
+        currentSubscription.stripeSubscriptionId!,
       );
       console.log('✅ Standard subscription canceled');
 
@@ -717,6 +734,8 @@ export class SubscriptionService {
       const subAny = newStripeSubscription as any;
       const newSubscription = await this.subscriptionModel.create({
         userId,
+        source: SubscriptionSource.STRIPE,
+        platform: SubscriptionPlatform.WEB,
         stripeCustomerId: currentSubscription.stripeCustomerId,
         stripeSubscriptionId: newStripeSubscription.id,
         stripePriceId: premiumPriceId,
