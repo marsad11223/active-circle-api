@@ -61,18 +61,27 @@ export class IapSubscriptionService {
         ? SubscriptionSource.APPLE
         : SubscriptionSource.GOOGLE;
 
-    const existing = await this.subscriptionModel.findOne({
-      transactionId: dto.transactionId,
-      platform,
-    });
+    if (dto.platform === IapPlatform.IOS) {
+      const existing = await this.subscriptionModel.findOne({
+        transactionId: dto.transactionId,
+        platform,
+      });
 
-    if (existing) {
-      if (existing.userId.toString() !== userId) {
-        throw new BadRequestException('Purchase already linked to another account');
+      if (existing) {
+        return this.returnIdempotentVerify(userId, existing);
       }
-      const entitlement = await this.buildEntitlementFromSubscription(existing);
-      const user = await this.usersService.findOne(userId);
-      return this.wrapVerifyResponse(entitlement, user);
+    } else {
+      if (!dto.purchaseToken) {
+        throw new BadRequestException('purchaseToken is required for Android');
+      }
+
+      const existing = await this.subscriptionModel.findOne({
+        purchaseToken: dto.purchaseToken,
+      });
+
+      if (existing) {
+        return this.returnIdempotentVerify(userId, existing);
+      }
     }
 
     const verified = await this.validateWithStore(dto);
@@ -352,13 +361,27 @@ export class IapSubscriptionService {
       updated_at: now,
     };
 
+    const filter =
+      platform === SubscriptionPlatform.ANDROID && verified.purchaseToken
+        ? { purchaseToken: verified.purchaseToken }
+        : { transactionId: verified.transactionId, platform };
+
     const subscription = await this.subscriptionModel.findOneAndUpdate(
-      { transactionId: verified.transactionId, platform },
+      filter,
       { $set: update, $setOnInsert: { created_at: now } },
       { upsert: true, new: true },
     );
 
     return subscription!;
+  }
+
+  private async returnIdempotentVerify(userId: string, existing: Subscription) {
+    if (existing.userId.toString() !== userId) {
+      throw new BadRequestException('Purchase already linked to another account');
+    }
+    const entitlement = await this.buildEntitlementFromSubscription(existing);
+    const user = await this.usersService.findOne(userId);
+    return this.wrapVerifyResponse(entitlement, user);
   }
 
   private async grantEntitlement(userId: string, role: Role) {

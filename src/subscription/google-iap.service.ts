@@ -80,6 +80,7 @@ export class GoogleIapService {
       const status = this.mapGoogleStatus(
         subscription.subscriptionState,
         expiryDate,
+        lineItem.offerDetails,
       );
 
       const trialEndsAt =
@@ -112,10 +113,16 @@ export class GoogleIapService {
   private mapGoogleStatus(
     subscriptionState?: string | null,
     expiryDate?: Date,
+    offerDetails?: { offerId?: string | null } | null,
   ): EntitlementStatus {
+    const isTrialOffer =
+      Boolean(offerDetails?.offerId) &&
+      expiryDate &&
+      expiryDate.getTime() > Date.now();
+
     switch (subscriptionState) {
       case 'SUBSCRIPTION_STATE_ACTIVE':
-        return 'active';
+        return isTrialOffer ? 'trialing' : 'active';
       case 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD':
         return 'grace_period';
       case 'SUBSCRIPTION_STATE_CANCELED':
