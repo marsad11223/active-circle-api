@@ -25,6 +25,18 @@ Add these alongside existing Stripe and MongoDB configuration.
 |----------|-------------|
 | `IAP_ENV` | `sandbox` or `production` — controls Apple verification environment |
 
+## Free trial (all platforms)
+
+All subscription tiers use a **1-month (30-day) free trial**:
+
+| Platform | Where to configure |
+|----------|-------------------|
+| **Stripe (web)** | Backend sets `trial_period_days: 30` when the user adds a payment method |
+| **Apple (iOS)** | App Store Connect → subscription → **1 month** introductory free trial on `standard.monthly` and `premium.monthly` |
+| **Google (Android)** | Play Console → subscription → **1 month** free trial offer on `standard_monthly` and `premium_monthly` |
+
+The API reads trial state from each store; Apple/Google trial length must match in the respective consoles.
+
 ## Example `.env` snippet
 
 ```bash

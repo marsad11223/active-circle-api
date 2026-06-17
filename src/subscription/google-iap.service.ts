@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { google } from 'googleapis';
 import { EntitlementStatus, VerifiedPurchase } from './iap.constants';
+import { FREE_TRIAL_DAYS } from './subscription.constants';
 
 @Injectable()
 export class GoogleIapService {
@@ -75,7 +76,7 @@ export class GoogleIapService {
 
       const expiryDate = lineItem.expiryTime
         ? new Date(lineItem.expiryTime)
-        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        : new Date(Date.now() + FREE_TRIAL_DAYS * 24 * 60 * 60 * 1000);
 
       const status = this.mapGoogleStatus(
         subscription.subscriptionState,
@@ -84,15 +85,12 @@ export class GoogleIapService {
       );
 
       const trialEndsAt =
-        lineItem.offerDetails?.offerId && expiryDate
-          ? expiryDate
-          : undefined;
+        lineItem.offerDetails?.offerId && expiryDate ? expiryDate : undefined;
 
       return {
         productId,
         transactionId:
-          subscription.latestOrderId ||
-          input.purchaseToken.slice(0, 32),
+          subscription.latestOrderId || input.purchaseToken.slice(0, 32),
         originalTransactionId: subscription.linkedPurchaseToken ?? undefined,
         purchaseToken: input.purchaseToken,
         expiryDate,

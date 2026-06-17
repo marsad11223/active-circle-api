@@ -7,7 +7,9 @@ import { RestoreSubscriptionsDto } from './dto/restore-subscriptions.dto';
 
 @Controller('subscriptions')
 export class SubscriptionsController {
-  constructor(private readonly iapSubscriptionService: IapSubscriptionService) {}
+  constructor(
+    private readonly iapSubscriptionService: IapSubscriptionService,
+  ) {}
 
   @Post('verify')
   @UseGuards(JwtAuthGuard)

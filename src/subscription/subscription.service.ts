@@ -16,6 +16,7 @@ import {
   SubscriptionPlatform,
 } from '../schemas/subscription.schema';
 import { GrantRole, User, Role } from '../schemas/user.schema';
+import { FREE_TRIAL_DAYS } from './subscription.constants';
 
 @Injectable()
 export class SubscriptionService {
@@ -36,7 +37,7 @@ export class SubscriptionService {
     this.stripe = new Stripe(stripeSecretKey);
   }
 
-  // Create subscription (premium or standard plan, 3-month trial)
+  // Create subscription (premium or standard plan, 1-month trial)
   async createSubscription(
     userId: string,
     plan: 'premium' | 'standard' = 'premium',
@@ -284,7 +285,7 @@ export class SubscriptionService {
         : new Date(),
       currentPeriodEnd: subAny.current_period_end
         ? new Date(subAny.current_period_end * 1000)
-        : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+        : new Date(Date.now() + FREE_TRIAL_DAYS * 24 * 60 * 60 * 1000),
       trialStart: subAny.trial_start
         ? new Date(subAny.trial_start * 1000)
         : undefined,
@@ -307,7 +308,7 @@ export class SubscriptionService {
       status: subscription.status,
       requiresPaymentMethod: !!requiresPaymentMethod,
       plan: planEnum,
-      message: 'Add payment method to start your 3-month free trial',
+      message: 'Add payment method to start your 1-month free trial',
     };
   }
 
@@ -378,23 +379,26 @@ export class SubscriptionService {
       await this.subscriptionModel.deleteOne({ _id: subscription._id });
       console.log('✅ Incomplete subscription deleted from database');
 
-      // Calculate trial end date (90 days from now)
-      const trialEnd = Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60;
-
-      // Create new subscription with trial
       const newStripeSubscription = await this.stripe.subscriptions.create({
         customer: subscription.stripeCustomerId,
         items: [{ price: subscription.stripePriceId }],
-        trial_end: trialEnd,
+        trial_period_days: FREE_TRIAL_DAYS,
         default_payment_method: paymentMethodId,
         collection_method: 'charge_automatically',
       });
+
+      const trialEnd = (newStripeSubscription as any).trial_end as
+        | number
+        | undefined;
 
       console.log(
         '✅ New subscription created with trial:',
         newStripeSubscription.id,
       );
-      console.log('✅ Trial ends:', new Date(trialEnd * 1000));
+      console.log(
+        '✅ Trial ends:',
+        trialEnd ? new Date(trialEnd * 1000) : 'n/a',
+      );
 
       // Save new subscription to database
       const subAny = newStripeSubscription as any;
@@ -412,11 +416,13 @@ export class SubscriptionService {
           : new Date(),
         currentPeriodEnd: subAny.current_period_end
           ? new Date(subAny.current_period_end * 1000)
-          : new Date(trialEnd * 1000),
+          : trialEnd
+            ? new Date(trialEnd * 1000)
+            : new Date(),
         trialStart: subAny.trial_start
           ? new Date(subAny.trial_start * 1000)
           : new Date(),
-        trialEnd: new Date(trialEnd * 1000),
+        trialEnd: trialEnd ? new Date(trialEnd * 1000) : undefined,
       });
 
       // Grant user role
@@ -435,7 +441,7 @@ export class SubscriptionService {
         status: 'trialing_activated',
         message: 'Trial started with payment method on file',
         plan: subscription.plan,
-        trialEnd: new Date(trialEnd * 1000),
+        trialEnd: trialEnd ? new Date(trialEnd * 1000) : undefined,
       };
     } catch (error: any) {
       console.error('❌ Error:', error.message);

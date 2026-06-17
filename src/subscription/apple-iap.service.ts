@@ -13,10 +13,8 @@ import {
 import { readFile } from 'fs';
 import { promisify } from 'util';
 import { join } from 'path';
-import {
-  EntitlementStatus,
-  VerifiedPurchase,
-} from './iap.constants';
+import { EntitlementStatus, VerifiedPurchase } from './iap.constants';
+import { FREE_TRIAL_DAYS } from './subscription.constants';
 
 const readFileAsync = promisify(readFile);
 
@@ -37,9 +35,7 @@ export class AppleIapService {
     );
     const iapEnv = this.configService.get<string>('IAP_ENV') || 'sandbox';
     this.environment =
-      iapEnv === 'production'
-        ? Environment.PRODUCTION
-        : Environment.SANDBOX;
+      iapEnv === 'production' ? Environment.PRODUCTION : Environment.SANDBOX;
   }
 
   private async getVerifier(): Promise<SignedDataVerifier> {
@@ -130,10 +126,7 @@ export class AppleIapService {
     }
 
     if (input.transactionId) {
-      return this.verifyByTransactionId(
-        input.transactionId,
-        input.productId,
-      );
+      return this.verifyByTransactionId(input.transactionId, input.productId);
     }
 
     throw new BadRequestException('Purchase could not be verified');
@@ -145,9 +138,8 @@ export class AppleIapService {
   ): Promise<VerifiedPurchase> {
     try {
       const verifier = await this.getVerifier();
-      const decoded = await verifier.verifyAndDecodeTransaction(
-        signedTransaction,
-      );
+      const decoded =
+        await verifier.verifyAndDecodeTransaction(signedTransaction);
 
       if (decoded.productId !== expectedProductId) {
         throw new BadRequestException('Purchase could not be verified');
@@ -197,11 +189,12 @@ export class AppleIapService {
   private mapAppleTransaction(decoded: Record<string, any>): VerifiedPurchase {
     const expiresDate = decoded.expiresDate
       ? new Date(Number(decoded.expiresDate))
-      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      : new Date(Date.now() + FREE_TRIAL_DAYS * 24 * 60 * 60 * 1000);
 
-    const trialEndsAt = decoded.offerType === 1 && decoded.expiresDate
-      ? new Date(Number(decoded.expiresDate))
-      : undefined;
+    const trialEndsAt =
+      decoded.offerType === 1 && decoded.expiresDate
+        ? new Date(Number(decoded.expiresDate))
+        : undefined;
 
     const revocationDate = decoded.revocationDate
       ? new Date(Number(decoded.revocationDate))
@@ -228,7 +221,9 @@ export class AppleIapService {
     };
   }
 
-  async decodeNotification(signedPayload: string): Promise<Record<string, any>> {
+  async decodeNotification(
+    signedPayload: string,
+  ): Promise<Record<string, any>> {
     const verifier = await this.getVerifier();
     return verifier.verifyAndDecodeNotification(signedPayload);
   }
