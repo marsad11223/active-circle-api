@@ -18,7 +18,10 @@ import {
 import { GrantRole, Role, User } from '../schemas/user.schema';
 import { AppleIapService } from './apple-iap.service';
 import { GoogleIapService } from './google-iap.service';
-import { VerifySubscriptionDto, IapPlatform } from './dto/verify-subscription.dto';
+import {
+  VerifySubscriptionDto,
+  IapPlatform,
+} from './dto/verify-subscription.dto';
 import {
   RestoreSubscriptionsDto,
   RestorePurchaseItemDto,
@@ -96,7 +99,8 @@ export class IapSubscriptionService {
 
     await this.grantEntitlement(userId, productConfig.role);
 
-    const entitlement = await this.buildEntitlementFromSubscription(subscription);
+    const entitlement =
+      await this.buildEntitlementFromSubscription(subscription);
     const user = await this.usersService.findOne(userId);
 
     return this.wrapVerifyResponse(entitlement, user);
@@ -262,7 +266,9 @@ export class IapSubscriptionService {
     }
 
     const purchaseToken = subNotification.purchaseToken as string;
-    const subscription = await this.subscriptionModel.findOne({ purchaseToken });
+    const subscription = await this.subscriptionModel.findOne({
+      purchaseToken,
+    });
     if (!subscription?.productId) {
       return { received: true };
     }
@@ -290,9 +296,7 @@ export class IapSubscriptionService {
           productConfig.role,
         );
       } else {
-        await this.revokeEntitlementIfNoActive(
-          subscription.userId.toString(),
-        );
+        await this.revokeEntitlementIfNoActive(subscription.userId.toString());
       }
     } catch {
       // Acknowledge webhook even if verification fails temporarily
@@ -302,7 +306,9 @@ export class IapSubscriptionService {
   }
 
   private async validateWithStore(
-    dto: VerifySubscriptionDto | RestorePurchaseItemDto & { platform: IapPlatform },
+    dto:
+      | VerifySubscriptionDto
+      | (RestorePurchaseItemDto & { platform: IapPlatform }),
   ): Promise<VerifiedPurchase> {
     try {
       if (dto.platform === IapPlatform.IOS) {
@@ -372,12 +378,14 @@ export class IapSubscriptionService {
       { upsert: true, new: true },
     );
 
-    return subscription!;
+    return subscription;
   }
 
   private async returnIdempotentVerify(userId: string, existing: Subscription) {
     if (existing.userId.toString() !== userId) {
-      throw new BadRequestException('Purchase already linked to another account');
+      throw new BadRequestException(
+        'Purchase already linked to another account',
+      );
     }
     const entitlement = await this.buildEntitlementFromSubscription(existing);
     const user = await this.usersService.findOne(userId);
@@ -418,10 +426,7 @@ export class IapSubscriptionService {
       const entitlement = await this.buildEntitlementFromSubscription(sub);
       if (!entitlement.isActive) continue;
 
-      if (
-        !best ||
-        TIER_PRIORITY[entitlement.tier] > TIER_PRIORITY[best.tier]
-      ) {
+      if (!best || TIER_PRIORITY[entitlement.tier] > TIER_PRIORITY[best.tier]) {
         best = { sub, tier: entitlement.tier, entitlement };
       }
     }
@@ -442,7 +447,10 @@ export class IapSubscriptionService {
     sub: Subscription,
   ): Promise<SubscriptionEntitlement> {
     const source = this.mapSource(sub.source);
-    const status = this.mapDbStatusToEntitlement(sub.status, sub.currentPeriodEnd);
+    const status = this.mapDbStatusToEntitlement(
+      sub.status,
+      sub.currentPeriodEnd,
+    );
     const tier = sub.plan === SubscriptionPlan.PREMIUM ? 'premium' : 'standard';
     const isActive = ACTIVE_ENTITLEMENT_STATUSES.includes(status);
 
@@ -544,9 +552,11 @@ export class IapSubscriptionService {
       user.hasActiveSubscription !== shouldBeActive ||
       (shouldBeActive &&
         user.role === Role.member &&
-        (targetRole === Role.standardMember || targetRole === Role.premiumMember)) ||
+        (targetRole === Role.standardMember ||
+          targetRole === Role.premiumMember)) ||
       (!shouldBeActive &&
-        (user.role === Role.standardMember || user.role === Role.premiumMember));
+        (user.role === Role.standardMember ||
+          user.role === Role.premiumMember));
 
     if (!needsSync) return;
 
@@ -646,7 +656,11 @@ export class IapSubscriptionService {
 
     if (!subscription) return;
 
-    if (ACTIVE_ENTITLEMENT_STATUSES.includes(this.mapDbStatusToEntitlement(status, expiryDate))) {
+    if (
+      ACTIVE_ENTITLEMENT_STATUSES.includes(
+        this.mapDbStatusToEntitlement(status, expiryDate),
+      )
+    ) {
       await this.grantEntitlement(
         subscription.userId.toString(),
         productConfig.role,
@@ -656,7 +670,10 @@ export class IapSubscriptionService {
     }
   }
 
-  private wrapVerifyResponse(entitlement: SubscriptionEntitlement, user: unknown) {
+  private wrapVerifyResponse(
+    entitlement: SubscriptionEntitlement,
+    user: unknown,
+  ) {
     return {
       statusCode: 200,
       message: 'Subscription verified',

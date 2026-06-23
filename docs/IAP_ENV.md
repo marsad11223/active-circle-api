@@ -12,6 +12,10 @@ Add these alongside existing Stripe and MongoDB configuration.
 | `APPLE_BUNDLE_ID` | `com.theactivecircle.app` |
 | `APPLE_APP_ID` | `6768298207` |
 
+**Apple root certificates (required for JWS verify):** The repo includes `certs/apple/*.cer` (from [Apple PKI](https://www.apple.com/certificateauthority/)). These are loaded at runtime for `SignedDataVerifier` — the npm package does **not** bundle them. If verify returns 400, check deploy logs for `Loaded N Apple root certificate(s)`.
+
+**Sandbox vs production:** Set `IAP_ENV=sandbox` while testing with Xcode / sandbox Apple IDs. The API tries both Sandbox and Production JWS environments so TestFlight purchases still verify when `IAP_ENV=production` on Railway.
+
 ## Google Play
 
 | Variable | Description |
