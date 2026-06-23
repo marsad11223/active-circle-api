@@ -65,10 +65,7 @@ export class IapSubscriptionService {
         : SubscriptionSource.GOOGLE;
 
     if (dto.platform === IapPlatform.IOS) {
-      const existing = await this.subscriptionModel.findOne({
-        transactionId: dto.transactionId,
-        platform,
-      });
+      const existing = await this.findExistingIosSubscription(dto);
 
       if (existing) {
         return this.returnIdempotentVerify(userId, existing);
@@ -88,6 +85,10 @@ export class IapSubscriptionService {
     }
 
     const verified = await this.validateWithStore(dto);
+
+    if (platform === SubscriptionPlatform.IOS) {
+      await this.assertIosPurchaseAvailable(userId, verified);
+    }
 
     const subscription = await this.upsertIapSubscription({
       userId,
@@ -367,10 +368,7 @@ export class IapSubscriptionService {
       updated_at: now,
     };
 
-    const filter =
-      platform === SubscriptionPlatform.ANDROID && verified.purchaseToken
-        ? { purchaseToken: verified.purchaseToken }
-        : { transactionId: verified.transactionId, platform };
+    const filter = this.resolveIapUpsertFilter(platform, verified);
 
     const subscription = await this.subscriptionModel.findOneAndUpdate(
       filter,
@@ -379,6 +377,59 @@ export class IapSubscriptionService {
     );
 
     return subscription;
+  }
+
+  private async findExistingIosSubscription(
+    dto: Pick<VerifySubscriptionDto, 'transactionId' | 'originalTransactionId'>,
+  ): Promise<Subscription | null> {
+    const byTransactionId = await this.subscriptionModel.findOne({
+      transactionId: dto.transactionId,
+      platform: SubscriptionPlatform.IOS,
+    });
+    if (byTransactionId) return byTransactionId;
+
+    if (dto.originalTransactionId) {
+      return this.subscriptionModel.findOne({
+        originalTransactionId: dto.originalTransactionId,
+      });
+    }
+
+    return null;
+  }
+
+  private async assertIosPurchaseAvailable(
+    userId: string,
+    verified: VerifiedPurchase,
+  ): Promise<void> {
+    if (!verified.originalTransactionId) return;
+
+    const existing = await this.subscriptionModel.findOne({
+      originalTransactionId: verified.originalTransactionId,
+    });
+
+    if (existing && existing.userId.toString() !== userId) {
+      throw new BadRequestException(
+        'Purchase already linked to another account',
+      );
+    }
+  }
+
+  private resolveIapUpsertFilter(
+    platform: SubscriptionPlatform,
+    verified: VerifiedPurchase,
+  ): Record<string, unknown> {
+    if (platform === SubscriptionPlatform.ANDROID && verified.purchaseToken) {
+      return { purchaseToken: verified.purchaseToken };
+    }
+
+    if (
+      platform === SubscriptionPlatform.IOS &&
+      verified.originalTransactionId
+    ) {
+      return { originalTransactionId: verified.originalTransactionId };
+    }
+
+    return { transactionId: verified.transactionId, platform };
   }
 
   private async returnIdempotentVerify(userId: string, existing: Subscription) {

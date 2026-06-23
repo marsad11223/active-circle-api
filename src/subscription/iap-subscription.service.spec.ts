@@ -94,6 +94,103 @@ describe('IapSubscriptionService', () => {
       expect(mockAppleIapService.verifyPurchase).not.toHaveBeenCalled();
     });
 
+    describe('iOS', () => {
+      const iosDto = {
+        platform: IapPlatform.IOS,
+        productId: 'com.theactivecircle.app.standard.monthly',
+        transactionId: '2000001193175711',
+        originalTransactionId: '2000001193175710',
+        signedTransaction: 'signed-jws',
+      };
+
+      const verifiedPurchase = {
+        productId: 'com.theactivecircle.app.standard.monthly',
+        transactionId: '2000001193175711',
+        originalTransactionId: '2000001193175710',
+        expiryDate: new Date('2026-07-01'),
+        autoRenewing: true,
+        status: 'trialing' as const,
+        rawPayload: {},
+      };
+
+      it('upserts by originalTransactionId after Apple verify', async () => {
+        mockSubscriptionModel.findOne
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(null);
+        mockAppleIapService.verifyPurchase.mockResolvedValue(verifiedPurchase);
+        mockSubscriptionModel.findOneAndUpdate.mockResolvedValue({
+          userId: { toString: () => userId },
+          source: 'apple',
+          platform: 'ios',
+          plan: 'standard',
+          status: 'trialing',
+          productId: 'com.theactivecircle.app.standard.monthly',
+          originalTransactionId: '2000001193175710',
+          transactionId: '2000001193175711',
+          currentPeriodEnd: new Date('2026-07-01'),
+        });
+        mockUsersService.findOne.mockResolvedValue({
+          _id: userId,
+          role: 'standardMember',
+        });
+
+        await service.verify(userId, iosDto);
+
+        expect(mockSubscriptionModel.findOneAndUpdate).toHaveBeenCalledWith(
+          { originalTransactionId: '2000001193175710' },
+          expect.any(Object),
+          { upsert: true, new: true },
+        );
+      });
+
+      it('returns idempotent response when originalTransactionId already linked to same user', async () => {
+        const existingSub = {
+          userId: { toString: () => userId },
+          source: 'apple',
+          platform: 'ios',
+          plan: 'standard',
+          status: 'trialing',
+          productId: 'com.theactivecircle.app.standard.monthly',
+          originalTransactionId: '2000001193175710',
+          transactionId: '2000001193175710',
+          currentPeriodEnd: new Date('2026-07-01'),
+        };
+
+        mockSubscriptionModel.findOne
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(existingSub);
+        mockUsersService.findOne.mockResolvedValue({
+          _id: userId,
+          role: 'standardMember',
+        });
+
+        const result = await service.verify(userId, {
+          ...iosDto,
+          transactionId: '2000001193175711',
+        });
+
+        expect(result.statusCode).toBe(200);
+        expect(mockAppleIapService.verifyPurchase).not.toHaveBeenCalled();
+        expect(mockSubscriptionModel.findOneAndUpdate).not.toHaveBeenCalled();
+      });
+
+      it('rejects when originalTransactionId is linked to another account', async () => {
+        mockSubscriptionModel.findOne
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(null);
+        mockAppleIapService.verifyPurchase.mockResolvedValue(verifiedPurchase);
+        mockSubscriptionModel.findOne.mockResolvedValueOnce({
+          userId: { toString: () => otherUserId },
+          originalTransactionId: '2000001193175710',
+        });
+
+        await expect(service.verify(userId, iosDto)).rejects.toThrow(
+          new BadRequestException('Purchase already linked to another account'),
+        );
+      });
+    });
+
     describe('Android', () => {
       const androidDto = {
         platform: IapPlatform.ANDROID,
