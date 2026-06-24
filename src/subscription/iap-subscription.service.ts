@@ -465,7 +465,9 @@ export class IapSubscriptionService {
   async resolveBestEntitlement(
     userId: string,
   ): Promise<SubscriptionEntitlement> {
-    const subscriptions = await this.subscriptionModel.find({ userId });
+    const subscriptions = await this.subscriptionModel.find({
+      userId: new mongoose.Types.ObjectId(userId),
+    });
 
     let best: {
       sub: Subscription;
