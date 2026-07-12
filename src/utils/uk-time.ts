@@ -6,6 +6,14 @@ export const UK_TZ = 'Europe/London';
 /** Maximum inclusive day span for host schedule queries (from → to). */
 export const HOST_SCHEDULE_MAX_RANGE_DAYS = 31;
 
+export type ActivityDateTimeRangeLike = {
+  startDateTime?: Date | string | null;
+  endDateTime?: Date | string | null;
+  date?: Date | string | null;
+  time?: string | null;
+  endTime?: string | null;
+};
+
 /**
  * Parse activity `time` strings such as "14:00", "2:00 PM", "9:30am".
  * Returns null if the string cannot be parsed.
@@ -96,6 +104,76 @@ export function activityStartDateTimeLondon(
     },
     { zone: UK_TZ },
   );
+}
+
+/**
+ * Convert a UK-local ISO datetime string into a UTC Date for storage.
+ * The input is expected to be a 24-hour datetime without a timezone offset.
+ */
+export function ukLocalDateTimeToUtcDate(
+  localDateTimeIso: string,
+): Date | null {
+  if (!localDateTimeIso || typeof localDateTimeIso !== 'string') {
+    return null;
+  }
+
+  const parsed = DateTime.fromISO(localDateTimeIso, { zone: UK_TZ });
+  if (!parsed.isValid) {
+    return null;
+  }
+
+  return parsed.toUTC().toJSDate();
+}
+
+/**
+ * Resolve a stored activity datetime into Europe/London wall time.
+ */
+export function storedActivityDateTimeLondon(
+  value: Date | string | null | undefined,
+): DateTime | null {
+  if (!value) {
+    return null;
+  }
+
+  const dateValue = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(dateValue.getTime())) {
+    return null;
+  }
+
+  return DateTime.fromJSDate(dateValue, { zone: 'utc' }).setZone(UK_TZ);
+}
+
+/**
+ * Resolve the start/end datetime pair for an activity, with legacy fallback.
+ */
+export function activityDateTimeRangeLondon(
+  activity: ActivityDateTimeRangeLike,
+): {
+  start: DateTime | null;
+  end: DateTime | null;
+} {
+  const start = storedActivityDateTimeLondon(
+    activity.startDateTime ?? activity.date,
+  );
+  const end = storedActivityDateTimeLondon(activity.endDateTime);
+
+  if (start && end) {
+    return { start, end };
+  }
+
+  if (activity.date && activity.time) {
+    const legacyStart = activityStartDateTimeLondon(
+      new Date(activity.date),
+      activity.time,
+    );
+    const legacyEnd = activity.endTime
+      ? activityStartDateTimeLondon(new Date(activity.date), activity.endTime)
+      : null;
+
+    return { start: legacyStart, end: legacyEnd };
+  }
+
+  return { start, end };
 }
 
 /**

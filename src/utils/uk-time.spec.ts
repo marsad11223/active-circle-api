@@ -1,9 +1,12 @@
 import { DateTime } from 'luxon';
 import {
   UK_TZ,
+  activityDateTimeRangeLondon,
   activityStartDateTimeLondon,
   eachLondonDayInclusive,
   parseActivityTimeString,
+  storedActivityDateTimeLondon,
+  ukLocalDateTimeToUtcDate,
 } from './uk-time';
 
 describe('parseActivityTimeString', () => {
@@ -50,6 +53,44 @@ describe('activityStartDateTimeLondon', () => {
     expect(start).not.toBeNull();
     expect(start!.offset).toBe(60); // minutes east of UTC = BST
     expect(start!.toFormat('ZZ')).toMatch(/^\+/);
+  });
+});
+
+describe('ukLocalDateTimeToUtcDate', () => {
+  it('stores a UK-local datetime as UTC', () => {
+    const stored = ukLocalDateTimeToUtcDate('2025-06-15T14:30:00');
+    expect(stored).not.toBeNull();
+    expect(
+      DateTime.fromJSDate(stored!, { zone: 'utc' }).setZone(UK_TZ).hour,
+    ).toBe(14);
+    expect(
+      DateTime.fromJSDate(stored!, { zone: 'utc' }).setZone(UK_TZ).minute,
+    ).toBe(30);
+  });
+});
+
+describe('storedActivityDateTimeLondon', () => {
+  it('converts stored UTC dates back to Europe/London', () => {
+    const utcDate = new Date('2025-06-15T13:30:00.000Z');
+    const london = storedActivityDateTimeLondon(utcDate);
+    expect(london).not.toBeNull();
+    expect(london!.hour).toBe(14);
+    expect(london!.minute).toBe(30);
+  });
+});
+
+describe('activityDateTimeRangeLondon', () => {
+  it('falls back to legacy date and time fields when needed', () => {
+    const range = activityDateTimeRangeLondon({
+      date: new Date('2025-06-15T00:00:00.000Z'),
+      time: '14:30',
+      endTime: '16:00',
+    });
+
+    expect(range.start).not.toBeNull();
+    expect(range.end).not.toBeNull();
+    expect(range.start!.hour).toBe(14);
+    expect(range.end!.hour).toBe(16);
   });
 });
 

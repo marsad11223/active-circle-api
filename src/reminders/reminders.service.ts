@@ -5,7 +5,7 @@ import { Model, Types } from 'mongoose';
 import { DateTime } from 'luxon';
 import { OutboxService } from 'src/notifications/outbox.service';
 import { buildNotificationData } from 'src/notifications/notification-payload.util';
-import { activityStartDateTimeLondon, UK_TZ } from 'src/utils/uk-time';
+import { activityDateTimeRangeLondon, UK_TZ } from 'src/utils/uk-time';
 import { Activity, ActivityStatus } from 'src/schemas/activity.schema';
 import { Booking, BookingStatus } from 'src/schemas/booking.schema';
 import { NotificationToken } from 'src/schemas/notifications.schema';
@@ -44,7 +44,7 @@ export class RemindersService {
           deleted_at: null,
           date: { $gte: queryFromUtc, $lte: queryToUtc },
         })
-        .select('_id title date time status')
+        .select('_id title date startDateTime endDateTime time status')
         .lean();
 
       let completedCount = 0;
@@ -56,9 +56,8 @@ export class RemindersService {
           continue;
         }
 
-        const activityStart = activityStartDateTimeLondon(
-          new Date(activity.date),
-          activity.time || '',
+        const { start: activityStart } = activityDateTimeRangeLondon(
+          activity as any,
         );
         if (!activityStart) {
           continue;
@@ -157,7 +156,7 @@ export class RemindersService {
           deleted_at: null,
           date: { $gte: dateStartUtc, $lte: dateEndUtc },
         })
-        .select('_id title date time reminded24h')
+        .select('_id title date startDateTime endDateTime time reminded24h')
         .lean();
 
       let enqueued = 0;
@@ -166,9 +165,8 @@ export class RemindersService {
         if (!activityId) {
           continue;
         }
-        const startTime = activityStartDateTimeLondon(
-          new Date(activity.date),
-          activity.time || '',
+        const { start: startTime } = activityDateTimeRangeLondon(
+          activity as any,
         );
         if (!startTime || startTime < windowStart || startTime > windowEnd) {
           continue;
@@ -244,7 +242,7 @@ export class RemindersService {
           deleted_at: null,
           date: { $gte: dateStartUtc, $lte: dateEndUtc },
         })
-        .select('_id title date time reminded1h')
+        .select('_id title date startDateTime endDateTime time reminded1h')
         .lean();
 
       let enqueued = 0;
@@ -253,9 +251,8 @@ export class RemindersService {
         if (!activityId) {
           continue;
         }
-        const startTime = activityStartDateTimeLondon(
-          new Date(activity.date),
-          activity.time || '',
+        const { start: startTime } = activityDateTimeRangeLondon(
+          activity as any,
         );
         if (!startTime || startTime < windowStart || startTime > windowEnd) {
           continue;

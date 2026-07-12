@@ -209,13 +209,12 @@ export class ActivityController {
     @Body() reoccurActivityDto: ReoccurActivityDto,
     @GetUser() user: AuthUser,
   ) {
-    // Re-occur an activity with new date and time
+    // Re-occur an activity with a new start and end datetime
     // Previous bookings remain with the original activity
-    const newDate = new Date(reoccurActivityDto.date);
     return this.activityService.reoccurActivity(
       id,
-      newDate,
-      reoccurActivityDto.time,
+      reoccurActivityDto.startDateTime,
+      reoccurActivityDto.endDateTime,
       user._id.toString(),
     );
   }

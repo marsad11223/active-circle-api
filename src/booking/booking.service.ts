@@ -955,7 +955,7 @@ export class BookingService {
           deleted_at: null,
         })
         .populate('memberId', 'name email profilePhoto dateOfBirth gender')
-        .populate('activityId', 'title date time')
+        .populate('activityId', 'title date startDateTime endDateTime')
         .sort({ created_at: -1 });
 
       return bookings;
@@ -1030,7 +1030,7 @@ export class BookingService {
       const updatedBooking = await this.bookingModel
         .findById(bookingId)
         .populate('memberId', 'name email profilePhoto')
-        .populate('activityId', 'title date time')
+        .populate('activityId', 'title date startDateTime endDateTime')
         .populate('hostId', 'name email');
 
       return updatedBooking || booking;
@@ -1900,7 +1900,8 @@ export class BookingService {
           _id: activity._id,
           title: activity.title,
           date: activity.date,
-          time: activity.time,
+          startDateTime: activity.startDateTime || activity.date,
+          endDateTime: activity.endDateTime || null,
           location: activity.location,
         },
         totalAttendees: bookings.length,
@@ -2059,7 +2060,7 @@ export class BookingService {
         .populate('hostId', 'name email profilePhoto')
         .populate(
           'activityId',
-          'title description location date time picture category maxParticipants price status',
+          'title description location date startDateTime endDateTime picture category maxParticipants price status',
         )
         .sort(sort)
         .skip(skip)
@@ -2176,7 +2177,8 @@ export class BookingService {
             description: activity?.description || '',
             location: activity?.location || '',
             date: activity?.date || null,
-            time: activity?.time || '',
+            startDateTime: activity?.startDateTime || activity?.date || null,
+            endDateTime: activity?.endDateTime || null,
             picture: activity?.picture || null,
             category: activity?.category || [],
             maxParticipants: activity?.maxParticipants || 0,

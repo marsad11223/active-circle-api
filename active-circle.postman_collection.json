@@ -1050,7 +1050,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"title\": \"Morning Yoga Session\",\n  \"description\": \"Join us for a rejuvenating morning yoga session in the park. All levels welcome!\",\n  \"category\": [\"Wellness & Mindfulness\", \"Sports & Fitness\"],\n  \"location\": \"Springfield Park\",\n  \"coordinates\": {\n    \"lat\": 37.7749,\n    \"lng\": -122.4194\n  },\n  \"difficultyLevel\": \"Beginner\",\n  \"date\": \"2024-12-28T00:00:00.000Z\",\n  \"time\": \"08:00\",\n  \"maxParticipants\": 20,\n  \"price\": 15,\n  \"recurring\": \"one-time\",\n  \"additionalInformation\": \"Please bring your own yoga mat and water bottle.\",\n  \"picture\": \"https://example.com/yoga-image.jpg\"\n}"
+									"raw": "{\n  \"title\": \"Morning Yoga Session\",\n  \"description\": \"Join us for a rejuvenating morning yoga session in the park. All levels welcome!\",\n  \"category\": [\"Wellness & Mindfulness\", \"Sports & Fitness\"],\n  \"location\": \"Springfield Park\",\n  \"coordinates\": {\n    \"lat\": 37.7749,\n    \"lng\": -122.4194\n  },\n  \"difficultyLevel\": \"Beginner\",\n  \"startDateTime\": \"2024-12-28T08:00:00\",\n  \"endDateTime\": \"2024-12-28T09:30:00\",\n  \"maxParticipants\": 20,\n  \"price\": 15,\n  \"recurring\": \"one-time\",\n  \"additionalInformation\": \"Please bring your own yoga mat and water bottle.\",\n  \"picture\": \"https://example.com/yoga-image.jpg\"\n}"
 								},
 								"url": {
 									"raw": "{{base_url}}/activities",
@@ -1409,7 +1409,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"date\": \"2024-12-30\",\n  \"time\": \"10:00\"\n}"
+									"raw": "{\n  \"startDateTime\": \"2024-12-30T10:00:00\",\n  \"endDateTime\": \"2024-12-30T11:30:00\"\n}"
 								},
 								"url": {
 									"raw": "{{base_url}}/activities/{{activity_id}}/reoccur",

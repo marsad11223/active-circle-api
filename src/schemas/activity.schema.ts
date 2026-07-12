@@ -50,10 +50,13 @@ export class Activity extends Document {
   difficultyLevel?: string; // Optional difficulty level (e.g. Beginner, Intermediate, Advanced)
 
   @Prop({ required: true })
-  date: Date; // Activity date
+  startDateTime: Date; // Activity start datetime (stored in UTC)
 
   @Prop({ required: true })
-  time: string; // Activity time (e.g., "14:00" or "2:00 PM")
+  endDateTime: Date; // Activity end datetime (stored in UTC)
+
+  @Prop({ required: true })
+  date: Date; // Activity date
 
   @Prop({ required: true, min: 1 })
   maxParticipants: number; // Maximum number of participants

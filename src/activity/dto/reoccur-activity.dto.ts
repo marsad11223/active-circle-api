@@ -1,15 +1,11 @@
-import { IsNotEmpty, IsString, IsDateString } from 'class-validator';
+import { IsNotEmpty, IsString } from 'class-validator';
 
 export class ReoccurActivityDto {
   @IsNotEmpty()
-  @IsDateString()
-  date: string; // New date for the activity
+  @IsString()
+  startDateTime: string; // New start datetime for the activity (UK-local ISO, 24-hour format)
 
   @IsNotEmpty()
   @IsString()
-  time: string; // New time for the activity (e.g., "14:00" or "2:00 PM")
+  endDateTime: string; // New end datetime for the activity (UK-local ISO, 24-hour format)
 }
-
-
-
-

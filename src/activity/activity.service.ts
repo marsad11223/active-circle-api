@@ -48,8 +48,9 @@ import { DateTime } from 'luxon';
 import {
   UK_TZ,
   HOST_SCHEDULE_MAX_RANGE_DAYS,
-  activityStartDateTimeLondon,
+  activityDateTimeRangeLondon,
   eachLondonDayInclusive,
+  ukLocalDateTimeToUtcDate,
 } from 'src/utils/uk-time';
 import { HostScheduleQueryDto } from './dto/host-schedule-query.dto';
 import { NotificationsService } from 'src/notifications/notifications.service';
@@ -229,7 +230,17 @@ export class ActivityService {
         }
       }
 
-      const activityDate = new Date(createActivityDto.date);
+      const startDateTime = ukLocalDateTimeToUtcDate(
+        createActivityDto.startDateTime,
+      );
+      const endDateTime = ukLocalDateTimeToUtcDate(
+        createActivityDto.endDateTime,
+      );
+      if (!startDateTime || !endDateTime) {
+        throw new BadRequestException(
+          'startDateTime and endDateTime must be valid UK-local ISO datetimes',
+        );
+      }
       const normalizedPicture = createActivityDto.picture?.trim();
       const normalizedPictures = (createActivityDto.pictures || [])
         .filter((img): img is string => typeof img === 'string')
@@ -249,7 +260,9 @@ export class ActivityService {
       const newActivity = await this.activityModel.create({
         ...createActivityDto,
         hostId: new mongoose.Types.ObjectId(hostId),
-        date: activityDate,
+        startDateTime,
+        endDateTime,
+        date: startDateTime,
         picture: primaryPicture,
         pictures,
         price: createActivityDto.price ?? 0, // Default to 0 if not provided
@@ -1063,19 +1076,39 @@ export class ActivityService {
         throw new ForbiddenException('You can only update your own activities');
       }
 
-      // Convert date string to Date object if date is being updated
       const updateData: any = {
         ...updateActivityDto,
         updated_at: new Date(),
       };
 
-      if (updateActivityDto.date) {
-        updateData.date = new Date(updateActivityDto.date);
+      if (updateActivityDto.startDateTime) {
+        const startDateTime = ukLocalDateTimeToUtcDate(
+          updateActivityDto.startDateTime,
+        );
+        if (!startDateTime) {
+          throw new BadRequestException(
+            'startDateTime must be a valid UK-local ISO datetime',
+          );
+        }
+        updateData.startDateTime = startDateTime;
+        updateData.date = startDateTime;
+      }
+
+      if (updateActivityDto.endDateTime) {
+        const endDateTime = ukLocalDateTimeToUtcDate(
+          updateActivityDto.endDateTime,
+        );
+        if (!endDateTime) {
+          throw new BadRequestException(
+            'endDateTime must be a valid UK-local ISO datetime',
+          );
+        }
+        updateData.endDateTime = endDateTime;
       }
 
       const significantFieldUpdated =
-        updateActivityDto.date !== undefined ||
-        updateActivityDto.time !== undefined ||
+        updateActivityDto.startDateTime !== undefined ||
+        updateActivityDto.endDateTime !== undefined ||
         updateActivityDto.location !== undefined ||
         updateActivityDto.coordinates !== undefined;
 
@@ -1225,8 +1258,8 @@ export class ActivityService {
 
   async reoccurActivity(
     id: string,
-    newDate: Date,
-    newTime: string,
+    newStartDateTime: string,
+    newEndDateTime: string,
     userId: string,
   ): Promise<Activity> {
     try {
@@ -1261,6 +1294,14 @@ export class ActivityService {
       const originalActivityId =
         originalActivity.originalActivityId || originalActivity._id;
 
+      const startDateTime = ukLocalDateTimeToUtcDate(newStartDateTime);
+      const endDateTime = ukLocalDateTimeToUtcDate(newEndDateTime);
+      if (!startDateTime || !endDateTime) {
+        throw new BadRequestException(
+          'startDateTime and endDateTime must be valid UK-local ISO datetimes',
+        );
+      }
+
       // Create a new activity based on the original one
       const newActivity = await this.activityModel.create({
         hostId: originalActivity.hostId,
@@ -1270,8 +1311,9 @@ export class ActivityService {
         location: originalActivity.location,
         coordinates: originalActivity.coordinates,
         difficultyLevel: originalActivity.difficultyLevel,
-        date: newDate,
-        time: newTime,
+        startDateTime,
+        endDateTime,
+        date: startDateTime,
         maxParticipants: originalActivity.maxParticipants,
         price: originalActivity.price ?? 0,
         recurring: originalActivity.recurring,
@@ -1765,7 +1807,8 @@ export class ActivityService {
           coordinates: activity.coordinates,
           difficultyLevel: activity.difficultyLevel,
           date: activity.date,
-          time: activity.time,
+          startDateTime: activity.startDateTime || activity.date,
+          endDateTime: activity.endDateTime || null,
           recurring: activity.recurring,
           additionalInformation: activity.additionalInformation,
           picture: activity.picture,
@@ -2025,7 +2068,8 @@ export class ActivityService {
           coordinates: activity.coordinates,
           difficultyLevel: activity.difficultyLevel,
           date: activity.date,
-          time: activity.time,
+          startDateTime: activity.startDateTime || activity.date,
+          endDateTime: activity.endDateTime || null,
           recurring: activity.recurring,
           additionalInformation: activity.additionalInformation,
           picture: activity.picture,
@@ -2135,7 +2179,7 @@ export class ActivityService {
           date: { $gte: queryFrom, $lte: queryTo },
         })
         .select(
-          'title description category location date time picture price maxParticipants recurring status',
+          'title description category location date startDateTime endDateTime time picture price maxParticipants recurring status',
         )
         .sort({ date: 1 })
         .lean();
@@ -2156,37 +2200,39 @@ export class ActivityService {
       }
 
       for (const act of rawActivities) {
-        const start = activityStartDateTimeLondon(
-          new Date(act.date),
-          act.time || '',
-        );
-        if (!start || !start.isValid) {
+        const { start, end } = activityDateTimeRangeLondon(act as any);
+        if (!start || !start.isValid || !end || !end.isValid) {
           continue;
         }
-        const ymd = start.toFormat('yyyy-MM-dd');
-        const dayBuckets = byDayHour.get(ymd);
-        if (!dayBuckets) {
-          continue;
-        }
-        const hour = start.hour;
-        const list = dayBuckets.get(hour);
-        if (!list) {
-          continue;
-        }
-        list.push({
+        const normalizedEnd = end <= start ? end.plus({ days: 1 }) : end;
+        const activityPayload = {
           _id: act._id,
           title: act.title,
           description: act.description,
           category: act.category,
           location: act.location,
           date: act.date,
-          time: act.time,
+          startDateTime: act.startDateTime || act.date,
+          endDateTime: act.endDateTime || null,
           picture: act.picture,
           price: act.price ?? 0,
           maxParticipants: act.maxParticipants,
           recurring: act.recurring,
           status: act.status,
-        });
+        };
+
+        let bucketCursor = start.startOf('hour');
+        while (bucketCursor < normalizedEnd) {
+          const ymd = bucketCursor.toFormat('yyyy-MM-dd');
+          const dayBuckets = byDayHour.get(ymd);
+          if (dayBuckets) {
+            const list = dayBuckets.get(bucketCursor.hour);
+            if (list) {
+              list.push({ ...activityPayload });
+            }
+          }
+          bucketCursor = bucketCursor.plus({ hours: 1 });
+        }
       }
 
       const days = dayKeys.map((dateStr) => {

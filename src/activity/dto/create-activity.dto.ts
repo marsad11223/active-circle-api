@@ -4,7 +4,6 @@ import {
   IsNumber,
   IsOptional,
   IsEnum,
-  IsDateString,
   IsArray,
   Min,
   Max,
@@ -53,12 +52,12 @@ export class CreateActivityDto {
   difficultyLevel?: string;
 
   @IsNotEmpty()
-  @IsDateString()
-  date!: string; // ISO date string
+  @IsString()
+  startDateTime!: string; // UK-local ISO datetime string in 24-hour format
 
   @IsNotEmpty()
   @IsString()
-  time!: string; // Time string (e.g., "14:00" or "2:00 PM")
+  endDateTime!: string; // UK-local ISO datetime string in 24-hour format
 
   @IsNotEmpty()
   @IsNumber()
