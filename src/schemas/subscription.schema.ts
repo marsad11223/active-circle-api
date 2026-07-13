@@ -23,6 +23,7 @@ export enum SubscriptionSource {
   STRIPE = 'stripe',
   APPLE = 'apple',
   GOOGLE = 'google',
+  PROMO = 'promo',
 }
 
 export enum SubscriptionPlatform {

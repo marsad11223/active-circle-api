@@ -2,6 +2,8 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  InternalServerErrorException,
+  ConflictException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -310,6 +312,163 @@ export class SubscriptionService {
       plan: planEnum,
       message: 'Add payment method to start your 1-month free trial',
     };
+  }
+
+  async createSubscriptionWithoutPayment(
+    userId: string,
+    plan: 'premium' | 'standard' = 'premium',
+  ) {
+    const user = await this.userModel.findById(userId);
+    if (!user) throw new NotFoundException('User not found');
+
+    const skipEmailVerification =
+      this.configService.get<string>('SKIP_EMAIL_VERIFICATION') === 'true';
+    if (!skipEmailVerification && (user as any).emailVerified === false) {
+      throw new BadRequestException(
+        'Please verify your email before starting a subscription.',
+      );
+    }
+
+    const planEnum =
+      plan === 'standard'
+        ? SubscriptionPlan.STANDARD
+        : SubscriptionPlan.PREMIUM;
+
+    const existing = await this.subscriptionModel.findOne({
+      userId,
+      status: {
+        $in: [
+          SubscriptionStatus.ACTIVE,
+          SubscriptionStatus.TRIALING,
+          SubscriptionStatus.INCOMPLETE,
+        ],
+      },
+    });
+
+    if (existing) {
+      // Real (paid) active subscriptions don't get touched by this endpoint —
+      // upgrade/downgrade for those goes through the proper Stripe/IAP flow.
+      if (
+        existing.status === SubscriptionStatus.ACTIVE &&
+        existing.source !== SubscriptionSource.PROMO
+      ) {
+        throw new BadRequestException(
+          'User already has an active paid subscription. Manage plan changes ' +
+            'through the standard subscription flow.',
+        );
+      }
+
+      // Promo subscription, same plan already requested — nothing to do.
+      if (
+        existing.status === SubscriptionStatus.ACTIVE &&
+        existing.source === SubscriptionSource.PROMO &&
+        existing.plan === planEnum
+      ) {
+        return {
+          subscriptionId: existing._id,
+          status: existing.status,
+          plan: existing.plan,
+          requiresPaymentMethod: false,
+          message: 'Subscription already active on this plan.',
+        };
+      }
+
+      // Promo subscription, different plan requested — upgrade or downgrade
+      // in place. No cascading effects on activities already created; those
+      // are gated independently by whatever checks current plan at creation time.
+      if (
+        existing.status === SubscriptionStatus.ACTIVE &&
+        existing.source === SubscriptionSource.PROMO &&
+        existing.plan !== planEnum
+      ) {
+        existing.plan = planEnum;
+        existing.updated_at = new Date();
+        await existing.save();
+
+        console.log(
+          `✅ Promo subscription plan changed for user ${userId}: ` +
+            `${existing.plan} (was different plan)`,
+        );
+
+        return {
+          subscriptionId: existing._id,
+          status: existing.status,
+          plan: existing.plan,
+          requiresPaymentMethod: false,
+          message: `Subscription updated to ${existing.plan}.`,
+        };
+      }
+
+      // Trialing/incomplete cleanup path — unchanged from before.
+      if (existing.stripeSubscriptionId) {
+        try {
+          await this.stripe.subscriptions.cancel(existing.stripeSubscriptionId);
+        } catch (error: any) {
+          console.error(
+            `Could not cancel Stripe subscription ${existing.stripeSubscriptionId} ` +
+              `for user ${userId}: ${error.message}`,
+          );
+        }
+      }
+
+      try {
+        await this.subscriptionModel.deleteOne({ _id: existing._id });
+      } catch (error: any) {
+        console.error(
+          `Failed to clean up existing subscription ${existing._id} ` +
+            `for user ${userId}: ${error.message}`,
+        );
+        throw new InternalServerErrorException(
+          'Could not update your existing subscription. Please try again.',
+        );
+      }
+    }
+
+    const now = new Date();
+
+    try {
+      const created = await this.subscriptionModel.create({
+        userId,
+        source: SubscriptionSource.PROMO,
+        platform: SubscriptionPlatform.WEB,
+        plan: planEnum,
+        status: SubscriptionStatus.ACTIVE,
+        currentPeriodStart: now,
+        currentPeriodEnd: new Date(
+          now.getTime() + 100 * 365 * 24 * 60 * 60 * 1000,
+        ),
+        cancelAtPeriodEnd: false,
+      });
+
+      console.log('✅ Free (promo) subscription created:', created._id);
+
+      return {
+        subscriptionId: created._id,
+        status: created.status,
+        plan: planEnum,
+        requiresPaymentMethod: false,
+        message: 'Subscription activated — no payment required.',
+      };
+    } catch (error: any) {
+      if (error.code === 11000) {
+        console.error(
+          `Duplicate key error creating promo subscription for user ${userId}: ` +
+            error.message,
+        );
+        throw new ConflictException(
+          'Could not activate subscription due to a conflicting record. ' +
+            'Please contact support.',
+        );
+      }
+
+      console.error(
+        `Unexpected error creating promo subscription for user ${userId}: ` +
+          error.message,
+      );
+      throw new InternalServerErrorException(
+        'Could not activate your subscription. Please try again.',
+      );
+    }
   }
 
   // Pay invoice with payment method, or for trial: attach card and start trial

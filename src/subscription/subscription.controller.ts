@@ -42,6 +42,15 @@ export class SubscriptionController {
     @Req() req: { body?: { plan?: 'premium' | 'standard' } },
   ) {
     const plan = req.body?.plan ?? 'premium';
+    if (
+      this.configService.get<string>('SUBSCRIPTIONS_REQUIRE_PAYMENT') ===
+      'false'
+    ) {
+      return this.subscriptionService.createSubscriptionWithoutPayment(
+        user._id,
+        plan,
+      );
+    }
     return this.subscriptionService.createSubscription(user._id, plan);
   }
 
