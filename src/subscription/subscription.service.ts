@@ -346,8 +346,6 @@ export class SubscriptionService {
     });
 
     if (existing) {
-      // Real (paid) active subscriptions don't get touched by this endpoint —
-      // upgrade/downgrade for those goes through the proper Stripe/IAP flow.
       if (
         existing.status === SubscriptionStatus.ACTIVE &&
         existing.source !== SubscriptionSource.PROMO
@@ -364,6 +362,9 @@ export class SubscriptionService {
         existing.source === SubscriptionSource.PROMO &&
         existing.plan === planEnum
       ) {
+        // 👉 CALL SITE 1 (optional, cheap insurance against drift)
+        await this.applyUserEntitlements(userId, existing.plan, true);
+
         return {
           subscriptionId: existing._id,
           status: existing.status,
@@ -373,9 +374,7 @@ export class SubscriptionService {
         };
       }
 
-      // Promo subscription, different plan requested — upgrade or downgrade
-      // in place. No cascading effects on activities already created; those
-      // are gated independently by whatever checks current plan at creation time.
+      // Promo subscription, different plan requested — upgrade or downgrade in place.
       if (
         existing.status === SubscriptionStatus.ACTIVE &&
         existing.source === SubscriptionSource.PROMO &&
@@ -389,6 +388,11 @@ export class SubscriptionService {
           `✅ Promo subscription plan changed for user ${userId}: ` +
             `${existing.plan} (was different plan)`,
         );
+
+        // 👉 CALL SITE 2 — REQUIRED. This is the actual downgrade/upgrade path;
+        // role must be updated here or a premium→standard downgrade won't
+        // revoke paid-hosting rights, and standard→premium won't grant them.
+        await this.applyUserEntitlements(userId, existing.plan, true);
 
         return {
           subscriptionId: existing._id,
@@ -442,6 +446,11 @@ export class SubscriptionService {
 
       console.log('✅ Free (promo) subscription created:', created._id);
 
+      // 👉 CALL SITE 3 — REQUIRED. This is the brand-new-subscriber path;
+      // without this, a first-time free member never gets hasActiveSubscription
+      // or their role/grantRole set, and will be blocked everywhere downstream.
+      await this.applyUserEntitlements(userId, planEnum, true);
+
       return {
         subscriptionId: created._id,
         status: created.status,
@@ -469,6 +478,31 @@ export class SubscriptionService {
         'Could not activate your subscription. Please try again.',
       );
     }
+  }
+
+  private async applyUserEntitlements(
+    userId: mongoose.Types.ObjectId | string,
+    plan: SubscriptionPlan,
+    isActive: boolean,
+  ) {
+    const userUpdate: any = { hasActiveSubscription: isActive };
+
+    if (isActive) {
+      const user = await this.userModel.findById(userId);
+      if (user) {
+        const targetRole =
+          plan === SubscriptionPlan.STANDARD
+            ? Role.standardMember
+            : Role.premiumMember;
+        userUpdate.role = targetRole;
+        userUpdate.grantRole = GrantRole.host;
+      }
+    }
+
+    await this.userModel.findByIdAndUpdate(userId, userUpdate);
+    console.log(
+      `✅ User entitlements updated: ${userId ? userId.toString() : 'Unknown User'} → active=${isActive}, plan=${plan}`,
+    );
   }
 
   // Pay invoice with payment method, or for trial: attach card and start trial
