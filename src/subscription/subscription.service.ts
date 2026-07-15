@@ -356,15 +356,12 @@ export class SubscriptionService {
         );
       }
 
-      // Promo subscription, same plan already requested — nothing to do.
       if (
         existing.status === SubscriptionStatus.ACTIVE &&
         existing.source === SubscriptionSource.PROMO &&
         existing.plan === planEnum
       ) {
-        // 👉 CALL SITE 1 (optional, cheap insurance against drift)
         await this.applyUserEntitlements(userId, existing.plan, true);
-
         return {
           subscriptionId: existing._id,
           status: existing.status,
@@ -374,7 +371,6 @@ export class SubscriptionService {
         };
       }
 
-      // Promo subscription, different plan requested — upgrade or downgrade in place.
       if (
         existing.status === SubscriptionStatus.ACTIVE &&
         existing.source === SubscriptionSource.PROMO &&
@@ -383,17 +379,7 @@ export class SubscriptionService {
         existing.plan = planEnum;
         existing.updated_at = new Date();
         await existing.save();
-
-        console.log(
-          `✅ Promo subscription plan changed for user ${userId}: ` +
-            `${existing.plan} (was different plan)`,
-        );
-
-        // 👉 CALL SITE 2 — REQUIRED. This is the actual downgrade/upgrade path;
-        // role must be updated here or a premium→standard downgrade won't
-        // revoke paid-hosting rights, and standard→premium won't grant them.
         await this.applyUserEntitlements(userId, existing.plan, true);
-
         return {
           subscriptionId: existing._id,
           status: existing.status,
@@ -403,18 +389,7 @@ export class SubscriptionService {
         };
       }
 
-      // Trialing/incomplete cleanup path — unchanged from before.
-      if (existing.stripeSubscriptionId) {
-        try {
-          await this.stripe.subscriptions.cancel(existing.stripeSubscriptionId);
-        } catch (error: any) {
-          console.error(
-            `Could not cancel Stripe subscription ${existing.stripeSubscriptionId} ` +
-              `for user ${userId}: ${error.message}`,
-          );
-        }
-      }
-
+      // Leftover trialing/incomplete record with no active status — clean it up.
       try {
         await this.subscriptionModel.deleteOne({ _id: existing._id });
       } catch (error: any) {
@@ -428,8 +403,55 @@ export class SubscriptionService {
       }
     }
 
-    const now = new Date();
+    // No active/trialing/incomplete record — but the user may have a
+    // CANCELED promo record from before. Reactivate it instead of creating
+    // a new document, to avoid duplicate-key collisions and keep one
+    // canonical promo record per user.
+    const canceledPromo = await this.subscriptionModel.findOne({
+      userId,
+      source: SubscriptionSource.PROMO,
+      status: SubscriptionStatus.CANCELED,
+    });
 
+    const now = new Date();
+    const currentPeriodEnd = new Date(
+      now.getTime() + 100 * 365 * 24 * 60 * 60 * 1000,
+    );
+
+    if (canceledPromo) {
+      canceledPromo.status = SubscriptionStatus.ACTIVE;
+      canceledPromo.plan = planEnum;
+      canceledPromo.currentPeriodStart = now;
+      canceledPromo.currentPeriodEnd = currentPeriodEnd;
+      canceledPromo.cancelAtPeriodEnd = false;
+      canceledPromo.cancelledAt = undefined;
+      canceledPromo.updated_at = now;
+
+      try {
+        await canceledPromo.save();
+      } catch (error: any) {
+        console.error(
+          `Failed to reactivate promo subscription ${canceledPromo._id} ` +
+            `for user ${userId}: ${error.message}`,
+        );
+        throw new InternalServerErrorException(
+          'Could not reactivate your subscription. Please try again.',
+        );
+      }
+
+      console.log('✅ Promo subscription reactivated:', canceledPromo._id);
+      await this.applyUserEntitlements(userId, planEnum, true);
+
+      return {
+        subscriptionId: canceledPromo._id,
+        status: canceledPromo.status,
+        plan: planEnum,
+        requiresPaymentMethod: false,
+        message: 'Subscription reactivated — no payment required.',
+      };
+    }
+
+    // Genuinely no prior promo record — create fresh.
     try {
       const created = await this.subscriptionModel.create({
         userId,
@@ -438,17 +460,11 @@ export class SubscriptionService {
         plan: planEnum,
         status: SubscriptionStatus.ACTIVE,
         currentPeriodStart: now,
-        currentPeriodEnd: new Date(
-          now.getTime() + 100 * 365 * 24 * 60 * 60 * 1000,
-        ),
+        currentPeriodEnd,
         cancelAtPeriodEnd: false,
       });
 
       console.log('✅ Free (promo) subscription created:', created._id);
-
-      // 👉 CALL SITE 3 — REQUIRED. This is the brand-new-subscriber path;
-      // without this, a first-time free member never gets hasActiveSubscription
-      // or their role/grantRole set, and will be blocked everywhere downstream.
       await this.applyUserEntitlements(userId, planEnum, true);
 
       return {
@@ -489,7 +505,7 @@ export class SubscriptionService {
 
     if (isActive) {
       const user = await this.userModel.findById(userId);
-      if (user) {
+      if (user && user.role === Role.member) {
         const targetRole =
           plan === SubscriptionPlan.STANDARD
             ? Role.standardMember
@@ -497,11 +513,25 @@ export class SubscriptionService {
         userUpdate.role = targetRole;
         userUpdate.grantRole = GrantRole.host;
       }
+    } else {
+      // Revoke: bring the user back down to a plain member and clear
+      // hosting privileges. Only touch role/grantRole if they're currently
+      // in one of the subscription-derived states — don't clobber an
+      // unrelated role (e.g. an admin who somehow ended up here).
+      const user = await this.userModel.findById(userId);
+      if (
+        user &&
+        (user.role === Role.standardMember || user.role === Role.premiumMember)
+      ) {
+        userUpdate.role = Role.member;
+        userUpdate.grantRole = GrantRole.member;
+      }
     }
 
     await this.userModel.findByIdAndUpdate(userId, userUpdate);
     console.log(
-      `✅ User entitlements updated: ${userId ? userId.toString() : 'Unknown User'} → active=${isActive}, plan=${plan}`,
+      `✅ User entitlements updated: ${userId} → active=${isActive}, plan=${plan}, ` +
+        `role=${userUpdate.role ?? '(unchanged)'}`,
     );
   }
 
@@ -810,17 +840,55 @@ export class SubscriptionService {
       $or: [
         { source: { $exists: false } },
         { source: SubscriptionSource.STRIPE },
+        { source: SubscriptionSource.PROMO },
         { stripeSubscriptionId: { $exists: true, $ne: null } },
       ],
     });
+
+    console.log(subscription, 'subscription');
 
     if (!subscription) {
       throw new NotFoundException('No active Stripe subscription found');
     }
 
-    if (!subscription.stripeSubscriptionId) {
+    if (
+      !subscription.stripeSubscriptionId &&
+      subscription.source !== SubscriptionSource.PROMO
+    ) {
       throw new BadRequestException(
         'Mobile subscriptions must be cancelled through the App Store or Play Store',
+      );
+    }
+
+    // Promo subscriptions have nothing to cancel on Stripe, and no billing
+    // period to wait out — cancel immediately and revoke entitlements now,
+    // since there's no webhook that will ever do this for us.
+    if (subscription.source === SubscriptionSource.PROMO) {
+      subscription.status = SubscriptionStatus.CANCELED;
+      subscription.cancelAtPeriodEnd = false;
+      subscription.cancelledAt = new Date();
+      subscription.updated_at = new Date();
+      await subscription.save();
+
+      await this.applyUserEntitlements(userId, subscription.plan, false);
+
+      console.log(
+        `✅ Promo subscription cancelled immediately for user ${userId}`,
+      );
+
+      return {
+        message: 'Free subscription has been cancelled.',
+        cancelAt: subscription.cancelledAt,
+      };
+    }
+
+    // Real Stripe subscription — existing behavior, unchanged. Entitlements
+    // stay active until period end; the webhook handles revocation then.
+    if (!subscription.stripeSubscriptionId) {
+      // Should be unreachable given the earlier check, but keeps TS happy
+      // and guards against a data inconsistency rather than crashing.
+      throw new BadRequestException(
+        'Subscription is missing a Stripe subscription ID.',
       );
     }
 
