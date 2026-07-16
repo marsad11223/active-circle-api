@@ -94,8 +94,6 @@ export class PayoutService {
     totalPaidOut: number;
     availableBalance: number;
   }> {
-    // Get all completed bookings for this host where payment was transferred
-    // AND the activity is completed
     const completedBookings = await this.bookingModel
       .find({
         hostId: new mongoose.Types.ObjectId(hostId),
@@ -105,72 +103,46 @@ export class PayoutService {
       })
       .populate('activityId', 'status');
 
-    // Filter bookings where activity is completed
-    const bookingsWithCompletedActivities = completedBookings.filter(
-      (booking) => {
-        const activity = booking.activityId as any;
-        return activity && activity.status === ActivityStatus.COMPLETED;
-      },
-    );
+    // Only count bookings where the activity is completed
+    const eligibleBookings = completedBookings.filter((booking) => {
+      const activity = booking.activityId as any;
+      return activity && activity.status === ActivityStatus.COMPLETED;
+    });
 
-    // Calculate Stripe fee: 2.9% + 30 cents (0.30)
-    const stripeFeePercentage = 0.029; // 2.9%
-    const stripeFeeFixed = 0.3; // 30 cents
+    // Host earns exactly booking.amount — fees are charged ON TOP to the member
+    // No deductions here: what the host listed is what the host earns
+    const totalEarnings = eligibleBookings.reduce((sum, booking) => {
+      return sum + (booking.amount || 0);
+    }, 0);
 
-    // Calculate total earnings (booking amount - Stripe fee for each booking)
-    // Only for bookings where activity is completed
-    const totalEarnings = bookingsWithCompletedActivities.reduce(
-      (sum, booking) => {
-        const bookingAmount = booking.amount || 0;
-        if (bookingAmount === 0) {
-          // Free activities have no fee
-          return sum;
-        }
-        // Calculate Stripe fee for this booking
-        const stripeFee = bookingAmount * stripeFeePercentage + stripeFeeFixed;
-        // Host earnings = booking amount - Stripe fee
-        const hostEarnings = bookingAmount - stripeFee;
-        return sum + hostEarnings;
-      },
-      0,
-    );
-
-    // Get pending payout requests
     const pendingPayouts = await this.payoutModel.find({
       hostId: new mongoose.Types.ObjectId(hostId),
       status: { $in: [PayoutStatus.PENDING, PayoutStatus.APPROVED] },
       deleted_at: null,
     });
-
     const pendingPayoutsAmount = pendingPayouts.reduce(
       (sum, payout) => sum + (payout.requestedAmount || 0),
       0,
     );
 
-    // Get completed payouts
     const completedPayouts = await this.payoutModel.find({
       hostId: new mongoose.Types.ObjectId(hostId),
       status: PayoutStatus.COMPLETED,
       deleted_at: null,
     });
-
-    // Total paid out should use requestedAmount (what host requested), not netAmount
-    // Fees are deducted from the payout, but the host's balance reflects what they requested
     const totalPaidOut = completedPayouts.reduce(
       (sum, payout) => sum + (payout.requestedAmount || 0),
       0,
     );
 
-    // Available balance = total earnings - pending payouts - total paid out
-    // We use requestedAmount for both pending and completed to correctly reflect available balance
     const availableBalance =
       totalEarnings - pendingPayoutsAmount - totalPaidOut;
 
     return {
-      totalEarnings,
-      pendingPayouts: pendingPayoutsAmount,
-      totalPaidOut,
-      availableBalance: Math.max(0, availableBalance), // Ensure non-negative
+      totalEarnings: Math.round(totalEarnings * 100) / 100,
+      pendingPayouts: Math.round(pendingPayoutsAmount * 100) / 100,
+      totalPaidOut: Math.round(totalPaidOut * 100) / 100,
+      availableBalance: Math.max(0, Math.round(availableBalance * 100) / 100),
     };
   }
 
@@ -219,31 +191,19 @@ export class PayoutService {
       skip + limit,
     );
 
-    // Calculate Stripe fee: 2.9% + 30 cents (0.30)
-    const stripeFeePercentage = 0.029; // 2.9%
-    const stripeFeeFixed = 0.3; // 30 cents
-
     const transactions = paginatedBookings.map((booking) => {
       const bookingObj = booking.toObject();
-      const bookingAmount = booking.amount || 0;
-
-      // Calculate Stripe fee for this booking
-      let stripeFee = 0;
-      let hostEarnings = 0;
-      if (bookingAmount > 0) {
-        stripeFee = bookingAmount * stripeFeePercentage + stripeFeeFixed;
-        stripeFee = Math.round(stripeFee * 100) / 100; // Round to 2 decimals
-        hostEarnings = bookingAmount - stripeFee;
-        hostEarnings = Math.round(hostEarnings * 100) / 100; // Round to 2 decimals
-      }
+      const hostEarnings = booking.amount || 0; // Host receives exactly what they listed
 
       return {
         _id: bookingObj._id,
         activity: bookingObj.activityId,
         member: bookingObj.memberId,
-        amount: bookingAmount,
-        stripeFee: stripeFee,
-        earnings: hostEarnings, // Amount after Stripe fee deduction
+        amount: hostEarnings, // what host receives (their listed price)
+        platformFee: bookingObj.platformFee || 0, // paid by member on top
+        stripeFee: bookingObj.stripeFee || 0, // paid by member on top
+        totalMemberPaid: bookingObj.totalAmountPaid || hostEarnings,
+        earnings: hostEarnings,
         paymentStatus: bookingObj.paymentStatus,
         attendanceStatus: bookingObj.attendanceStatus,
         createdAt: bookingObj.created_at,
@@ -460,22 +420,17 @@ export class PayoutService {
     }
 
     try {
-      // Calculate Stripe fee (typically 2.9% + 30 cents for card payments)
-      // For bank transfers, fee is usually lower, but we'll use a standard fee
-      const stripeFeePercentage = 0.029; // 2.9%
-      const stripeFeeFixed = 0.3; // 30 cents
-      const stripeFee =
-        payout.requestedAmount * stripeFeePercentage + stripeFeeFixed;
-      const netAmount = payout.requestedAmount - stripeFee;
+      // Host receives the FULL requested amount — no deductions
+      // Platform fees were already collected on top from the member at booking time
+      const netAmount = payout.requestedAmount;
 
-      // Update payout status to approved first
       payout.status = PayoutStatus.APPROVED;
-      payout.stripeFee = Math.round(stripeFee * 100) / 100; // Round to 2 decimals
-      payout.netAmount = Math.round(netAmount * 100) / 100;
+      payout.stripeFee = 0; // No fee deducted from host
+      payout.netAmount = netAmount; // Host gets exactly what they requested
       payout.approvedBy = new mongoose.Types.ObjectId(adminId);
       payout.approvedAt = new Date();
-      payout.approvalScreenshot = approvePayoutDto.screenshot; // Required screenshot
-      payout.approvalReason = approvePayoutDto.reason || undefined; // Optional reason
+      payout.approvalScreenshot = approvePayoutDto.screenshot;
+      payout.approvalReason = approvePayoutDto.reason || undefined;
       await payout.save();
 
       // Process Stripe transfer

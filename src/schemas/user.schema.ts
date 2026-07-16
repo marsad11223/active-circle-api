@@ -1,11 +1,11 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import * as mongoose from 'mongoose';
 
-/** Permanent account role: member (free), standardMember (Standard plan), premiumMember (Premium plan), superAdmin */
+/** Permanent account role: member (free), standardMember (Standard/Host plan), premiumMember (Premium/Host Plus plan), superAdmin */
 export enum Role {
   member = 'member',
-  standardMember = 'standardMember', // Standard plan: 2 free + 1 paid activity per period
-  premiumMember = 'premiumMember',
+  standardMember = 'standardMember', // Standard plan (displayed as "Host"): free activities only
+  premiumMember = 'premiumMember', // Premium plan (displayed as "Host Plus"): unlimited activities
   superAdmin = 'superAdmin',
 }
 

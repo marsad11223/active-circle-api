@@ -16,7 +16,6 @@ import { User, Role } from 'src/schemas/user.schema';
 import { Rating } from 'src/schemas/rating.schema';
 import mongoose, { Model } from 'mongoose';
 import { CreateBookingDto } from './dto/create-booking.dto';
-import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
 import {
   AdminListBookingsDto,
   BookingSortBy,
@@ -146,10 +145,28 @@ export class BookingService {
       let paymentIntentId: string | undefined;
       let chargeId: string | undefined;
       let bookingStatus: BookingStatus;
-      let paymentStatus: PaymentStatus | null | undefined; // Can be null for free activities
+      let paymentStatus: PaymentStatus | null | undefined;
+
+      // Fee constants (added on top of activity price, paid by member)
+      const PLATFORM_FEE_RATE = 0.03; // 3%
+      const STRIPE_FEE_RATE = 0.015; // 1.5%
+
+      // Calculate fees — only for paid activities
+      const platformFee =
+        activityPrice > 0
+          ? Math.round(activityPrice * PLATFORM_FEE_RATE * 100) / 100
+          : 0;
+      const stripeFee =
+        activityPrice > 0
+          ? Math.round(activityPrice * STRIPE_FEE_RATE * 100) / 100
+          : 0;
+      const totalAmountPaid =
+        activityPrice > 0
+          ? Math.round((activityPrice + platformFee + stripeFee) * 100) / 100
+          : 0;
 
       if (activityPrice > 0) {
-        // Paid activity - charge upfront
+        // Paid activity - charge member total (price + fees)
         if (!createBookingDto.paymentMethodId) {
           throw new BadRequestException(
             'Payment method is required for paid activities',
@@ -159,75 +176,67 @@ export class BookingService {
         // Ensure member has Stripe customer ID - create if doesn't exist
         let customerId = member.stripeCustomerId;
         if (!customerId) {
-          // Create Stripe customer for the member
           const customer = await this.stripe.customers.create({
             email: member.email,
             name: member.name,
-            metadata: {
-              userId: memberId,
-              type: 'member',
-            },
+            metadata: { userId: memberId, type: 'member' },
           });
           customerId = customer.id;
-
-          // Save customer ID to user record
           await this.userModel.findByIdAndUpdate(memberId, {
             stripeCustomerId: customerId,
             updated_at: new Date(),
           });
         }
 
-        // Attach payment method to customer (if not already attached)
+        // Attach payment method to customer
         try {
           await this.stripe.paymentMethods.attach(
             createBookingDto.paymentMethodId,
-            {
-              customer: customerId,
-            },
+            { customer: customerId },
           );
         } catch (attachError: any) {
-          // Payment method might already be attached, or it's a test payment method
-          // For test payment methods like pm_card_visa, we can proceed
           if (!attachError.message?.includes('already been attached')) {
-            // Only throw if it's not an "already attached" error
-            // For testing, we'll allow test payment methods
+            // allow test payment methods
           }
         }
 
-        // Create Payment Intent with manual capture (escrow)
-        // Payment will be authorized but not captured until host approves
+        // Charge member the TOTAL amount (price + platform fee + stripe fee)
         const paymentIntent = await this.stripe.paymentIntents.create({
-          amount: Math.round(activityPrice * 100), // Amount in smallest unit (pence for GBP)
+          amount: Math.round(totalAmountPaid * 100), // total in pence
           currency: 'gbp',
           customer: customerId,
           payment_method: createBookingDto.paymentMethodId,
-          capture_method: 'manual', // Don't capture immediately - hold in escrow
-          confirm: true, // Authorize payment but don't capture
-          description: `Booking for ${activity.title}`,
-          payment_method_types: ['card'], // Specify card as payment method type
+          capture_method: 'manual', // hold in escrow until host approves
+          confirm: true,
+          description: `Booking for ${activity.title} (£${activityPrice} + £${platformFee} platform fee + £${stripeFee} processing)`,
+          payment_method_types: ['card'],
           metadata: {
             activityId: (activity._id as any).toString(),
             memberId: memberId,
             hostId: hostId,
+            activityPrice: activityPrice.toString(),
+            platformFee: platformFee.toString(),
+            stripeFee: stripeFee.toString(),
+            totalAmountPaid: totalAmountPaid.toString(),
             type: 'booking',
           },
         });
 
-        // Verify payment intent status - should be 'requires_capture' for manual capture
         console.log('Payment Intent created:', {
           id: paymentIntent.id,
           status: paymentIntent.status,
-          capture_method: paymentIntent.capture_method,
+          totalCharged: totalAmountPaid,
+          hostReceives: activityPrice,
         });
 
         paymentIntentId = paymentIntent.id;
         chargeId = paymentIntent.latest_charge as string;
-        bookingStatus = BookingStatus.PENDING; // Wait for host approval
-        paymentStatus = PaymentStatus.PENDING; // Payment authorized but not captured (held in escrow)
+        bookingStatus = BookingStatus.PENDING;
+        paymentStatus = PaymentStatus.PENDING;
       } else {
-        // Free activity - send to host for approval
-        bookingStatus = BookingStatus.PENDING; // Changed: Free activities also need host approval
-        paymentStatus = null; // Changed: Explicitly null for free activities
+        // Free activity
+        bookingStatus = BookingStatus.PENDING;
+        paymentStatus = null;
       }
 
       // 6. Create booking
@@ -236,21 +245,21 @@ export class BookingService {
         activityId: new mongoose.Types.ObjectId(createBookingDto.activityId),
         hostId: new mongoose.Types.ObjectId(hostId),
         status: bookingStatus,
-        amount: activityPrice,
+        amount: activityPrice, // what host receives
+        platformFee, // 3% added on top (paid by member)
+        stripeFee, // 1.5% added on top (paid by member)
+        totalAmountPaid, // total charged to member
         created_at: new Date(),
         updated_at: new Date(),
       };
 
       // Set payment-related fields based on activity type
       if (activityPrice > 0) {
-        // Paid activity - set payment fields
         bookingData.paymentStatus = paymentStatus;
         bookingData.paymentIntentId = paymentIntentId;
         bookingData.stripeChargeId = chargeId;
-        // Generate invoice number for paid bookings
         bookingData.invoiceNumber = await this.generateInvoiceNumber();
       } else {
-        // Free activity - explicitly set paymentStatus to null
         bookingData.paymentStatus = null;
       }
 

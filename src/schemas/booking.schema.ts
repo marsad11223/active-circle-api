@@ -38,7 +38,16 @@ export class Booking extends Document {
   status: BookingStatus; // Booking status
 
   @Prop({ required: true, min: 0 })
-  amount: number; // Booking amount (0 for free activities)
+  amount: number; // Host's price (0 for free activities) — what host receives
+
+  @Prop({ required: false, min: 0, default: 0 })
+  platformFee?: number; // 3% platform fee added on top (paid by member)
+
+  @Prop({ required: false, min: 0, default: 0 })
+  stripeFee?: number; // 1.5% Stripe processing fee added on top (paid by member)
+
+  @Prop({ required: false, min: 0, default: 0 })
+  totalAmountPaid?: number; // Total charged to member: amount + platformFee + stripeFee
 
   @Prop({
     type: String,

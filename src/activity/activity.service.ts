@@ -189,7 +189,17 @@ export class ActivityService {
         );
       }
 
+      // Standard Member (Host plan): free activities only
       if (host.role === Role.standardMember && !host.isLifetimeHost) {
+        const price = createActivityDto.price ?? 0;
+
+        // Block paid activities entirely
+        if (price > 0) {
+          throw new BadRequestException(
+            'Standard plan (Host) only supports free activities. Upgrade to Host Plus for paid activities.',
+          );
+        }
+
         const sub = await this.subscriptionModel.findOne({
           userId: host._id,
           status: {
@@ -205,19 +215,14 @@ export class ActivityService {
               $gte: sub.currentPeriodStart,
               $lte: sub.currentPeriodEnd,
             },
-            $or: [{ price: 0 }, { price: { $exists: false } }],
           });
-          const paidCount = await this.activityModel.countDocuments({
-            hostId: new mongoose.Types.ObjectId(hostId),
-            status: { $ne: ActivityStatus.CANCELLED },
-            created_at: {
-              $gte: sub.currentPeriodStart,
-              $lte: sub.currentPeriodEnd,
-            },
-            price: { $gt: 0 },
-          });
-          const price = createActivityDto.price ?? 0;
-          if (price === 0 && freeCount >= STANDARD_HOST_FREE_LIMIT) {
+          if (freeCount >= STANDARD_HOST_FREE_LIMIT) {
+            throw new BadRequestException(
+              `Standard plan limit: you can create up to ${STANDARD_HOST_FREE_LIMIT} free activities per billing period. Upgrade to Host Plus for unlimited.`,
+            );
+          }
+        }
+      }
             throw new BadRequestException(
               `Standard plan limit: you can create up to ${STANDARD_HOST_FREE_LIMIT} free activities per billing period. Upgrade to premium for unlimited.`,
             );
@@ -1428,56 +1433,49 @@ export class ActivityService {
       const isPaidActivity = (activity.price || 0) > 0;
 
       if (isPaidActivity) {
-        // Process refunds for confirmed bookings
+        // Process refunds for confirmed bookings — HOST CANCEL = FULL REFUND TO MEMBER
+        // Member gets back every penny including platform fee and Stripe fee
+        // Platform absorbs any unrecoverable Stripe costs
         for (const booking of confirmedBookings) {
-          if (booking.amount > 0 && booking.paymentIntentId) {
+          if (booking.paymentIntentId) {
             try {
-              // Calculate refund amount (fee - stripe fee)
-              // Stripe fee: 2.9% + 20 pence (GBP)
-              const stripeFeePercentage = 0.029;
-              const stripeFeeFixed = 20; // 20 pence (GBP)
-              const originalAmountCents = Math.round(booking.amount * 100);
-              const stripeFee =
-                Math.round(originalAmountCents * stripeFeePercentage) +
-                stripeFeeFixed;
-              const refundAmount = Math.max(0, originalAmountCents - stripeFee);
+              // Full refund of totalAmountPaid (what member was charged)
+              const totalPaidCents = Math.round(
+                (booking.totalAmountPaid || booking.amount) * 100,
+              );
 
-              if (refundAmount > 0 && this.stripe) {
-                // Get charge ID from booking or payment intent
-                let chargeId = booking.stripeChargeId;
-                if (!chargeId && booking.paymentIntentId) {
-                  try {
-                    const paymentIntent =
-                      await this.stripe.paymentIntents.retrieve(
-                        booking.paymentIntentId,
-                      );
-                    chargeId = paymentIntent.latest_charge as string;
-                  } catch (err) {
-                    console.error('Error retrieving payment intent:', err);
-                  }
+              let chargeId = booking.stripeChargeId;
+              if (!chargeId && booking.paymentIntentId) {
+                try {
+                  const paymentIntent =
+                    await this.stripe.paymentIntents.retrieve(
+                      booking.paymentIntentId,
+                    );
+                  chargeId = paymentIntent.latest_charge as string;
+                } catch (err) {
+                  console.error('Error retrieving payment intent:', err);
                 }
+              }
 
-                if (chargeId) {
-                  try {
-                    // Create partial refund
-                    const refund = await this.stripe.refunds.create({
-                      charge: chargeId,
-                      amount: refundAmount,
-                      reason: 'requested_by_customer',
-                      metadata: {
-                        bookingId: (booking._id as any).toString(),
-                        activityId: id,
-                        type: 'activity_cancelled_by_host',
-                      },
-                    });
+              if (chargeId && totalPaidCents > 0) {
+                try {
+                  const refund = await this.stripe.refunds.create({
+                    charge: chargeId,
+                    amount: totalPaidCents, // Full refund of everything member paid
+                    reason: 'requested_by_customer',
+                    metadata: {
+                      bookingId: (booking._id as any).toString(),
+                      activityId: id,
+                      type: 'activity_cancelled_by_host',
+                      fullRefund: 'true',
+                    },
+                  });
 
-                    // Update booking
-                    booking.status = BookingStatus.CANCELLED;
-                    booking.paymentStatus = PaymentStatus.REFUNDED;
-                    booking.stripeRefundId = refund.id;
-                    booking.declineReason =
-                      cancelReason || 'Activity cancelled by host';
-                    booking.updated_at = new Date();
+                  booking.status = BookingStatus.CANCELLED;
+                  booking.paymentStatus = PaymentStatus.REFUNDED;
+                  booking.stripeRefundId = refund.id;
+                  booking.declineReason = cancelReason || 'Activity cancelled by host';
+                  booking.updated_at = new Date();
                     await booking.save();
 
                     refundsProcessed++;

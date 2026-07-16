@@ -24,16 +24,23 @@ export function IsAdmin(user: User) {
   }
 }
 
-/** True if user can create activities (premium member, standard member plan, or super admin) */
+/** True if user can create activities (premiumMember, standardMember, or superAdmin) */
 export function isHostOrStandardHost(
   user: User & { role?: Role; grantRole?: GrantRole },
 ): boolean {
   return (
     user?.role === Role.premiumMember ||
-    user?.grantRole === GrantRole.host ||
     user?.role === Role.standardMember ||
+    user?.grantRole === GrantRole.host ||
     user?.role === Role.superAdmin
   );
+}
+
+/** Alias for isHostOrStandardHost */
+export function isHost(
+  user: User & { role?: Role; grantRole?: GrantRole },
+): boolean {
+  return isHostOrStandardHost(user);
 }
 
 /**
