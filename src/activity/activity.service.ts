@@ -27,17 +27,11 @@ import {
 } from './dto/admin-list-activities.dto';
 import { GrantRole, User, Role } from 'src/schemas/user.schema';
 import { RecurringType, ActivityStatus } from 'src/schemas/activity.schema';
-import {
-  Subscription,
-  SubscriptionStatus,
-  SubscriptionPlan,
-} from 'src/schemas/subscription.schema';
+import { Subscription } from 'src/schemas/subscription.schema';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { EmailService } from '../email/email.service';
 
-const STANDARD_HOST_FREE_LIMIT = 2;
-const STANDARD_HOST_PAID_LIMIT = 1;
 const EARTH_RADIUS_MILES = 3958.8;
 const MEMBER_NEARBY_RADIUS_MILES = 25;
 import {
@@ -189,49 +183,13 @@ export class ActivityService {
         );
       }
 
-      // Standard Member (Host plan): free activities only
+      // Standard Member (Host plan): free activities only, unlimited
       if (host.role === Role.standardMember && !host.isLifetimeHost) {
         const price = createActivityDto.price ?? 0;
-
-        // Block paid activities entirely
         if (price > 0) {
           throw new BadRequestException(
             'Standard plan (Host) only supports free activities. Upgrade to Host Plus for paid activities.',
           );
-        }
-
-        const sub = await this.subscriptionModel.findOne({
-          userId: host._id,
-          status: {
-            $in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING],
-          },
-          plan: SubscriptionPlan.STANDARD,
-        });
-        if (sub?.currentPeriodStart && sub?.currentPeriodEnd) {
-          const freeCount = await this.activityModel.countDocuments({
-            hostId: new mongoose.Types.ObjectId(hostId),
-            status: { $ne: ActivityStatus.CANCELLED },
-            created_at: {
-              $gte: sub.currentPeriodStart,
-              $lte: sub.currentPeriodEnd,
-            },
-          });
-          if (freeCount >= STANDARD_HOST_FREE_LIMIT) {
-            throw new BadRequestException(
-              `Standard plan limit: you can create up to ${STANDARD_HOST_FREE_LIMIT} free activities per billing period. Upgrade to Host Plus for unlimited.`,
-            );
-          }
-        }
-      }
-            throw new BadRequestException(
-              `Standard plan limit: you can create up to ${STANDARD_HOST_FREE_LIMIT} free activities per billing period. Upgrade to premium for unlimited.`,
-            );
-          }
-          if (price > 0 && paidCount >= STANDARD_HOST_PAID_LIMIT) {
-            throw new BadRequestException(
-              `Standard plan limit: you can create up to ${STANDARD_HOST_PAID_LIMIT} paid activity per billing period. Upgrade to premium for unlimited.`,
-            );
-          }
         }
       }
 
@@ -1434,12 +1392,9 @@ export class ActivityService {
 
       if (isPaidActivity) {
         // Process refunds for confirmed bookings — HOST CANCEL = FULL REFUND TO MEMBER
-        // Member gets back every penny including platform fee and Stripe fee
-        // Platform absorbs any unrecoverable Stripe costs
         for (const booking of confirmedBookings) {
           if (booking.paymentIntentId) {
             try {
-              // Full refund of totalAmountPaid (what member was charged)
               const totalPaidCents = Math.round(
                 (booking.totalAmountPaid || booking.amount) * 100,
               );
@@ -1458,74 +1413,63 @@ export class ActivityService {
               }
 
               if (chargeId && totalPaidCents > 0) {
-                try {
-                  const refund = await this.stripe.refunds.create({
-                    charge: chargeId,
-                    amount: totalPaidCents, // Full refund of everything member paid
-                    reason: 'requested_by_customer',
-                    metadata: {
-                      bookingId: (booking._id as any).toString(),
-                      activityId: id,
-                      type: 'activity_cancelled_by_host',
-                      fullRefund: 'true',
-                    },
-                  });
+                const refund = await this.stripe.refunds.create({
+                  charge: chargeId,
+                  amount: totalPaidCents,
+                  reason: 'requested_by_customer',
+                  metadata: {
+                    bookingId: (booking._id as any).toString(),
+                    activityId: id,
+                    type: 'activity_cancelled_by_host',
+                    fullRefund: 'true',
+                  },
+                });
 
-                  booking.status = BookingStatus.CANCELLED;
-                  booking.paymentStatus = PaymentStatus.REFUNDED;
-                  booking.stripeRefundId = refund.id;
-                  booking.declineReason = cancelReason || 'Activity cancelled by host';
-                  booking.updated_at = new Date();
-                    await booking.save();
+                booking.status = BookingStatus.CANCELLED;
+                booking.paymentStatus = PaymentStatus.REFUNDED;
+                booking.stripeRefundId = refund.id;
+                booking.declineReason =
+                  cancelReason || 'Activity cancelled by host';
+                booking.updated_at = new Date();
+                await booking.save();
+                refundsProcessed++;
 
-                    refundsProcessed++;
-
-                    // Send email notification
-                    const member = await this.userModel.findById(
-                      booking.memberId,
-                    );
-                    if (member) {
-                      const emailsEnabled =
-                        this.configService.get<string>('EMAILS_ENABLED') ===
-                        'true';
-                      if (emailsEnabled) {
-                        try {
-                          const activityDate = new Date(activity.date);
-                          await this.emailService.sendMail({
-                            to: member.email,
-                            subject: 'Activity Cancelled - Refund Processed',
-                            html: activityCancelledWithRefundToMember({
-                              memberName: member.name,
-                              memberEmail: member.email,
-                              activityTitle: activity.title,
-                              activityDate: activityDate.toLocaleDateString(
-                                'en-US',
-                                {
-                                  weekday: 'long',
-                                  year: 'numeric',
-                                  month: 'long',
-                                  day: 'numeric',
-                                },
-                              ),
-                              cancelReason: cancelReason,
-                              originalAmount: booking.amount,
-                              refundAmount: refundAmount,
-                              refundId: refund.id,
-                            }),
-                          });
-                        } catch (emailError: any) {
-                          console.error(
-                            'Error sending cancellation email:',
-                            emailError,
-                          );
-                        }
-                      }
+                const member = await this.userModel.findById(booking.memberId);
+                if (member) {
+                  const emailsEnabled =
+                    this.configService.get<string>('EMAILS_ENABLED') === 'true';
+                  if (emailsEnabled) {
+                    try {
+                      const activityDate = new Date(activity.date);
+                      await this.emailService.sendMail({
+                        to: member.email,
+                        subject: 'Activity Cancelled - Full Refund Processed',
+                        html: activityCancelledWithRefundToMember({
+                          memberName: member.name,
+                          memberEmail: member.email,
+                          activityTitle: activity.title,
+                          activityDate: activityDate.toLocaleDateString(
+                            'en-US',
+                            {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                            },
+                          ),
+                          cancelReason: cancelReason,
+                          originalAmount:
+                            booking.totalAmountPaid || booking.amount,
+                          refundAmount: totalPaidCents,
+                          refundId: refund.id,
+                        }),
+                      });
+                    } catch (emailError: any) {
+                      console.error(
+                        'Error sending cancellation email:',
+                        emailError,
+                      );
                     }
-                  } catch (refundError: any) {
-                    console.error(
-                      `Error processing refund for booking ${(booking._id as any).toString()}:`,
-                      refundError.message,
-                    );
                   }
                 }
               }
@@ -1534,7 +1478,6 @@ export class ActivityService {
                 `Error processing refund for booking ${(booking._id as any).toString()}:`,
                 refundError.message,
               );
-              // Continue with other bookings even if one fails
             }
           }
         }
@@ -1687,7 +1630,9 @@ export class ActivityService {
 
       const normalizedStatuses = requestedStatuses
         .map((value) => value.trim())
-        .filter((value) => value && value !== ActivityStatusFilter.ALL)
+        .filter(
+          (value) => value && value !== (ActivityStatusFilter.ALL as string),
+        )
         .filter((value) => allowedStatuses.has(value));
 
       const query: any = {

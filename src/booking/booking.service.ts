@@ -677,20 +677,20 @@ export class BookingService {
       // 'all' doesn't add any status filter
 
       // Fetch bookings with populated data
-      const bookings = await this.bookingModel
+      const bookings = (await this.bookingModel
         .find(baseQuery)
         .populate('activityId')
         .populate('hostId', 'name email profilePhoto')
-        .sort({ created_at: -1 });
+        .sort({ created_at: -1 })) as any[];
 
       // Filter by date for upcoming/past
-      let filteredBookings = bookings;
+      let filteredBookings: any[] = bookings;
       if (filter === 'upcoming' || filter === 'past') {
         const now = new Date();
         now.setHours(0, 0, 0, 0); // Start of today
 
         filteredBookings = bookings.filter((booking) => {
-          const activity = booking.activityId as any;
+          const activity = booking.activityId;
           if (!activity || !activity.date) {
             return false;
           }
@@ -726,7 +726,7 @@ export class BookingService {
         // Add isReviewed flag to each booking
         return filteredBookings.map((booking) => {
           const bookingObj = booking.toObject();
-          const bookingId = (booking._id as any).toString();
+          const bookingId = booking._id.toString();
           return {
             ...bookingObj,
             isReviewed: reviewedBookingIds.has(bookingId),
@@ -2063,7 +2063,7 @@ export class BookingService {
       }
 
       // Get paginated bookings
-      let bookings = await this.bookingModel
+      let bookings: any[] = await this.bookingModel
         .find(query)
         .populate('memberId', 'name email profilePhoto')
         .populate('hostId', 'name email profilePhoto')
@@ -2078,7 +2078,7 @@ export class BookingService {
       // Filter by activity date if specified (after populating)
       if (activityDateFilter) {
         bookings = bookings.filter((booking) => {
-          const activity = booking.activityId as any;
+          const activity = booking.activityId;
           if (!activity || !activity.date) return false;
           const activityDate = new Date(activity.date);
           if (
@@ -2148,8 +2148,8 @@ export class BookingService {
       // Sort by activity date if requested (after filtering)
       if (sortBy === BookingSortBy.ACTIVITY_DATE) {
         bookings.sort((a, b) => {
-          const activityA = a.activityId as any;
-          const activityB = b.activityId as any;
+          const activityA = a.activityId;
+          const activityB = b.activityId;
           const dateA = activityA?.date
             ? new Date(activityA.date).getTime()
             : 0;
@@ -2162,9 +2162,9 @@ export class BookingService {
 
       // Format booking data
       const formattedBookings = bookings.map((booking) => {
-        const member = booking.memberId as any;
-        const host = booking.hostId as any;
-        const activity = booking.activityId as any;
+        const member = booking.memberId;
+        const host = booking.hostId;
+        const activity = booking.activityId;
 
         return {
           _id: booking._id,
