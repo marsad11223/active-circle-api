@@ -505,7 +505,7 @@ export class SubscriptionService {
 
     if (isActive) {
       const user = await this.userModel.findById(userId);
-      if (user && user.role === Role.member) {
+      if (user) {
         const targetRole =
           plan === SubscriptionPlan.STANDARD
             ? Role.standardMember
