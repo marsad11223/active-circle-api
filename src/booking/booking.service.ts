@@ -141,29 +141,67 @@ export class BookingService {
       }
 
       // 5. Handle payment based on activity price
-      const activityPrice = activity.price || 0;
+      const activityPrice = activity.price ?? 0;
       let paymentIntentId: string | undefined;
       let chargeId: string | undefined;
       let bookingStatus: BookingStatus;
       let paymentStatus: PaymentStatus | null | undefined;
 
-      // Fee constants (added on top of activity price, paid by member)
+      // Fees are calculated in pence to avoid floating-point rounding errors.
       const PLATFORM_FEE_RATE = 0.03; // 3%
-      const STRIPE_FEE_RATE = 0.015; // 1.5%
+      const STRIPE_FIXED_FEE_PENCE = 20;
+      const UK_CARD_RATE = 0.015;
+      const EEA_CARD_RATE = 0.025;
+      const INTERNATIONAL_CARD_RATE = 0.0325;
+      const EEA_COUNTRIES = new Set([
+        'AT',
+        'BE',
+        'BG',
+        'HR',
+        'CY',
+        'CZ',
+        'DK',
+        'EE',
+        'FI',
+        'FR',
+        'DE',
+        'GR',
+        'HU',
+        'IS',
+        'IE',
+        'IT',
+        'LV',
+        'LI',
+        'LT',
+        'LU',
+        'MT',
+        'NL',
+        'NO',
+        'PL',
+        'PT',
+        'RO',
+        'SK',
+        'SI',
+        'ES',
+        'SE',
+      ]);
 
-      // Calculate fees — only for paid activities
-      const platformFee =
+      const activityAmountPence = Math.round(activityPrice * 100);
+      const platformFeePence =
         activityPrice > 0
-          ? Math.round(activityPrice * PLATFORM_FEE_RATE * 100) / 100
+          ? Math.round(activityAmountPence * PLATFORM_FEE_RATE)
           : 0;
-      const stripeFee =
-        activityPrice > 0
-          ? Math.round(activityPrice * STRIPE_FEE_RATE * 100) / 100
-          : 0;
-      const totalAmountPaid =
-        activityPrice > 0
-          ? Math.round((activityPrice + platformFee + stripeFee) * 100) / 100
-          : 0;
+      const requiredNetPence = activityAmountPence + platformFeePence;
+
+      let stripeFeeRate = 0;
+      let stripeFeePence = 0;
+      let totalAmountPence = 0;
+      let cardCountry: string | null = null;
+
+      // Values stored on the booking remain in pounds.
+      const platformFee = platformFeePence / 100;
+      let stripeFee = 0;
+      let totalAmountPaid = 0;
 
       if (activityPrice > 0) {
         // Paid activity - charge member total (price + fees)
@@ -172,6 +210,53 @@ export class BookingService {
             'Payment method is required for paid activities',
           );
         }
+
+        // Determine the applicable Stripe percentage from the card's country.
+        // Unknown countries use the international rate so the platform does
+        // not receive less than the required activity + platform amount.
+        const paymentMethod = await this.stripe.paymentMethods.retrieve(
+          createBookingDto.paymentMethodId,
+        );
+        cardCountry = paymentMethod.card?.country ?? null;
+
+        if (cardCountry === 'GB') {
+          stripeFeeRate = UK_CARD_RATE;
+        } else if (cardCountry && EEA_COUNTRIES.has(cardCountry)) {
+          stripeFeeRate = EEA_CARD_RATE;
+        } else {
+          stripeFeeRate = INTERNATIONAL_CARD_RATE;
+        }
+
+        const calculateStripeFeePence = (chargePence: number): number =>
+          Math.round(chargePence * stripeFeeRate) + STRIPE_FIXED_FEE_PENCE;
+
+        // Gross up the charge so that, after Stripe deducts its percentage
+        // and fixed 20p fee, activity price + 3% platform fee still remains.
+        totalAmountPence = Math.ceil(
+          (requiredNetPence + STRIPE_FIXED_FEE_PENCE) / (1 - stripeFeeRate),
+        );
+
+        stripeFeePence = calculateStripeFeePence(totalAmountPence);
+
+        // Correct any one-pence difference caused by fee rounding.
+        while (totalAmountPence - stripeFeePence < requiredNetPence) {
+          totalAmountPence += 1;
+          stripeFeePence = calculateStripeFeePence(totalAmountPence);
+        }
+
+        while (
+          totalAmountPence > 0 &&
+          totalAmountPence -
+            1 -
+            calculateStripeFeePence(totalAmountPence - 1) >=
+            requiredNetPence
+        ) {
+          totalAmountPence -= 1;
+          stripeFeePence = calculateStripeFeePence(totalAmountPence);
+        }
+
+        stripeFee = stripeFeePence / 100;
+        totalAmountPaid = totalAmountPence / 100;
 
         // Ensure member has Stripe customer ID - create if doesn't exist
         let customerId = member.stripeCustomerId;
@@ -202,7 +287,7 @@ export class BookingService {
 
         // Charge member the TOTAL amount (price + platform fee + stripe fee)
         const paymentIntent = await this.stripe.paymentIntents.create({
-          amount: Math.round(totalAmountPaid * 100), // total in pence
+          amount: totalAmountPence,
           currency: 'gbp',
           customer: customerId,
           payment_method: createBookingDto.paymentMethodId,
@@ -217,6 +302,8 @@ export class BookingService {
             activityPrice: activityPrice.toString(),
             platformFee: platformFee.toString(),
             stripeFee: stripeFee.toString(),
+            stripeFeeRate: stripeFeeRate.toString(),
+            cardCountry: cardCountry ?? 'unknown',
             totalAmountPaid: totalAmountPaid.toString(),
             type: 'booking',
           },
@@ -225,8 +312,12 @@ export class BookingService {
         console.log('Payment Intent created:', {
           id: paymentIntent.id,
           status: paymentIntent.status,
+          cardCountry,
+          stripeFeeRate,
+          estimatedStripeFee: stripeFee,
           totalCharged: totalAmountPaid,
           hostReceives: activityPrice,
+          platformKeepsAfterStripe: platformFee,
         });
 
         paymentIntentId = paymentIntent.id;
@@ -247,7 +338,7 @@ export class BookingService {
         status: bookingStatus,
         amount: activityPrice, // what host receives
         platformFee, // 3% added on top (paid by member)
-        stripeFee, // 1.5% added on top (paid by member)
+        stripeFee, // estimated Stripe fee added on top (paid by member)
         totalAmountPaid, // total charged to member
         created_at: new Date(),
         updated_at: new Date(),
