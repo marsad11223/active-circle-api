@@ -1198,12 +1198,16 @@ export class BookingService {
       }
 
       const activity = booking.activityId as any;
-      if (!activity || !activity.date) {
-        throw new BadRequestException('Activity date not found');
+      if (!activity || !activity.startDateTime) {
+        throw new BadRequestException('Activity start date and time not found');
       }
 
       // Calculate time difference
-      const activityDate = new Date(activity.date);
+      const activityDate = new Date(activity.startDateTime);
+      if (Number.isNaN(activityDate.getTime())) {
+        throw new BadRequestException('Invalid activity start date and time');
+      }
+
       const now = new Date();
       const hoursUntilEvent =
         (activityDate.getTime() - now.getTime()) / (1000 * 60 * 60);
@@ -1355,34 +1359,34 @@ export class BookingService {
 
       let refundAmount: number;
       let refundPercentage: number;
-      const stripeFeePercentage = 0.029; // 2.9%
-      const stripeFeeFixed = 20; // 20 pence (GBP) – Stripe fixed fee
+      const activityAmountPence = Math.round(Number(booking.amount) * 100);
+      const totalAmountPaidPence = Math.round(
+        Number(booking.totalAmountPaid) * 100,
+      );
 
-      if (hoursUntilEvent >= 48) {
-        // 48+ hours: refund = payment - (2.9% + 20p) Stripe fees
-        const originalAmountCents = Math.round(booking.amount * 100);
-        const stripeFee =
-          Math.round(originalAmountCents * stripeFeePercentage) +
-          stripeFeeFixed;
-        refundAmount = originalAmountCents - stripeFee;
-        refundPercentage = Math.round(
-          (refundAmount / originalAmountCents) * 100,
+      if (
+        !Number.isFinite(activityAmountPence) ||
+        !Number.isFinite(totalAmountPaidPence) ||
+        activityAmountPence <= 0 ||
+        totalAmountPaidPence <= 0
+      ) {
+        throw new BadRequestException(
+          'Invalid booking amount or total payment amount',
         );
+      }
+
+      if (hoursUntilEvent > 48) {
+        // More than 48 hours:
+        // Refund everything the member paid, including platform and
+        // processing fees. The platform absorbs Stripe's unrecoverable fee.
+        refundAmount = totalAmountPaidPence;
+        refundPercentage = 100;
       } else if (hoursUntilEvent >= 24) {
-        // 24-48 hours: refund = payment - 50% of payment - (2.9% + 20p) of payment
-        // Formula: payment - 50% - (2.9% + 20p) - both calculated on original payment
-        const originalAmountCents = Math.round(booking.amount * 100);
-        const penaltyAmount = Math.round(originalAmountCents * 0.5); // 50% penalty
-        const stripeFee =
-          Math.round(originalAmountCents * stripeFeePercentage) +
-          stripeFeeFixed; // Fee on original amount (pence)
-        refundAmount = Math.max(
-          0,
-          originalAmountCents - penaltyAmount - stripeFee,
-        );
-        refundPercentage = Math.round(
-          (refundAmount / originalAmountCents) * 100,
-        );
+        // 24-48 hours:
+        // Refund exactly half of the session price. Platform and Stripe fees
+        // are not returned; the host remains entitled to the other half.
+        refundAmount = Math.round(activityAmountPence * 0.5);
+        refundPercentage = 50;
       } else {
         // Less than 24 hours: no refund
         throw new BadRequestException(
@@ -1406,7 +1410,7 @@ export class BookingService {
           throw new BadRequestException('Charge ID not found');
         }
 
-        // Create partial refund
+        // Create the full or partial refund calculated by the policy above.
         const refund = await this.stripe.refunds.create({
           charge: chargeId,
           amount: refundAmount, // Amount in pence (GBP)
@@ -1441,8 +1445,8 @@ export class BookingService {
                 memberEmail: member.email,
                 activityTitle: activity.title,
                 cancelReason: cancelReason,
-                originalAmount: booking.amount,
-                refundAmount: refundAmount,
+                originalAmount: totalAmountPaidPence / 100,
+                refundAmount: refundAmount / 100,
                 refundPercentage: refundPercentage,
                 refundId: refund.id,
               }),
