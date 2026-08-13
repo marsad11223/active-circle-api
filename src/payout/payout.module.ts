@@ -6,6 +6,7 @@ import { Payout, PayoutSchema } from 'src/schemas/payout.schema';
 import { Booking, BookingSchema } from 'src/schemas/booking.schema';
 import { Activity, ActivitySchema } from 'src/schemas/activity.schema';
 import { User, UserSchema } from 'src/schemas/user.schema';
+import { EmailModule } from 'src/email/email.module';
 
 @Module({
   imports: [
@@ -15,10 +16,10 @@ import { User, UserSchema } from 'src/schemas/user.schema';
       { name: Activity.name, schema: ActivitySchema },
       { name: User.name, schema: UserSchema },
     ]),
+    EmailModule,
   ],
   controllers: [PayoutController],
   providers: [PayoutService],
   exports: [PayoutService],
 })
 export class PayoutModule {}
-

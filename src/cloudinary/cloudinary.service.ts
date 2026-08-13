@@ -24,6 +24,8 @@ export class CloudinaryService {
         '.xls',
         '.xlsx',
         '.svg',
+        '.heic',
+        '.heif',
       ];
       const fileExtensionParts = file.originalname.split('.');
       const extension = fileExtensionParts.pop();

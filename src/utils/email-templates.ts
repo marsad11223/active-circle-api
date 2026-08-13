@@ -1027,3 +1027,69 @@ export function adminEmailJobReport(data: {
     hideButton: true,
   });
 }
+
+// ─── PAYOUT REQUEST NOTIFICATION (to Admin) ─────────────────────────────────
+
+/**
+ * Admin notification when a host submits a payout/withdrawal request.
+ */
+export function payoutRequestToAdmin(data: {
+  hostName: string;
+  hostEmail: string;
+  amount: number;
+  requestedAt: Date;
+  payoutId: string;
+}): { subject: string; html: string } {
+  const { hostName, hostEmail, amount, requestedAt, payoutId } = data;
+  const formattedDate = requestedAt.toLocaleString('en-GB', {
+    timeZone: 'Europe/London',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const subject = `New Withdrawal Request — £${amount.toFixed(2)} from ${hostName}`;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 24px;">
+      <div style="background: #ffffff; border-radius: 8px; padding: 32px; border: 1px solid #e5e7eb;">
+        <h2 style="color: #111827; margin: 0 0 8px 0;">New Withdrawal Request</h2>
+        <p style="color: #6b7280; margin: 0 0 24px 0;">A host has submitted a withdrawal request requiring your approval.</p>
+
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 10px 0; color: #6b7280; font-size: 14px; width: 140px;">Host Name</td>
+            <td style="padding: 10px 0; color: #111827; font-size: 14px; font-weight: 600;">${hostName}</td>
+          </tr>
+          <tr style="border-top: 1px solid #f3f4f6;">
+            <td style="padding: 10px 0; color: #6b7280; font-size: 14px;">Host Email</td>
+            <td style="padding: 10px 0; color: #111827; font-size: 14px;">${hostEmail}</td>
+          </tr>
+          <tr style="border-top: 1px solid #f3f4f6;">
+            <td style="padding: 10px 0; color: #6b7280; font-size: 14px;">Amount Requested</td>
+            <td style="padding: 10px 0; color: #059669; font-size: 18px; font-weight: 700;">£${amount.toFixed(2)}</td>
+          </tr>
+          <tr style="border-top: 1px solid #f3f4f6;">
+            <td style="padding: 10px 0; color: #6b7280; font-size: 14px;">Requested At</td>
+            <td style="padding: 10px 0; color: #111827; font-size: 14px;">${formattedDate}</td>
+          </tr>
+          <tr style="border-top: 1px solid #f3f4f6;">
+            <td style="padding: 10px 0; color: #6b7280; font-size: 14px;">Payout ID</td>
+            <td style="padding: 10px 0; color: #6b7280; font-size: 12px; font-family: monospace;">${payoutId}</td>
+          </tr>
+        </table>
+
+        <p style="color: #374151; font-size: 14px; margin: 24px 0 0 0;">
+          Please log in to the admin panel to review and approve or reject this request.
+        </p>
+      </div>
+      <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 16px 0 0 0;">
+        Active Circle · This is an automated notification
+      </p>
+    </div>
+  `;
+
+  return { subject, html };
+}

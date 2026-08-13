@@ -21,6 +21,8 @@ import { RejectPayoutDto } from './dto/reject-payout.dto';
 import { AddBankAccountDto } from './dto/add-bank-account.dto';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
+import { EmailService } from '../email/email.service';
+import { payoutRequestToAdmin } from 'src/utils/email-templates';
 
 @Injectable()
 export class PayoutService {
@@ -36,6 +38,7 @@ export class PayoutService {
     @InjectModel(User.name)
     private readonly userModel: Model<User>,
     private configService: ConfigService,
+    private readonly emailService: EmailService,
   ) {
     const stripeSecretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!stripeSecretKey) {
@@ -296,6 +299,38 @@ export class PayoutService {
       );
     } catch (err) {
       console.error('Failed to set admin hasNewPayoutRequests flag:', err);
+    }
+
+    // Notify admin by email — async, non-blocking
+    const emailsEnabled =
+      this.configService.get<string>('EMAILS_ENABLED') === 'true';
+    if (emailsEnabled) {
+      const adminEmail = this.configService.get<string>('ADMIN_EMAIL');
+      if (adminEmail) {
+        setImmediate(() => {
+          const { subject, html } = payoutRequestToAdmin({
+            hostName: host.name,
+            hostEmail: host.email,
+            amount: createWithdrawalRequestDto.amount,
+            requestedAt: new Date(),
+            payoutId: (payout._id as any).toString(),
+          });
+          this.emailService
+            .sendMail({ to: adminEmail, subject, html })
+            .then(() => {
+              console.log(
+                '[PAYOUT] Admin notification email sent to:',
+                adminEmail,
+              );
+            })
+            .catch((err: any) => {
+              console.error(
+                '[PAYOUT] Failed to send admin notification:',
+                err?.message,
+              );
+            });
+        });
+      }
     }
 
     return payout;
