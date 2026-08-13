@@ -19,6 +19,7 @@ export type EnqueueOutboxInput = {
   emailTemplate: { templateId: string; data: Record<string, unknown> } | null;
   idempotencyKey: string;
   maxAttempts?: number;
+  priority?: number; // 0 = normal (default), 10 = high
 };
 
 export type EnqueueOutboxEvent = {
@@ -31,6 +32,7 @@ export type EnqueueOutboxEvent = {
   emailTemplate?: { templateId: string; data: Record<string, unknown> };
   idempotencyKey?: string;
   maxAttempts?: number;
+  priority?: number; // 0 = normal (default), 10 = high
 };
 
 @Injectable()
@@ -72,6 +74,7 @@ export class OutboxService {
             status: OutboxStatus.PENDING,
             attempts: 0,
             maxAttempts: parsed.input.maxAttempts ?? 3,
+            priority: parsed.input.priority ?? 0,
             nextRetryAt: null,
             processedAt: null,
             lastError: null,
@@ -114,6 +117,7 @@ export class OutboxService {
             event.idempotencyKey ??
             `${event.type}:${event.entityId}:${event.recipientUserId}`,
           maxAttempts: event.maxAttempts,
+          priority: event.priority,
         },
       };
     }

@@ -378,7 +378,42 @@ export class NotificationsService {
       recipientEmail,
       emailTemplate,
       idempotencyKey,
+      priority: NotificationsService.getNotificationPriority(payload.type),
     });
+  }
+
+  /**
+   * Priority map for all notification types.
+   * 10 = Critical, 7 = High, 5 = Standard, 3 = Low, 1 = Background
+   */
+  static getNotificationPriority(type: string): number {
+    switch (type) {
+      // Critical — financial/admin
+      case 'payout_request_admin_alert':
+        return 10;
+      // High — time-sensitive confirmations and cancellations
+      case 'booking_confirmed':
+      case 'booking_declined':
+      case 'activity_cancelled':
+        return 7;
+      // Standard — pending actions and messages
+      case 'booking_pending':
+      case 'new_booking_host':
+      case 'booking_approved':
+      case 'new_message':
+        return 5;
+      // Low — reminders and broadcasts
+      case 'activity_reminder_1h':
+      case 'activity_reminder_24h':
+      case 'host_broadcast':
+        return 3;
+      // Background — review requests and announcements
+      case 'review_request':
+      case 'feature_announcement':
+        return 1;
+      default:
+        return 5; // default to standard
+    }
   }
 
   private getPushContent(type?: string): { title: string; body: string } {

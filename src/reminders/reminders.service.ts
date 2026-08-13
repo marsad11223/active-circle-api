@@ -5,6 +5,7 @@ import { Model, Types } from 'mongoose';
 import { DateTime } from 'luxon';
 import { OutboxService } from 'src/notifications/outbox.service';
 import { buildNotificationData } from 'src/notifications/notification-payload.util';
+import { NotificationsService } from 'src/notifications/notifications.service';
 import { activityDateTimeRangeLondon, UK_TZ } from 'src/utils/uk-time';
 import { Activity, ActivityStatus } from 'src/schemas/activity.schema';
 import { Booking, BookingStatus } from 'src/schemas/booking.schema';
@@ -120,6 +121,8 @@ export class RemindersService {
             recipientTokens: await this.getTokensByUserId(userId),
             payload,
             idempotencyKey: `review_request:${bookingId}:${userId}`,
+            priority:
+              NotificationsService.getNotificationPriority('review_request'),
           });
           reviewEventsEnqueued++;
         }
@@ -201,6 +204,9 @@ export class RemindersService {
             recipientTokens: tokens,
             payload,
             idempotencyKey: `activity_reminder_24h:${activityId}:${userId}`,
+            priority: NotificationsService.getNotificationPriority(
+              'activity_reminder_24h',
+            ),
           });
           enqueued++;
         }
@@ -287,6 +293,9 @@ export class RemindersService {
             recipientTokens: tokens,
             payload,
             idempotencyKey: `activity_reminder_1h:${activityId}:${userId}`,
+            priority: NotificationsService.getNotificationPriority(
+              'activity_reminder_1h',
+            ),
           });
           enqueued++;
         }
@@ -360,6 +369,8 @@ export class RemindersService {
           recipientTokens: await this.getTokensByUserId(userId),
           payload,
           idempotencyKey: `review_request:${bookingId}:${userId}`,
+          priority:
+            NotificationsService.getNotificationPriority('review_request'),
         });
 
         await this.bookingModel.updateOne(
@@ -440,6 +451,8 @@ export class RemindersService {
             { bookingId, activityId },
           ),
           idempotencyKey: `abandoned_booking:${bookingId}:${memberId}`,
+          priority:
+            NotificationsService.getNotificationPriority('booking_declined'),
         });
         enqueued++;
 
@@ -455,6 +468,8 @@ export class RemindersService {
             { bookingId, activityId, reason: 'auto_cancelled' },
           ),
           idempotencyKey: `abandoned_booking:${bookingId}:${hostId}`,
+          priority:
+            NotificationsService.getNotificationPriority('new_booking_host'),
         });
         enqueued++;
       }

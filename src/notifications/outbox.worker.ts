@@ -91,7 +91,7 @@ export class OutboxWorker implements OnModuleInit, OnModuleDestroy {
       },
       {
         new: true,
-        sort: { createdAt: 1 },
+        sort: { priority: -1, createdAt: 1 }, // high priority first, then FIFO
       },
     );
   }

@@ -6,7 +6,7 @@ import { Payout, PayoutSchema } from 'src/schemas/payout.schema';
 import { Booking, BookingSchema } from 'src/schemas/booking.schema';
 import { Activity, ActivitySchema } from 'src/schemas/activity.schema';
 import { User, UserSchema } from 'src/schemas/user.schema';
-import { EmailModule } from 'src/email/email.module';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -16,7 +16,7 @@ import { EmailModule } from 'src/email/email.module';
       { name: Activity.name, schema: ActivitySchema },
       { name: User.name, schema: UserSchema },
     ]),
-    EmailModule,
+    NotificationsModule,
   ],
   controllers: [PayoutController],
   providers: [PayoutService],

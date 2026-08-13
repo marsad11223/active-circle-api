@@ -60,6 +60,9 @@ export class OutboxEvent extends Document {
   @Prop({ required: true, default: 3 })
   maxAttempts: number;
 
+  @Prop({ required: true, default: 0 })
+  priority: number; // Higher = processed first. 0 = normal, 10 = high (e.g. admin alerts)
+
   @Prop({ type: Date, default: null })
   nextRetryAt: Date | null;
 
@@ -78,8 +81,8 @@ export class OutboxEvent extends Document {
 export const OutboxEventSchema = SchemaFactory.createForClass(OutboxEvent);
 
 OutboxEventSchema.index(
-  { status: 1, nextRetryAt: 1, createdAt: 1 },
-  { name: 'outbox_status_retry_created_idx' },
+  { status: 1, nextRetryAt: 1, priority: -1, createdAt: 1 },
+  { name: 'outbox_status_priority_retry_created_idx' },
 );
 OutboxEventSchema.index({ idempotencyKey: 1 }, { unique: true });
 OutboxEventSchema.index(
