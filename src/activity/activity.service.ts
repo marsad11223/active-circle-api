@@ -2107,19 +2107,11 @@ export class ActivityService {
         );
       }
 
-      const queryFrom = from
-        .minus({ days: 2 })
-        .startOf('day')
-        .toUTC()
-        .toJSDate();
-      const queryTo = to.plus({ days: 2 }).endOf('day').toUTC().toJSDate();
-
       const rawActivities = await this.activityModel
         .find({
           hostId: new mongoose.Types.ObjectId(hostId),
           deleted_at: null,
           status: { $ne: ActivityStatus.CANCELLED },
-          date: { $gte: queryFrom, $lte: queryTo },
         })
         .select(
           'title description category location date startDateTime endDateTime time picture price maxParticipants recurring status',
@@ -2144,37 +2136,157 @@ export class ActivityService {
 
       for (const act of rawActivities) {
         const { start, end } = activityDateTimeRangeLondon(act as any);
+
+        console.log(
+          `[SCHEDULE] Activity: "${act.title}" | recurring: ${act.recurring} | ` +
+            `startDateTime: ${(act as any).startDateTime ?? 'null'} | endDateTime: ${(act as any).endDateTime ?? 'null'} | ` +
+            `date: ${(act as any).date ?? 'null'}`,
+        );
+        console.log(
+          `[SCHEDULE]   → parsed start: ${start?.toISO() ?? 'INVALID'} | end: ${end?.toISO() ?? 'INVALID'}`,
+        );
+
         if (!start || !start.isValid || !end || !end.isValid) {
+          console.log(`[SCHEDULE]   → SKIPPED (invalid start/end)`);
           continue;
         }
-        const normalizedEnd = end <= start ? end.plus({ days: 1 }) : end;
-        const activityPayload = {
-          _id: act._id,
-          title: act.title,
-          description: act.description,
-          category: act.category,
-          location: act.location,
-          date: act.date,
-          startDateTime: act.startDateTime || act.date,
-          endDateTime: act.endDateTime || null,
-          picture: act.picture,
-          price: act.price ?? 0,
-          maxParticipants: act.maxParticipants,
-          recurring: act.recurring,
-          status: act.status,
-        };
 
-        let bucketCursor = start.startOf('hour');
-        while (bucketCursor < normalizedEnd) {
-          const ymd = bucketCursor.toFormat('yyyy-MM-dd');
-          const dayBuckets = byDayHour.get(ymd);
-          if (dayBuckets) {
-            const list = dayBuckets.get(bucketCursor.hour);
-            if (list) {
-              list.push({ ...activityPayload });
+        // Duration of the activity (in milliseconds)
+        const durationMs = end.toMillis() - start.toMillis();
+        console.log(
+          `[SCHEDULE]   → durationMs: ${durationMs} (${Math.round(durationMs / 60000)} min)`,
+        );
+
+        if (durationMs <= 0) {
+          console.warn(
+            `[SCHEDULE]   → WARNING: zero/negative duration for "${act.title}", skipping`,
+          );
+          continue; // skip activities with no valid duration — don't use 24h fallback
+        }
+
+        const normalizedDuration = Math.min(durationMs, 24 * 60 * 60 * 1000); // cap at 24h
+
+        if (durationMs > 24 * 60 * 60 * 1000) {
+          console.warn(
+            `[SCHEDULE]   → WARNING: duration ${Math.round(durationMs / 3600000)}h exceeds 24h cap for "${act.title}". endDateTime likely stored incorrectly. Capping to 24h.`,
+          );
+        }
+
+        // Build the list of occurrence start times within or overlapping the schedule window
+        const occurrences: DateTime[] = [];
+        const windowStart = from.startOf('day');
+        const windowEnd = to.endOf('day');
+
+        if (act.recurring === RecurringType.ONE_TIME || !act.recurring) {
+          // Only include if it falls within the window
+          if (start <= windowEnd && end >= windowStart) {
+            occurrences.push(start);
+          }
+        } else {
+          // For recurring activities, project occurrences into the window
+          let cursor = start;
+
+          // Step forward until we reach the window (skip past occurrences efficiently)
+          if (cursor < windowStart) {
+            let stepMs: number;
+            if (act.recurring === RecurringType.DAILY) {
+              stepMs = 24 * 60 * 60 * 1000;
+            } else if (act.recurring === RecurringType.WEEKLY) {
+              stepMs = 7 * 24 * 60 * 60 * 1000;
+            } else {
+              stepMs = 0; // monthly/yearly handled below
+            }
+
+            if (stepMs > 0) {
+              const stepsNeeded = Math.floor(
+                (windowStart.toMillis() - cursor.toMillis()) / stepMs,
+              );
+              if (stepsNeeded > 0) {
+                cursor = cursor.plus({ milliseconds: stepsNeeded * stepMs });
+              }
             }
           }
-          bucketCursor = bucketCursor.plus({ hours: 1 });
+
+          console.log(
+            `[SCHEDULE]   → recurring "${act.recurring}" | cursor after fast-forward: ${cursor.toISO()} | window: ${windowStart.toISO()} → ${windowEnd.toISO()}`,
+          );
+
+          // Now iterate and collect occurrences within the window
+          let safetyLimit = 400;
+          let iterCount = 0;
+          while (cursor <= windowEnd && safetyLimit-- > 0) {
+            iterCount++;
+            if (
+              cursor >= windowStart ||
+              cursor.plus({ milliseconds: normalizedDuration }) > windowStart
+            ) {
+              console.log(
+                `[SCHEDULE]   → occurrence #${iterCount}: ${cursor.toISO()}`,
+              );
+              occurrences.push(cursor);
+            }
+
+            if (act.recurring === RecurringType.DAILY) {
+              cursor = cursor.plus({ days: 1 });
+            } else if (act.recurring === RecurringType.WEEKLY) {
+              cursor = cursor.plus({ weeks: 1 });
+            } else if (act.recurring === RecurringType.MONTHLY) {
+              cursor = cursor.plus({ months: 1 });
+            } else if (act.recurring === RecurringType.YEARLY) {
+              cursor = cursor.plus({ years: 1 });
+            } else {
+              break;
+            }
+          }
+
+          console.log(
+            `[SCHEDULE]   → total occurrences found: ${occurrences.length}`,
+          );
+        }
+
+        // Place each occurrence into the hourly buckets
+        for (const occurrenceStart of occurrences) {
+          const occurrenceEnd = occurrenceStart.plus({
+            milliseconds: normalizedDuration,
+          });
+          const normalizedEnd =
+            occurrenceEnd <= occurrenceStart
+              ? occurrenceEnd.plus({ days: 1 })
+              : occurrenceEnd;
+
+          console.log(
+            `[SCHEDULE]   → bucket-fill: ${occurrenceStart.toISO()} → ${normalizedEnd.toISO()} (${Math.round(normalizedDuration / 60000)} min)`,
+          );
+
+          const activityPayload = {
+            _id: act._id,
+            title: act.title,
+            description: act.description,
+            category: act.category,
+            location: act.location,
+            date: occurrenceStart.toUTC().toJSDate(),
+            startDateTime: occurrenceStart.toUTC().toJSDate(),
+            endDateTime: occurrenceEnd.toUTC().toJSDate(),
+            picture: act.picture,
+            price: act.price ?? 0,
+            maxParticipants: act.maxParticipants,
+            recurring: act.recurring,
+            status: act.status,
+            isRecurringInstance: act.recurring !== RecurringType.ONE_TIME,
+          };
+
+          let bucketCursor = occurrenceStart.startOf('hour');
+          while (bucketCursor < normalizedEnd) {
+            const ymd = bucketCursor.toFormat('yyyy-MM-dd');
+            const dayBuckets = byDayHour.get(ymd);
+            if (dayBuckets) {
+              const list = dayBuckets.get(bucketCursor.hour);
+              if (list) {
+                list.push({ ...activityPayload });
+              }
+            }
+            bucketCursor = bucketCursor.plus({ hours: 1 });
+          }
         }
       }
 
