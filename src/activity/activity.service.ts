@@ -193,17 +193,26 @@ export class ActivityService {
         }
       }
 
-      const startDateTime = ukLocalDateTimeToUtcDate(
-        createActivityDto.startDateTime,
-      );
-      const endDateTime = ukLocalDateTimeToUtcDate(
-        createActivityDto.endDateTime,
-      );
+      // const startDateTime = ukLocalDateTimeToUtcDate(
+      //   createActivityDto.startDateTime,
+      // );
+      // const endDateTime = ukLocalDateTimeToUtcDate(
+      //   createActivityDto.endDateTime,
+      // );
+      const startDateTime = new Date(createActivityDto.startDateTime);
+      const endDateTime = new Date(createActivityDto.endDateTime);
+
+      if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime())) {
+        throw new BadRequestException(
+          'startDateTime and endDateTime must be valid ISO datetimes',
+        );
+      }
       if (!startDateTime || !endDateTime) {
         throw new BadRequestException(
           'startDateTime and endDateTime must be valid UK-local ISO datetimes',
         );
       }
+
       const normalizedPicture = createActivityDto.picture?.trim();
       const normalizedPictures = (createActivityDto.pictures || [])
         .filter((img): img is string => typeof img === 'string')
@@ -1045,9 +1054,7 @@ export class ActivityService {
       };
 
       if (updateActivityDto.startDateTime) {
-        const startDateTime = ukLocalDateTimeToUtcDate(
-          updateActivityDto.startDateTime,
-        );
+        const startDateTime = new Date(updateActivityDto.startDateTime);
         if (!startDateTime) {
           throw new BadRequestException(
             'startDateTime must be a valid UK-local ISO datetime',
@@ -1058,9 +1065,7 @@ export class ActivityService {
       }
 
       if (updateActivityDto.endDateTime) {
-        const endDateTime = ukLocalDateTimeToUtcDate(
-          updateActivityDto.endDateTime,
-        );
+        const endDateTime = new Date(updateActivityDto.endDateTime);
         if (!endDateTime) {
           throw new BadRequestException(
             'endDateTime must be a valid UK-local ISO datetime',
