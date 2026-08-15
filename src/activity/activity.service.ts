@@ -42,13 +42,16 @@ import { DateTime } from 'luxon';
 import {
   UK_TZ,
   HOST_SCHEDULE_MAX_RANGE_DAYS,
-  activityDateTimeRangeLondon,
-  eachLondonDayInclusive,
   ukLocalDateTimeToUtcDate,
 } from 'src/utils/uk-time';
 import { HostScheduleQueryDto } from './dto/host-schedule-query.dto';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { buildNotificationData } from 'src/notifications/notification-payload.util';
+
+type ScheduleHour = {
+  hour: number;
+  activities: Array<Record<string, unknown>>;
+};
 
 @Injectable()
 export class ActivityService {
@@ -2083,185 +2086,287 @@ export class ActivityService {
     }>;
   }> {
     try {
-      const isValidID = mongoose.isValidObjectId(hostId);
-      if (!isValidID) {
+      if (!mongoose.isValidObjectId(hostId)) {
         throw new BadRequestException('Invalid host ID');
       }
 
       const host = await this.userModel
         .findById(hostId)
         .select('_id deleted_at');
+
       if (!host || host.deleted_at) {
         throw new NotFoundException('Host not found');
       }
 
-      const from = DateTime.fromISO(dto.from, { zone: UK_TZ }).startOf('day');
-      const to = DateTime.fromISO(dto.to, { zone: UK_TZ }).startOf('day');
+      /**
+       * from/to MUST be UTC ISO datetimes.
+       *
+       * Example:
+       * 2026-08-17T08:00:00.000Z
+       */
+      const from = DateTime.fromISO(dto.from, {
+        zone: 'UTC',
+      });
+
+      const to = DateTime.fromISO(dto.to, {
+        zone: 'UTC',
+      });
+
       if (!from.isValid || !to.isValid) {
         throw new BadRequestException(
-          'from and to must be valid ISO dates (YYYY-MM-DD)',
+          'from and to must be valid UTC ISO datetimes',
         );
       }
-      if (to < from) {
-        throw new BadRequestException('to must be on or after from');
+
+      if (to <= from) {
+        throw new BadRequestException('to must be after from');
       }
-      const spanDays = to.diff(from, 'days').days + 1;
+
+      const spanDays = Math.ceil(to.diff(from, 'days').days);
+
       if (spanDays > HOST_SCHEDULE_MAX_RANGE_DAYS) {
         throw new BadRequestException(
           `Date range must not exceed ${HOST_SCHEDULE_MAX_RANGE_DAYS} days`,
         );
       }
 
+      /**
+       * UTC query window.
+       */
+      const windowStart = from;
+      const windowEnd = to;
+
+      /**
+       * IMPORTANT:
+       *
+       * One-time activities must overlap the requested UTC window.
+       *
+       * Recurring activities must ALWAYS be fetched because their original
+       * startDateTime may be months/years before the requested window.
+       *
+       * Example:
+       *
+       * Activity:
+       * start = August 2026
+       * recurring = MONTHLY
+       *
+       * Request:
+       * December 2026
+       *
+       * We still need to fetch the August activity so that the recurring
+       * logic can generate its December occurrence.
+       */
       const rawActivities = await this.activityModel
         .find({
           hostId: new mongoose.Types.ObjectId(hostId),
           deleted_at: null,
-          status: { $ne: ActivityStatus.CANCELLED },
+          status: {
+            $ne: ActivityStatus.CANCELLED,
+          },
+
+          $or: [
+            // Recurring activities must always be considered.
+            {
+              recurring: {
+                $in: [
+                  RecurringType.DAILY,
+                  RecurringType.WEEKLY,
+                  RecurringType.MONTHLY,
+                  RecurringType.YEARLY,
+                ],
+              },
+            },
+
+            // One-time activities only if they overlap the requested window.
+            {
+              $and: [
+                {
+                  $or: [
+                    {
+                      recurring: RecurringType.ONE_TIME,
+                    },
+                    {
+                      recurring: {
+                        $exists: false,
+                      },
+                    },
+                    {
+                      recurring: null,
+                    },
+                  ],
+                },
+                {
+                  startDateTime: {
+                    $lte: windowEnd.toJSDate(),
+                  },
+                  endDateTime: {
+                    $gte: windowStart.toJSDate(),
+                  },
+                },
+              ],
+            },
+          ],
         })
         .select(
           'title description category location date startDateTime endDateTime time picture price maxParticipants recurring status',
         )
-        .sort({ date: 1 })
-        .lean();
-
+        .sort({
+          startDateTime: 1,
+        })
+        .lean(); /**
+       * Build UTC day buckets.
+       */
       const dayKeys: string[] = [];
-      for (const d of eachLondonDayInclusive(dto.from, dto.to)) {
-        dayKeys.push(d.toFormat('yyyy-MM-dd'));
+
+      let dayCursor = windowStart.startOf('day');
+
+      const lastDay = windowEnd.startOf('day');
+
+      while (dayCursor <= lastDay) {
+        dayKeys.push(dayCursor.toFormat('yyyy-MM-dd'));
+
+        dayCursor = dayCursor.plus({
+          days: 1,
+        });
       }
 
       type HourMap = Map<number, Array<Record<string, unknown>>>;
+
       const byDayHour = new Map<string, HourMap>();
-      for (const dk of dayKeys) {
-        const m: HourMap = new Map();
-        for (let h = 0; h < 24; h++) {
-          m.set(h, []);
+
+      for (const dayKey of dayKeys) {
+        const hourMap: HourMap = new Map();
+
+        for (let hour = 0; hour < 24; hour++) {
+          hourMap.set(hour, []);
         }
-        byDayHour.set(dk, m);
+
+        byDayHour.set(dayKey, hourMap);
       }
 
+      /**
+       * Process activities.
+       */
       for (const act of rawActivities) {
-        const { start, end } = activityDateTimeRangeLondon(act as any);
-
-        console.log(
-          `[SCHEDULE] Activity: "${act.title}" | recurring: ${act.recurring} | ` +
-            `startDateTime: ${(act as any).startDateTime ?? 'null'} | endDateTime: ${(act as any).endDateTime ?? 'null'} | ` +
-            `date: ${(act as any).date ?? 'null'}`,
-        );
-        console.log(
-          `[SCHEDULE]   → parsed start: ${start?.toISO() ?? 'INVALID'} | end: ${end?.toISO() ?? 'INVALID'}`,
-        );
-
-        if (!start || !start.isValid || !end || !end.isValid) {
-          console.log(`[SCHEDULE]   → SKIPPED (invalid start/end)`);
+        if (!act.startDateTime || !act.endDateTime) {
           continue;
         }
 
-        // Duration of the activity (in milliseconds)
+        /**
+         * DB values are already UTC.
+         *
+         * DO NOT use ukLocalDateTimeToUtcDate().
+         */
+        const start = DateTime.fromJSDate(new Date(act.startDateTime), {
+          zone: 'UTC',
+        });
+
+        const end = DateTime.fromJSDate(new Date(act.endDateTime), {
+          zone: 'UTC',
+        });
+
+        if (!start.isValid || !end.isValid) {
+          continue;
+        }
+
         const durationMs = end.toMillis() - start.toMillis();
-        console.log(
-          `[SCHEDULE]   → durationMs: ${durationMs} (${Math.round(durationMs / 60000)} min)`,
-        );
 
         if (durationMs <= 0) {
-          console.warn(
-            `[SCHEDULE]   → WARNING: zero/negative duration for "${act.title}", skipping`,
-          );
-          continue; // skip activities with no valid duration — don't use 24h fallback
+          continue;
         }
 
-        const normalizedDuration = Math.min(durationMs, 24 * 60 * 60 * 1000); // cap at 24h
+        const normalizedDuration = Math.min(durationMs, 24 * 60 * 60 * 1000);
 
-        if (durationMs > 24 * 60 * 60 * 1000) {
-          console.warn(
-            `[SCHEDULE]   → WARNING: duration ${Math.round(durationMs / 3600000)}h exceeds 24h cap for "${act.title}". endDateTime likely stored incorrectly. Capping to 24h.`,
-          );
-        }
-
-        // Build the list of occurrence start times within or overlapping the schedule window
         const occurrences: DateTime[] = [];
-        const windowStart = from.startOf('day');
-        const windowEnd = to.endOf('day');
 
+        /**
+         * ONE TIME ACTIVITY
+         */
         if (act.recurring === RecurringType.ONE_TIME || !act.recurring) {
-          // Only include if it falls within the window
           if (start <= windowEnd && end >= windowStart) {
             occurrences.push(start);
           }
         } else {
-          // For recurring activities, project occurrences into the window
+          /**
+           * RECURRING ACTIVITY
+           */
           let cursor = start;
 
-          // Step forward until we reach the window (skip past occurrences efficiently)
+          /**
+           * Fast-forward recurring activity.
+           */
           if (cursor < windowStart) {
-            let stepMs: number;
             if (act.recurring === RecurringType.DAILY) {
-              stepMs = 24 * 60 * 60 * 1000;
-            } else if (act.recurring === RecurringType.WEEKLY) {
-              stepMs = 7 * 24 * 60 * 60 * 1000;
-            } else {
-              stepMs = 0; // monthly/yearly handled below
-            }
+              const days = Math.floor(windowStart.diff(cursor, 'days').days);
 
-            if (stepMs > 0) {
-              const stepsNeeded = Math.floor(
-                (windowStart.toMillis() - cursor.toMillis()) / stepMs,
-              );
-              if (stepsNeeded > 0) {
-                cursor = cursor.plus({ milliseconds: stepsNeeded * stepMs });
+              if (days > 0) {
+                cursor = cursor.plus({
+                  days,
+                });
+              }
+            } else if (act.recurring === RecurringType.WEEKLY) {
+              const weeks = Math.floor(windowStart.diff(cursor, 'weeks').weeks);
+
+              if (weeks > 0) {
+                cursor = cursor.plus({
+                  weeks,
+                });
+              }
+            } else if (act.recurring === RecurringType.MONTHLY) {
+              while (cursor < windowStart) {
+                cursor = cursor.plus({
+                  months: 1,
+                });
+              }
+            } else if (act.recurring === RecurringType.YEARLY) {
+              while (cursor < windowStart) {
+                cursor = cursor.plus({
+                  years: 1,
+                });
               }
             }
           }
 
-          console.log(
-            `[SCHEDULE]   → recurring "${act.recurring}" | cursor after fast-forward: ${cursor.toISO()} | window: ${windowStart.toISO()} → ${windowEnd.toISO()}`,
-          );
-
-          // Now iterate and collect occurrences within the window
           let safetyLimit = 400;
-          let iterCount = 0;
+
           while (cursor <= windowEnd && safetyLimit-- > 0) {
-            iterCount++;
-            if (
-              cursor >= windowStart ||
-              cursor.plus({ milliseconds: normalizedDuration }) > windowStart
-            ) {
-              console.log(
-                `[SCHEDULE]   → occurrence #${iterCount}: ${cursor.toISO()}`,
-              );
+            const occurrenceEnd = cursor.plus({
+              milliseconds: normalizedDuration,
+            });
+
+            if (cursor >= windowStart || occurrenceEnd > windowStart) {
               occurrences.push(cursor);
             }
 
             if (act.recurring === RecurringType.DAILY) {
-              cursor = cursor.plus({ days: 1 });
+              cursor = cursor.plus({
+                days: 1,
+              });
             } else if (act.recurring === RecurringType.WEEKLY) {
-              cursor = cursor.plus({ weeks: 1 });
+              cursor = cursor.plus({
+                weeks: 1,
+              });
             } else if (act.recurring === RecurringType.MONTHLY) {
-              cursor = cursor.plus({ months: 1 });
+              cursor = cursor.plus({
+                months: 1,
+              });
             } else if (act.recurring === RecurringType.YEARLY) {
-              cursor = cursor.plus({ years: 1 });
+              cursor = cursor.plus({
+                years: 1,
+              });
             } else {
               break;
             }
           }
-
-          console.log(
-            `[SCHEDULE]   → total occurrences found: ${occurrences.length}`,
-          );
         }
 
-        // Place each occurrence into the hourly buckets
+        /**
+         * Add occurrences to UTC buckets.
+         */
         for (const occurrenceStart of occurrences) {
           const occurrenceEnd = occurrenceStart.plus({
             milliseconds: normalizedDuration,
           });
-          const normalizedEnd =
-            occurrenceEnd <= occurrenceStart
-              ? occurrenceEnd.plus({ days: 1 })
-              : occurrenceEnd;
-
-          console.log(
-            `[SCHEDULE]   → bucket-fill: ${occurrenceStart.toISO()} → ${normalizedEnd.toISO()} (${Math.round(normalizedDuration / 60000)} min)`,
-          );
 
           const activityPayload = {
             _id: act._id,
@@ -2269,57 +2374,90 @@ export class ActivityService {
             description: act.description,
             category: act.category,
             location: act.location,
-            date: occurrenceStart.toUTC().toJSDate(),
-            startDateTime: occurrenceStart.toUTC().toJSDate(),
-            endDateTime: occurrenceEnd.toUTC().toJSDate(),
+
+            /**
+             * ALWAYS UTC.
+             */
+            date: occurrenceStart.toUTC().toISO(),
+
+            startDateTime: occurrenceStart.toUTC().toISO(),
+
+            endDateTime: occurrenceEnd.toUTC().toISO(),
+
             picture: act.picture,
             price: act.price ?? 0,
             maxParticipants: act.maxParticipants,
             recurring: act.recurring,
             status: act.status,
+
             isRecurringInstance: act.recurring !== RecurringType.ONE_TIME,
           };
 
+          /**
+           * Fill UTC hourly buckets.
+           */
           let bucketCursor = occurrenceStart.startOf('hour');
-          while (bucketCursor < normalizedEnd) {
-            const ymd = bucketCursor.toFormat('yyyy-MM-dd');
-            const dayBuckets = byDayHour.get(ymd);
+
+          while (bucketCursor < occurrenceEnd) {
+            const dayKey = bucketCursor.toFormat('yyyy-MM-dd');
+
+            const dayBuckets = byDayHour.get(dayKey);
+
             if (dayBuckets) {
-              const list = dayBuckets.get(bucketCursor.hour);
+              const hour = bucketCursor.hour;
+
+              const list = dayBuckets.get(hour);
+
               if (list) {
-                list.push({ ...activityPayload });
+                list.push(activityPayload);
               }
             }
-            bucketCursor = bucketCursor.plus({ hours: 1 });
+
+            bucketCursor = bucketCursor.plus({
+              hours: 1,
+            });
           }
         }
       }
 
+      /**
+       * Build response.
+       *
+       * IMPORTANT:
+       * These are UTC buckets.
+       * FE should convert activity timestamps
+       * to the user's local timezone.
+       */
       const days = dayKeys.map((dateStr) => {
-        const d = DateTime.fromISO(dateStr, { zone: UK_TZ }).startOf('day');
         const hourMap = byDayHour.get(dateStr)!;
-        const hours: Array<{
-          hour: number;
-          activities: Array<Record<string, unknown>>;
-        }> = [];
-        for (let h = 0; h < 24; h++) {
+
+        const hours: ScheduleHour[] = [];
+
+        for (let hour = 0; hour < 24; hour++) {
           hours.push({
-            hour: h,
-            activities: hourMap.get(h) ?? [],
+            hour,
+            activities: hourMap.get(hour) ?? [],
           });
         }
+
         return {
           date: dateStr,
-          offsetLabel: d.toFormat('ZZ'),
+          offsetLabel: '+00:00',
           hours,
         };
       });
 
       return {
-        timeZone: UK_TZ,
+        timeZone: 'UTC',
         hostId,
-        from: from.toFormat('yyyy-MM-dd'),
-        to: to.toFormat('yyyy-MM-dd'),
+
+        /**
+         * Return exact UTC range.
+         */
+        from: from.toUTC().toISO(),
+
+        to: to.toUTC().toISO(),
+
         days,
       };
     } catch (err) {
@@ -2329,6 +2467,7 @@ export class ActivityService {
       ) {
         throw err;
       }
+
       throw new BadRequestException((err as Error).message);
     }
   }

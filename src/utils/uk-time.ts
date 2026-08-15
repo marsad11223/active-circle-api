@@ -4,7 +4,7 @@ import { DateTime } from 'luxon';
 export const UK_TZ = 'Europe/London';
 
 /** Maximum inclusive day span for host schedule queries (from → to). */
-export const HOST_SCHEDULE_MAX_RANGE_DAYS = 31;
+export const HOST_SCHEDULE_MAX_RANGE_DAYS = 365;
 
 export type ActivityDateTimeRangeLike = {
   startDateTime?: Date | string | null;
