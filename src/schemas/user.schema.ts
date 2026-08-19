@@ -53,6 +53,16 @@ export class User {
   @Prop()
   address?: string;
 
+  @Prop({
+    type: {
+      lat: { type: Number, required: false },
+      lng: { type: Number, required: false },
+    },
+    required: false,
+    default: null,
+  })
+  coordinates?: { lat: number; lng: number } | null; // Geographic coords for address-based distance features
+
   @Prop({ required: false })
   phoneNumber?: string;
 

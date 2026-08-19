@@ -11,8 +11,20 @@ import {
   MinLength,
   Min,
   Max,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { Role, Gender } from 'src/schemas/user.schema';
+
+export class CoordinatesDto {
+  @IsOptional()
+  @IsNumber()
+  lat?: number;
+
+  @IsOptional()
+  @IsNumber()
+  lng?: number;
+}
 
 export class CreateUserDto {
   @IsNotEmpty()
@@ -35,6 +47,11 @@ export class CreateUserDto {
 
   @IsString()
   address: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CoordinatesDto)
+  coordinates?: CoordinatesDto; // Optional lat/lng for the user's address
 
   @IsOptional()
   @IsString()
