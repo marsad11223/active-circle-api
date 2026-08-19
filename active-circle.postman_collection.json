@@ -2280,7 +2280,12 @@
 								"header": [],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"name\": \"Marsad\",\n  \"email\": \"marsad11223@gmail.com\",\n  \"address\": \"123 Main Street\"\n}"
+									"raw": "{\n  \"name\": \"Marsad\",\n  \"email\": \"marsad11223@gmail.com\",\n  \"address\": \"123 Main Street\",\n  \"coordinates\": {\n    \"lat\": 33.6844,\n    \"lng\": 73.0479\n  }\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
 								},
 								"url": {
 									"raw": "{{base_url}}/users/{{user_id}}",
@@ -2292,7 +2297,7 @@
 										"{{user_id}}"
 									]
 								},
-								"description": "Update user details. SuperAdmin can update anyone, users can only update themselves."
+								"description": "Update user details. SuperAdmin can update anyone, users can only update themselves. Pass coordinates: { lat, lng } to update the user's location."
 							},
 							"response": []
 						},
