@@ -5,6 +5,150 @@
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const LOGIN_URL = `${FRONTEND_URL}/login`;
+const INSTAGRAM_URL =
+  'https://www.instagram.com/theactivecirclegroup?igsh=MTJoNjlycnpyMnVmMQ%3D%3D&utm_source=qr';
+const FACEBOOK_URL =
+  'https://www.facebook.com/share/1CAUZeWhda/?mibextid=wwXIfr';
+const TIKTOK_URL =
+  'https://www.tiktok.com/@theactivecircle?_r=1&_t=ZN-98xGEesIwit';
+
+const SOCIAL_ICON_INSTAGRAM =
+  'https://img.icons8.com/ios-filled/50/ffffff/instagram-new.png';
+const SOCIAL_ICON_FACEBOOK =
+  'https://img.icons8.com/ios-filled/50/ffffff/facebook-new.png';
+const SOCIAL_ICON_TIKTOK =
+  'https://img.icons8.com/ios-filled/50/ffffff/tiktok.png';
+
+const LOGO_URL =
+  process.env.EMAIL_LOGO_URL || 'https://www.theactivecircle.com/logo.svg';
+const BRAND_NAVY = '#032b4e';
+const BRAND_ORANGE = '#F98C01';
+const BRAND_CREAM = '#faf6f0';
+
+/**
+ * Branded email header — logo + wordmark row, tagline aligned below.
+ */
+function emailBrandedHeader(options?: { compact?: boolean }): string {
+  const compact = options?.compact ?? false;
+  const logoSize = compact ? 40 : 48;
+  const wordmarkSize = compact ? 14 : 16;
+  const taglineSize = compact ? 16 : 20;
+  const headerPadding = compact ? '22px 32px 14px 32px' : '26px 40px 18px 40px';
+  const dividerPadding = compact ? '0 32px 16px 32px' : '0 40px 20px 40px';
+
+  return `
+              <!-- Branded Header -->
+              <tr>
+                <td align="center" style="padding: ${headerPadding}; background-color: ${BRAND_CREAM};">
+                  <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto;">
+                    <tr>
+                      <td align="center">
+                        <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 0 auto;">
+                          <tr>
+                            <td align="center" valign="middle" style="padding-right: 12px;">
+                              <img
+                                src="${LOGO_URL}"
+                                alt="The Active Circle"
+                                width="${logoSize}"
+                                height="${logoSize}"
+                                style="display: block; border: 0; outline: none; text-decoration: none;"
+                              />
+                            </td>
+                            <td align="left" valign="middle">
+                              <p style="margin: 0; color: ${BRAND_NAVY}; font-size: ${wordmarkSize}px; font-weight: bold; line-height: 1.15; letter-spacing: 0.2px;">The Active</p>
+                              <p style="margin: 0; color: ${BRAND_NAVY}; font-size: ${wordmarkSize}px; font-weight: bold; line-height: 1.15; letter-spacing: 0.2px;">Circle</p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td align="center" style="padding-top: 14px;">
+                        <p style="margin: 0; line-height: 1.3; text-align: center; white-space: nowrap;">
+                          <span style="color: ${BRAND_NAVY}; font-size: ${taglineSize}px; font-weight: bold; letter-spacing: 1px;">MEET.</span><span style="color: ${BRAND_ORANGE}; font-size: ${taglineSize}px; font-weight: bold; letter-spacing: 1px;"> MOVE.</span><span style="color: ${BRAND_NAVY}; font-size: ${taglineSize}px; font-weight: bold; letter-spacing: 1px;"> CONNECT.</span>
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: ${dividerPadding}; background-color: #ffffff;">
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td align="center">
+                        <div style="height: 3px; background-color: ${BRAND_ORANGE}; width: 72%; max-width: 340px; margin: 0 auto; border-radius: 2px;"></div>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>`;
+}
+
+/** Escape HTML in user-generated email content */
+function escapeEmailHtml(s: string): string {
+  if (!s || typeof s !== 'string') return '';
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/\n/g, '<br>');
+}
+
+/** Styled callout for decline/cancel reasons */
+function emailReasonBlock(reason?: string): string {
+  if (!reason?.trim()) return '';
+  const safeReason = escapeEmailHtml(reason);
+  return `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 16px 0; border-radius: 8px; overflow: hidden; border-left: 4px solid ${BRAND_ORANGE}; background-color: #fff7ed;">
+      <tr>
+        <td style="padding: 14px 16px;">
+          <p style="margin: 0 0 6px 0; color: ${BRAND_ORANGE}; font-size: 11px; font-weight: bold; letter-spacing: 0.8px; text-transform: uppercase;">Reason</p>
+          <p style="margin: 0; color: #4b5563; font-size: 14px; line-height: 1.6; font-weight: normal; font-style: italic;">${safeReason}</p>
+        </td>
+      </tr>
+    </table>`;
+}
+
+/** Reusable social media icon row for email footers */
+function emailFooterSocialLinks(): string {
+  const iconLink = (url: string, iconSrc: string, label: string) => `
+                    <td style="padding: 0 8px;">
+                      <a href="${url}" target="_blank" rel="noopener noreferrer" style="text-decoration: none;">
+                        <table cellpadding="0" cellspacing="0" border="0" style="background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%); border-radius: 50%; width: 44px; height: 44px;">
+                          <tr>
+                            <td align="center" valign="middle" style="width: 44px; height: 44px; line-height: 0;">
+                              <img src="${iconSrc}" width="22" height="22" alt="${label}" style="display: block; border: 0; outline: none; text-decoration: none;" />
+                            </td>
+                          </tr>
+                        </table>
+                      </a>
+                    </td>`;
+
+  return `
+                  <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 20px auto 0 auto;">
+                    <tr>
+                      <td align="center" style="padding-bottom: 12px;">
+                        <p style="color: #6b7280; font-size: 13px; font-weight: normal; margin: 0; letter-spacing: 0.4px; text-transform: uppercase;">
+                          Follow us
+                        </p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td align="center">
+                        <table cellpadding="0" cellspacing="0" border="0" align="center">
+                          <tr>
+                            ${iconLink(INSTAGRAM_URL, SOCIAL_ICON_INSTAGRAM, 'Instagram')}
+                            ${iconLink(FACEBOOK_URL, SOCIAL_ICON_FACEBOOK, 'Facebook')}
+                            ${iconLink(TIKTOK_URL, SOCIAL_ICON_TIKTOK, 'TikTok')}
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>`;
+}
 
 /**
  * Reusable email wrapper that adds branded header, CTA button, and footer
@@ -51,23 +195,7 @@ function wrapEmailTemplate(
           <td align="center">
             <table class="container" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; max-width: 600px; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
               
-              <!-- Branded Header -->
-              <tr>
-                <td style="padding: 32px 40px 24px 40px; text-align: center; background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);">
-                  
-                  <img
-                    src="https://www.theactivecircle.com/logo.svg"
-                    alt="Active Circle"
-                    width="150"
-                    style="display:block;margin:0 auto 10px auto;border:0;outline:none;text-decoration:none;"
-                  />
-
-                  <p style="margin: 0; color: #ffffff; font-size: 14px; letter-spacing: 1px;">
-                    MEET. MOVE. CONNECT.
-                  </p>
-
-                </td>
-              </tr>
+              ${emailBrandedHeader()}
 
               <!-- Email Title -->
               <tr>
@@ -96,6 +224,7 @@ function wrapEmailTemplate(
                       contact@theactivecircle.com
                     </a>
                   </p>
+                  ${emailFooterSocialLinks()}
                   <p style="color: #9ca3af; font-size: 11px; margin: 16px 0 0 0;">
                     &copy; ${new Date().getFullYear()} Active Circle. All rights reserved.
                   </p>
@@ -221,7 +350,7 @@ export function bookingDeclinedToMember(data: {
     <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 12px 0;">
       Unfortunately, your booking for <strong>${activityTitle}</strong> has been declined by the host.
     </p>
-    ${declineReason ? `<p style="color: #333; font-size: 16px; margin: 0 0 12px 0;">Reason: ${declineReason}</p>` : ''}
+    ${emailReasonBlock(declineReason)}
     ${isPaid ? '<p style="color: #333; font-size: 16px; margin: 0 0 12px 0;">Your payment has been refunded to your original payment method.</p>' : ''}
   `;
   return wrapEmailTemplate('Booking Declined', body);
@@ -242,7 +371,7 @@ export function bookingCancelledFreeToMember(data: {
     <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 12px 0;">
       Your booking for <strong>${activityTitle}</strong> has been cancelled.
     </p>
-    ${cancelReason ? `<p style="color: #333; font-size: 16px; margin: 0 0 12px 0;">Reason: ${cancelReason}</p>` : ''}
+    ${emailReasonBlock(cancelReason)}
   `;
   return wrapEmailTemplate('Booking Cancelled', body);
 }
@@ -275,7 +404,7 @@ export function bookingCancelledWithRefundToMember(data: {
     <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 12px 0;">
       Your booking for <strong>${activityTitle}</strong> has been cancelled.
     </p>
-    ${cancelReason ? `<p style="color: #333; font-size: 16px; margin: 0 0 12px 0;">Reason: ${cancelReason}</p>` : ''}
+    ${emailReasonBlock(cancelReason)}
     <div style="background-color: #f9fafb; border-radius: 6px; padding: 16px; margin: 16px 0;">
       <p style="color: #1a365d; font-size: 16px; font-weight: bold; margin: 0 0 8px 0;">Refund Details</p>
       <p style="color: #333; font-size: 14px; margin: 0 0 4px 0;">Original Amount: £${originalAmount}</p>
@@ -291,14 +420,7 @@ export function bookingCancelledWithRefundToMember(data: {
 
 /** Escape HTML in user-generated message content for safe display in emails */
 function escapeMessageHtml(s: string): string {
-  if (!s || typeof s !== 'string') return '';
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-    .replace(/\n/g, '<br>');
+  return escapeEmailHtml(s);
 }
 
 /**
@@ -525,7 +647,7 @@ export function activityCancelledFreeToMember(data: {
     <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 12px 0;">
       We regret to inform you that the activity <strong>${activityTitle}</strong> scheduled for ${activityDate} has been cancelled by the host.
     </p>
-    ${cancelReason ? `<p style="color: #333; font-size: 16px; margin: 0 0 12px 0;"><strong>Reason:</strong> ${cancelReason}</p>` : ''}
+    ${emailReasonBlock(cancelReason)}
     <p style="color: #6b7280; font-size: 14px; margin: 0;">We apologize for any inconvenience this may cause.</p>
   `;
   return wrapEmailTemplate('Activity Cancelled', body);
@@ -559,7 +681,7 @@ export function activityCancelledWithRefundToMember(data: {
     <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 12px 0;">
       We regret to inform you that the activity <strong>${activityTitle}</strong> scheduled for ${activityDate} has been cancelled by the host.
     </p>
-    ${cancelReason ? `<p style="color: #333; font-size: 16px; margin: 0 0 12px 0;"><strong>Reason:</strong> ${cancelReason}</p>` : ''}
+    ${emailReasonBlock(cancelReason)}
     <div style="background-color: #f9fafb; border-radius: 6px; padding: 16px; margin: 16px 0;">
       <p style="color: #1a365d; font-size: 16px; font-weight: bold; margin: 0 0 8px 0;">Refund Details</p>
       <p style="color: #333; font-size: 14px; margin: 0 0 4px 0;">Original Amount: £${originalAmount.toFixed(2)}</p>
@@ -648,31 +770,7 @@ export function welcomeEmailMember(data: {
           <td align="center">
             <table class="container" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; max-width: 600px;">
               
-              <!-- Top Section: MEET. MOVE. CONNECT. -->
-              <tr>
-                <td class="content" style="padding: 40px 40px 20px 40px; text-align: center;">
-                  <div style="margin-bottom: 10px;">
-                    <span style="color: #1a365d; font-size: 42px; font-weight: bold; letter-spacing: 1px; line-height: 1.2;">MEET.</span>
-                    <span style="color: #F98C01; font-size: 42px; font-weight: bold; letter-spacing: 1px; line-height: 1.2;"> MOVE.</span>
-                  </div>
-                  <div style="margin-top: 5px;">
-                    <span style="color: #1a365d; font-size: 42px; font-weight: bold; letter-spacing: 1px; line-height: 1.2;">CONNECT.</span>
-                  </div>
-                </td>
-              </tr>
-
-              <!-- Separator Line -->
-              <tr>
-                <td style="padding: 0 40px 30px 40px;">
-                  <table width="100%" cellpadding="0" cellspacing="0">
-                    <tr>
-                      <td align="center">
-                        <div style="height: 4px; background-color: #1a365d; width: 80%; max-width: 400px; margin: 0 auto;"></div>
-                      </td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>
+              ${emailBrandedHeader()}
 
               <!-- Welcome to the Circle -->
               <tr>
@@ -725,6 +823,7 @@ export function welcomeEmailMember(data: {
                       contact@theactivecircle.com
                     </a>
                   </p>
+                  ${emailFooterSocialLinks()}
                 </td>
               </tr>
 
@@ -769,31 +868,7 @@ export function welcomeEmailHost(data: {
           <td align="center">
             <table class="container" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; max-width: 600px;">
               
-              <!-- Top Section: MEET. MOVE. CONNECT. -->
-              <tr>
-                <td class="content" style="padding: 40px 40px 20px 40px; text-align: center;">
-                  <div style="margin-bottom: 10px;">
-                    <span style="color: #1a365d; font-size: 42px; font-weight: bold; letter-spacing: 1px; line-height: 1.2;">MEET.</span>
-                    <span style="color: #F98C01; font-size: 42px; font-weight: bold; letter-spacing: 1px; line-height: 1.2;"> MOVE.</span>
-                  </div>
-                  <div style="margin-top: 5px;">
-                    <span style="color: #1a365d; font-size: 42px; font-weight: bold; letter-spacing: 1px; line-height: 1.2;">CONNECT.</span>
-                  </div>
-                </td>
-              </tr>
-
-              <!-- Separator Line -->
-              <tr>
-                <td style="padding: 0 40px 30px 40px;">
-                  <table width="100%" cellpadding="0" cellspacing="0">
-                    <tr>
-                      <td align="center">
-                        <div style="height: 4px; background-color: #1a365d; width: 80%; max-width: 400px; margin: 0 auto;"></div>
-                      </td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>
+              ${emailBrandedHeader()}
 
               <!-- Welcome to the Circle (Host) -->
               <tr>
@@ -846,6 +921,7 @@ export function welcomeEmailHost(data: {
                       contact@theactivecircle.com
                     </a>
                   </p>
+                  ${emailFooterSocialLinks()}
                 </td>
               </tr>
 
@@ -902,12 +978,7 @@ export function marketingBroadcastEmail(data: {
         <tr>
           <td align="center">
             <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; max-width: 600px; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-              <tr>
-                <td style="padding: 32px 40px 24px 40px; text-align: center; background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);">
-                  <p style="margin: 0; color: #ffffff; font-size: 14px; letter-spacing: 1px;">MEET. MOVE. CONNECT.</p>
-                  <p style="margin: 8px 0 0 0; color: #F98C01; font-size: 20px; font-weight: bold;">Active Circle</p>
-                </td>
-              </tr>
+              ${emailBrandedHeader({ compact: true })}
               <tr>
                 <td style="padding: 24px 40px 16px 40px;">
                   <h1 style="color: #1a365d; font-size: 22px; margin: 0 0 16px 0; font-weight: bold;">${subject}</h1>
@@ -929,6 +1000,7 @@ export function marketingBroadcastEmail(data: {
                   <p style="color: #6b7280; font-size: 12px; margin: 0;">
                     You received this email from Active Circle. To manage your preferences, visit your account settings.
                   </p>
+                  ${emailFooterSocialLinks()}
                 </td>
               </tr>
             </table>
@@ -960,12 +1032,7 @@ export function emailVerificationOtp(data: {
       <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 20px;">
         <tr><td align="center">
           <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; max-width: 600px; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-            <tr>
-              <td style="padding: 32px 40px 24px 40px; text-align: center; background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);">
-                <p style="margin: 0; color: #ffffff; font-size: 14px; letter-spacing: 1px;">MEET. MOVE. CONNECT.</p>
-                <p style="margin: 8px 0 0 0; color: #F98C01; font-size: 20px; font-weight: bold;">Active Circle</p>
-              </td>
-            </tr>
+            ${emailBrandedHeader({ compact: true })}
             <tr>
               <td style="padding: 24px 40px 32px 40px;">
                 <h1 style="color: #1a365d; font-size: 22px; margin: 0 0 16px 0; font-weight: bold;">Verify your email</h1>
@@ -973,7 +1040,10 @@ export function emailVerificationOtp(data: {
                 <p style="color: #333333; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">Use this code to verify your email address:</p>
                 <p style="font-size: 28px; font-weight: bold; letter-spacing: 8px; color: #1a365d; margin: 0 0 24px 0;">${otp}</p>
                 <p style="color: #6b7280; font-size: 14px; margin: 0;">This code expires in ${expiresInMinutes} minutes. Do not share it with anyone.</p>
-                <p style="color: #6b7280; font-size: 12px; margin-top: 28px; padding-top: 20px; border-top: 1px solid #e5e7eb;">Active Circle</p>
+                <div style="margin-top: 28px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center;">
+                  ${emailFooterSocialLinks()}
+                  <p style="color: #9ca3af; font-size: 11px; margin: 16px 0 0 0;">&copy; ${new Date().getFullYear()} Active Circle. All rights reserved.</p>
+                </div>
               </td>
             </tr>
           </table>
