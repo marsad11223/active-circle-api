@@ -77,7 +77,7 @@ function buildTestEmailTemplates(to: string): TestEmailTemplate[] {
     {
       key: 'booking-declined',
       name: 'Booking Declined (Member)',
-      subject: '❌ Booking Declined',
+      subject: 'Update on your request',
       html: bookingDeclinedToMember({
         memberName: 'Marsad',
         memberEmail: to,

@@ -692,7 +692,7 @@ export class BookingService {
         try {
           await this.emailService.sendMail({
             to: member.email,
-            subject: 'Booking Declined',
+            subject: 'Update on your request',
             html: bookingDeclinedToMember({
               memberName: member.name,
               memberEmail: member.email,

@@ -346,14 +346,14 @@ export function bookingDeclinedToMember(data: {
   const { memberName, memberEmail, activityTitle, declineReason, isPaid } =
     data;
   const body = `
-    <p style="color: #374151; font-size: 16px; margin: 0 0 12px 0;">Hello ${memberName || memberEmail},</p>
+    <p style="color: #374151; font-size: 16px; margin: 0 0 12px 0;">Hi ${memberName || memberEmail},</p>
     <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 12px 0;">
-      Unfortunately, your booking for <strong>${activityTitle}</strong> has been declined by the host.
+      Thank you for requesting to join <strong>${activityTitle}</strong>. After reviewing your request, the host has shared the following reason:
     </p>
     ${emailReasonBlock(declineReason)}
     ${isPaid ? '<p style="color: #333; font-size: 16px; margin: 0 0 12px 0;">Your payment has been refunded to your original payment method.</p>' : ''}
   `;
-  return wrapEmailTemplate('Booking Declined', body);
+  return wrapEmailTemplate('Update on your request', body);
 }
 
 /**
