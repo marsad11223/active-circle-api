@@ -1778,10 +1778,7 @@ export class ActivityService {
         ) {
           latestStart = realigned.startDateTime;
         }
-      } else if (
-        !options.scheduleRuleChanged ||
-        alignedWithCurrent
-      ) {
+      } else if (!options.scheduleRuleChanged || alignedWithCurrent) {
         if (
           latestStart === null ||
           activityStart.getTime() > latestStart.getTime()
@@ -2722,12 +2719,22 @@ export class ActivityService {
           ]),
         ]);
 
+      const leanIdToString = (id: unknown): string => {
+        if (id instanceof mongoose.Types.ObjectId) {
+          return id.toString();
+        }
+        if (typeof id === 'string') {
+          return id;
+        }
+        return '';
+      };
+
       const seriesAnchorById = new Map<string, Date>(
         seriesAnchorRows.map((row) => [row._id.toString(), row.anchor]),
       );
 
       const activeSeriesById = new Map(
-        activeSeries.map((series) => [series._id.toString(), series]),
+        activeSeries.map((series) => [leanIdToString(series._id), series]),
       );
 
       /**
@@ -2940,12 +2947,14 @@ export class ActivityService {
       const scheduleNowJs = new Date();
 
       for (const series of activeSeries) {
-        const seriesId = series._id.toString();
+        const seriesId = leanIdToString(series._id);
         const anchor =
           seriesAnchorById.get(seriesId) ?? series.lastOccurrenceStartDateTime;
         const plainScheduleRule = toPlainScheduleRule(series.scheduleRule);
 
-        const futureSeriesActives = (realActivitiesBySeriesId.get(seriesId) ?? [])
+        const futureSeriesActives = (
+          realActivitiesBySeriesId.get(seriesId) ?? []
+        )
           .filter(
             (act) =>
               act.status === ActivityStatus.ACTIVE &&
@@ -2954,8 +2963,8 @@ export class ActivityService {
           )
           .sort(
             (a, b) =>
-              new Date(a.startDateTime!).getTime() -
-              new Date(b.startDateTime!).getTime(),
+              new Date(a.startDateTime).getTime() -
+              new Date(b.startDateTime).getTime(),
           );
 
         const nextFutureRealStart = futureSeriesActives[0]?.startDateTime
