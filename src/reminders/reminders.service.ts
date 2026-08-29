@@ -542,7 +542,7 @@ export class RemindersService {
           case 'error':
             errors++;
             this.logger.warn(
-              `Reconcile failed for series ${series._id}: ${result.message}`,
+              `Reconcile failed for series ${this.toStringId(series._id) ?? 'unknown'}: ${result.message}`,
             );
             break;
         }
