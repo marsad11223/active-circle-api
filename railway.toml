@@ -1,0 +1,7 @@
+[build]
+builder = "nixpacks"
+buildCommand = "npm ci --include=dev && npm run build"
+
+[deploy]
+startCommand = "node dist/src/main.js"
+restartPolicyType = "ON_FAILURE"

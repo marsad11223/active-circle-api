@@ -1,11 +1,15 @@
 [phases.setup]
 nixPkgs = ["nodejs_20"]
 
+# Dev deps (@nestjs/cli, typescript) are required for `nest build`.
 [phases.install]
-cmds = ["npm ci"]
+cmds = ["npm ci --include=dev"]
 
 [phases.build]
-cmds = ["npm run build"]
+cmds = ["npm run build", "npm prune --omit=dev"]
 
 [start]
-cmd = "node dist/main"
+cmd = "node dist/src/main.js"
+
+[variables]
+NPM_CONFIG_PRODUCTION = "false"
