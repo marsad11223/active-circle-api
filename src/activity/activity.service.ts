@@ -27,10 +27,32 @@ import {
 } from './dto/admin-list-activities.dto';
 import { GrantRole, User, Role } from 'src/schemas/user.schema';
 import { RecurringType, ActivityStatus } from 'src/schemas/activity.schema';
+import {
+  RecurringSeries,
+  ScheduleRule,
+} from 'src/schemas/recurring-series.schema';
 import { Subscription } from 'src/schemas/subscription.schema';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { EmailService } from '../email/email.service';
+import { RecurringActivitySpawnService } from './recurring-activity-spawn.service';
+import {
+  deriveScheduleRuleFromOccurrence,
+  enumerateOccurrencesInWindow,
+  assertValidScheduleRuleForRecurring,
+  isRecurringType,
+  isRecurringSeriesType,
+  isOccurrenceAlignedWithScheduleRule,
+  isScheduleRuleCompleteForRecurring,
+  getSeriesScheduleFloorUtc,
+  normalizeScheduleRuleForRecurring,
+  hasCanonicalSlotInSamePeriod,
+  occurrenceSlotKey,
+  realignOccurrenceToScheduleRule,
+  toPlainScheduleRule,
+  RecurringScheduleRule,
+  scheduleRuleMongoUpdates,
+} from 'src/utils/recurring-activity';
 
 const EARTH_RADIUS_MILES = 3958.8;
 const MEMBER_NEARBY_RADIUS_MILES = 25;
@@ -47,6 +69,11 @@ import {
 import { HostScheduleQueryDto } from './dto/host-schedule-query.dto';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { buildNotificationData } from 'src/notifications/notification-payload.util';
+import {
+  StopRecurringSeriesDto,
+  ResumeRecurringSeriesDto,
+  UpdateRecurringSeriesDto,
+} from './dto/recurring-series.dto';
 
 type ScheduleHour = {
   hour: number;
@@ -60,6 +87,8 @@ export class ActivityService {
   constructor(
     @InjectModel(Activity.name)
     private readonly activityModel: Model<Activity>,
+    @InjectModel(RecurringSeries.name)
+    private readonly recurringSeriesModel: Model<RecurringSeries>,
     @InjectModel(User.name)
     private readonly userModel: Model<User>,
     @InjectModel(Rating.name)
@@ -71,6 +100,7 @@ export class ActivityService {
     private configService: ConfigService,
     private readonly emailService: EmailService,
     private readonly notificationsService: NotificationsService,
+    private readonly recurringActivitySpawnService: RecurringActivitySpawnService,
   ) {
     const stripeSecretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (stripeSecretKey) {
@@ -232,6 +262,61 @@ export class ActivityService {
       const pictures =
         normalizedPictures.length > 0 ? normalizedPictures : [primaryPicture];
 
+      const recurring = createActivityDto.recurring ?? RecurringType.ONE_TIME;
+
+      if (isRecurringType(recurring)) {
+        const ruleTimezone = createActivityDto.timezone?.trim() || UK_TZ;
+        const scheduleRule = deriveScheduleRuleFromOccurrence(
+          startDateTime,
+          endDateTime,
+          recurring,
+          ruleTimezone,
+        );
+
+        const series = await this.recurringSeriesModel.create({
+          hostId: new mongoose.Types.ObjectId(hostId),
+          recurring,
+          scheduleRule,
+          active: true,
+          recurrenceStoppedAt: null,
+          lastOccurrenceStartDateTime: startDateTime,
+          title: createActivityDto.title,
+          description: createActivityDto.description,
+          category: createActivityDto.category,
+          location: createActivityDto.location,
+          coordinates: createActivityDto.coordinates,
+          difficultyLevel: createActivityDto.difficultyLevel,
+          maxParticipants: createActivityDto.maxParticipants,
+          price: createActivityDto.price ?? 0,
+          additionalInformation: createActivityDto.additionalInformation,
+          picture: primaryPicture,
+          pictures,
+        });
+
+        const spawnResult =
+          await this.recurringActivitySpawnService.spawnOccurrenceAt(
+            series._id as mongoose.Types.ObjectId,
+            startDateTime,
+            endDateTime,
+          );
+
+        if (spawnResult.status === 'error' || !spawnResult.activityId) {
+          await this.recurringSeriesModel.deleteOne({ _id: series._id });
+          throw new BadRequestException(
+            spawnResult.message || 'Failed to create recurring occurrence',
+          );
+        }
+
+        const createdOccurrence = await this.activityModel.findById(
+          spawnResult.activityId,
+        );
+        if (!createdOccurrence) {
+          throw new BadRequestException('Failed to load created occurrence');
+        }
+
+        return createdOccurrence;
+      }
+
       const newActivity = await this.activityModel.create({
         ...createActivityDto,
         hostId: new mongoose.Types.ObjectId(hostId),
@@ -241,7 +326,7 @@ export class ActivityService {
         picture: primaryPicture,
         pictures,
         price: createActivityDto.price ?? 0, // Default to 0 if not provided
-        recurring: createActivityDto.recurring ?? RecurringType.ONE_TIME,
+        recurring: RecurringType.ONE_TIME,
         status: ActivityStatus.ACTIVE, // New activities are active by default
         created_at: new Date(),
         updated_at: new Date(),
@@ -1051,6 +1136,16 @@ export class ActivityService {
         throw new ForbiddenException('You can only update your own activities');
       }
 
+      if (
+        existingActivity.seriesId &&
+        updateActivityDto.recurring !== undefined &&
+        updateActivityDto.recurring !== existingActivity.recurring
+      ) {
+        throw new BadRequestException(
+          'Cannot change recurrence on a series occurrence. Update the series via PATCH /activities/series/:seriesId instead.',
+        );
+      }
+
       const updateData: any = {
         ...updateActivityDto,
         updated_at: new Date(),
@@ -1151,11 +1246,17 @@ export class ActivityService {
       }
 
       // Soft delete
-      await this.activityModel.findByIdAndUpdate(
+      const deletedActivity = await this.activityModel.findByIdAndUpdate(
         id,
         { deleted_at: new Date(), updated_at: new Date() },
         { new: true },
       );
+
+      if (deletedActivity?.seriesId) {
+        await this.recurringActivitySpawnService
+          .ensureNextOccurrenceForSeries(deletedActivity.seriesId)
+          .catch(() => undefined);
+      }
 
       return {
         message: 'Activity deleted successfully',
@@ -1203,6 +1304,10 @@ export class ActivityService {
       activity.status = ActivityStatus.COMPLETED;
       activity.updated_at = new Date();
       await activity.save();
+
+      await this.recurringActivitySpawnService.triggerSpawnAfterCompletion(
+        activity,
+      );
 
       const activityId = (activity._id as any).toString();
       const memberIds = await this.getConfirmedMemberIdsForActivity(activityId);
@@ -1307,6 +1412,420 @@ export class ActivityService {
         throw err;
       }
       throw new BadRequestException(err.message);
+    }
+  }
+
+  async getRecurringSeries(
+    seriesId: string,
+    userId: string,
+  ): Promise<RecurringSeries> {
+    if (!mongoose.isValidObjectId(seriesId)) {
+      throw new BadRequestException('Invalid series ID');
+    }
+
+    const series = await this.recurringSeriesModel.findById(seriesId).lean();
+
+    if (!series) {
+      throw new NotFoundException('Recurring series not found');
+    }
+
+    await this.assertSeriesHostOrAdmin(series.hostId, userId);
+
+    return series as RecurringSeries;
+  }
+
+  async stopRecurringSeries(
+    seriesId: string,
+    userId: string,
+    dto: StopRecurringSeriesDto = {},
+  ): Promise<{ message: string; cancelledOccurrences: number }> {
+    const series = await this.recurringSeriesModel.findById(seriesId);
+    if (!series) {
+      throw new NotFoundException('Recurring series not found');
+    }
+
+    await this.assertSeriesHostOrAdmin(series.hostId, userId);
+
+    const now = new Date();
+    await this.recurringSeriesModel.updateOne(
+      { _id: series._id },
+      {
+        $set: {
+          active: false,
+          recurrenceStoppedAt: now,
+          updatedAt: now,
+        },
+      },
+    );
+
+    let cancelledOccurrences = 0;
+    if (dto.cancelFutureOccurrences) {
+      const result = await this.activityModel.updateMany(
+        {
+          seriesId: series._id,
+          deleted_at: null,
+          status: ActivityStatus.ACTIVE,
+          startDateTime: { $gt: now },
+        },
+        {
+          $set: {
+            status: ActivityStatus.CANCELLED,
+            updated_at: now,
+          },
+        },
+      );
+      cancelledOccurrences = result.modifiedCount;
+    }
+
+    return {
+      message: 'Recurring series stopped',
+      cancelledOccurrences,
+    };
+  }
+
+  async resumeRecurringSeries(
+    seriesId: string,
+    userId: string,
+    dto: ResumeRecurringSeriesDto = {},
+  ): Promise<{
+    message: string;
+    spawnStatus?: string;
+    activityId?: string;
+    startDateTime?: string;
+  }> {
+    const series = await this.recurringSeriesModel.findById(seriesId);
+    if (!series) {
+      throw new NotFoundException('Recurring series not found');
+    }
+
+    await this.assertSeriesHostOrAdmin(series.hostId, userId);
+
+    if (series.active) {
+      throw new BadRequestException('Recurring series is already active');
+    }
+
+    const now = new Date();
+    await this.recurringSeriesModel.updateOne(
+      { _id: series._id },
+      {
+        $set: {
+          active: true,
+          recurrenceStoppedAt: null,
+          updatedAt: now,
+        },
+      },
+    );
+
+    const spawnNext = dto.spawnNextOccurrence !== false;
+    let spawnStatus: string | undefined;
+    let activityId: string | undefined;
+    let startDateTime: string | undefined;
+
+    if (spawnNext) {
+      const spawnResult =
+        await this.recurringActivitySpawnService.ensureNextOccurrenceForSeries(
+          series._id as mongoose.Types.ObjectId,
+        );
+
+      spawnStatus = spawnResult.status;
+      activityId = spawnResult.activityId;
+      startDateTime = spawnResult.startDateTime?.toISOString();
+    }
+
+    return {
+      message: 'Recurring series resumed',
+      spawnStatus,
+      activityId,
+      startDateTime,
+    };
+  }
+
+  async updateRecurringSeries(
+    seriesId: string,
+    userId: string,
+    dto: UpdateRecurringSeriesDto,
+  ): Promise<RecurringSeries> {
+    if (!mongoose.isValidObjectId(seriesId)) {
+      throw new BadRequestException('Invalid series ID');
+    }
+
+    const series = await this.recurringSeriesModel.findById(seriesId);
+    if (!series) {
+      throw new NotFoundException('Recurring series not found');
+    }
+
+    await this.assertSeriesHostOrAdmin(series.hostId, userId);
+
+    if (
+      dto.recurring !== undefined &&
+      dto.recurring === RecurringType.ONE_TIME
+    ) {
+      throw new BadRequestException(
+        'Cannot set recurring to one-time on a series. Stop the series instead.',
+      );
+    }
+
+    if (dto.recurring !== undefined && !isRecurringSeriesType(dto.recurring)) {
+      throw new BadRequestException('Invalid recurring type for series');
+    }
+
+    const update: Record<string, unknown> = { updatedAt: new Date() };
+    const effectiveRecurring =
+      dto.recurring !== undefined ? dto.recurring : series.recurring;
+
+    if (dto.title !== undefined) update.title = dto.title;
+    if (dto.description !== undefined) update.description = dto.description;
+    if (dto.category !== undefined) update.category = dto.category;
+    if (dto.location !== undefined) update.location = dto.location;
+    if (dto.coordinates !== undefined) update.coordinates = dto.coordinates;
+    if (dto.difficultyLevel !== undefined) {
+      update.difficultyLevel = dto.difficultyLevel;
+    }
+    if (dto.maxParticipants !== undefined) {
+      update.maxParticipants = dto.maxParticipants;
+    }
+    if (dto.price !== undefined) update.price = dto.price;
+    if (dto.additionalInformation !== undefined) {
+      update.additionalInformation = dto.additionalInformation;
+    }
+    if (dto.picture !== undefined) update.picture = dto.picture;
+    if (dto.pictures !== undefined) update.pictures = dto.pictures;
+
+    if (dto.recurring !== undefined) {
+      update.recurring = dto.recurring;
+    }
+
+    let scheduleRuleSet: Record<string, string | number> = {};
+    let scheduleRuleUnset: Record<string, ''> = {};
+    const previousRecurring = series.recurring;
+    const previousScheduleRule = toPlainScheduleRule(series.scheduleRule);
+    const scheduleRuleChanged =
+      dto.scheduleRule !== undefined || dto.recurring !== undefined;
+
+    if (dto.recurring !== undefined || dto.scheduleRule) {
+      const mergedRuleInput: ScheduleRule = {
+        ...series.scheduleRule,
+        ...(dto.scheduleRule
+          ? Object.fromEntries(
+              Object.entries(dto.scheduleRule).filter(
+                ([, value]) => value !== undefined,
+              ),
+            )
+          : {}),
+      } as ScheduleRule;
+
+      let mergedRule: RecurringScheduleRule;
+      try {
+        mergedRule = normalizeScheduleRuleForRecurring(
+          effectiveRecurring,
+          mergedRuleInput,
+          series.lastOccurrenceStartDateTime,
+        );
+        assertValidScheduleRuleForRecurring(effectiveRecurring, mergedRule);
+      } catch (error) {
+        throw new BadRequestException(
+          error instanceof Error ? error.message : 'Invalid schedule rule',
+        );
+      }
+
+      const scheduleRuleUpdate = scheduleRuleMongoUpdates(
+        effectiveRecurring,
+        mergedRule,
+      );
+      scheduleRuleSet = scheduleRuleUpdate.set;
+      scheduleRuleUnset = scheduleRuleUpdate.unset;
+    }
+
+    const updated = await this.recurringSeriesModel.findByIdAndUpdate(
+      seriesId,
+      {
+        $set: {
+          ...update,
+          ...scheduleRuleSet,
+        },
+        ...(Object.keys(scheduleRuleUnset).length
+          ? { $unset: scheduleRuleUnset }
+          : {}),
+      },
+      { new: true },
+    );
+
+    if (!updated) {
+      throw new NotFoundException('Recurring series not found after update');
+    }
+
+    if (dto.recurring !== undefined && dto.recurring !== series.recurring) {
+      await this.activityModel.updateMany(
+        {
+          seriesId: series._id,
+          deleted_at: null,
+        },
+        {
+          $set: {
+            recurring: dto.recurring,
+            updated_at: new Date(),
+          },
+        },
+      );
+    }
+
+    await this.propagateSeriesUpdateToFutureOccurrences(
+      series._id as mongoose.Types.ObjectId,
+      updated,
+      {
+        previousRecurring,
+        previousScheduleRule,
+        scheduleRuleChanged,
+      },
+    );
+
+    return updated;
+  }
+
+  private async propagateSeriesUpdateToFutureOccurrences(
+    seriesId: mongoose.Types.ObjectId,
+    series: RecurringSeries,
+    options: {
+      previousRecurring: RecurringType;
+      previousScheduleRule: RecurringScheduleRule;
+      scheduleRuleChanged: boolean;
+    },
+  ): Promise<void> {
+    const now = new Date();
+    const futureActivities = await this.activityModel
+      .find({
+        seriesId,
+        deleted_at: null,
+        status: ActivityStatus.ACTIVE,
+        startDateTime: { $gt: now },
+      })
+      .select('_id startDateTime endDateTime')
+      .lean();
+
+    if (futureActivities.length === 0) {
+      return;
+    }
+
+    const templateUpdate: Record<string, unknown> = {
+      title: series.title,
+      description: series.description,
+      category: series.category,
+      location: series.location,
+      coordinates: series.coordinates,
+      difficultyLevel: series.difficultyLevel,
+      maxParticipants: series.maxParticipants,
+      price: series.price ?? 0,
+      additionalInformation: series.additionalInformation,
+      picture: series.picture,
+      pictures: series.pictures?.length ? series.pictures : [series.picture],
+      recurring: series.recurring,
+      updated_at: new Date(),
+    };
+
+    let latestStart: Date | null = null;
+    const currentScheduleRule = toPlainScheduleRule(series.scheduleRule);
+
+    for (const activity of futureActivities) {
+      if (!activity.startDateTime) {
+        continue;
+      }
+
+      const activityStart = new Date(activity.startDateTime);
+      const updatePayload: Record<string, unknown> = { ...templateUpdate };
+
+      const wasOnPreviousPattern =
+        isOccurrenceAlignedWithScheduleRule(
+          activityStart,
+          options.previousRecurring,
+          options.previousScheduleRule,
+        ) ||
+        (!options.scheduleRuleChanged &&
+          isOccurrenceAlignedWithScheduleRule(
+            activityStart,
+            series.recurring,
+            currentScheduleRule,
+          ));
+
+      const alignedWithCurrent = isOccurrenceAlignedWithScheduleRule(
+        activityStart,
+        series.recurring,
+        currentScheduleRule,
+      );
+
+      const shouldRealignSchedule =
+        options.scheduleRuleChanged &&
+        (wasOnPreviousPattern ||
+          (!alignedWithCurrent &&
+            !isScheduleRuleCompleteForRecurring(
+              options.previousRecurring,
+              options.previousScheduleRule,
+            )));
+
+      if (shouldRealignSchedule) {
+        const realigned = realignOccurrenceToScheduleRule(
+          activityStart,
+          series.recurring,
+          currentScheduleRule,
+        );
+
+        updatePayload.startDateTime = realigned.startDateTime;
+        updatePayload.endDateTime = realigned.endDateTime;
+        updatePayload.date = realigned.startDateTime;
+
+        if (
+          latestStart === null ||
+          realigned.startDateTime.getTime() > latestStart.getTime()
+        ) {
+          latestStart = realigned.startDateTime;
+        }
+      } else if (
+        !options.scheduleRuleChanged ||
+        alignedWithCurrent
+      ) {
+        if (
+          latestStart === null ||
+          activityStart.getTime() > latestStart.getTime()
+        ) {
+          latestStart = activityStart;
+        }
+      }
+
+      await this.activityModel.updateOne(
+        { _id: activity._id },
+        { $set: updatePayload },
+      );
+    }
+
+    if (latestStart) {
+      await this.recurringSeriesModel.updateOne(
+        { _id: seriesId },
+        {
+          $max: { lastOccurrenceStartDateTime: latestStart },
+          $set: { updatedAt: new Date() },
+        },
+      );
+    }
+  }
+
+  private async assertSeriesHostOrAdmin(
+    hostId: mongoose.Types.ObjectId | { toString(): string },
+    userId: string,
+  ): Promise<void> {
+    const hostIdStr =
+      typeof hostId === 'object' && hostId !== null && 'toString' in hostId
+        ? hostId.toString()
+        : String(hostId);
+
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const isSuperAdmin = user.role === Role.superAdmin;
+    if (!isSuperAdmin && hostIdStr !== userId) {
+      throw new ForbiddenException(
+        'You can only manage your own recurring series',
+      );
     }
   }
 
@@ -2065,8 +2584,8 @@ export class ActivityService {
   }
 
   /**
-   * Public host schedule: hourly buckets (0–23) per UK calendar day for a date range.
-   * All wall-clock times use Europe/London (GMT/BST), not server local time.
+   * Public host schedule: hourly buckets (0–23) per UTC calendar day for a date range.
+   * All timestamps in the response are UTC ISO; clients choose display/grouping timezone.
    */
   async getHostSchedule(
     hostId: string,
@@ -2136,37 +2655,40 @@ export class ActivityService {
       const windowStart = from;
       const windowEnd = to;
 
-      /**
-       * IMPORTANT:
-       *
-       * One-time activities must overlap the requested UTC window.
-       *
-       * Recurring activities must ALWAYS be fetched because their original
-       * startDateTime may be months/years before the requested window.
-       *
-       * Example:
-       *
-       * Activity:
-       * start = August 2026
-       * recurring = MONTHLY
-       *
-       * Request:
-       * December 2026
-       *
-       * We still need to fetch the August activity so that the recurring
-       * logic can generate its December occurrence.
-       */
-      const rawActivities = await this.activityModel
-        .find({
-          hostId: new mongoose.Types.ObjectId(hostId),
-          deleted_at: null,
-          status: {
-            $ne: ActivityStatus.CANCELLED,
-          },
+      const windowStartJs = windowStart.toJSDate();
+      const windowEndJs = windowEnd.toJSDate();
+      const hostObjectId = new mongoose.Types.ObjectId(hostId);
 
-          $or: [
-            // Recurring activities must always be considered.
-            {
+      const scheduleSelect =
+        'title description category location date startDateTime endDateTime time picture price maxParticipants recurring status seriesId';
+
+      const [realActivities, activeSeries, legacyRecurring, seriesAnchorRows] =
+        await Promise.all([
+          this.activityModel
+            .find({
+              hostId: hostObjectId,
+              deleted_at: null,
+              status: { $ne: ActivityStatus.CANCELLED },
+              startDateTime: { $lte: windowEndJs },
+              endDateTime: { $gte: windowStartJs },
+            })
+            .select(scheduleSelect)
+            .sort({ startDateTime: 1 })
+            .lean(),
+
+          this.recurringSeriesModel
+            .find({
+              hostId: hostObjectId,
+              active: true,
+            })
+            .lean(),
+
+          this.activityModel
+            .find({
+              hostId: hostObjectId,
+              deleted_at: null,
+              status: { $ne: ActivityStatus.CANCELLED },
+              $or: [{ seriesId: { $exists: false } }, { seriesId: null }],
               recurring: {
                 $in: [
                   RecurringType.DAILY,
@@ -2175,46 +2697,41 @@ export class ActivityService {
                   RecurringType.YEARLY,
                 ],
               },
-            },
+            })
+            .select(scheduleSelect)
+            .sort({ startDateTime: 1 })
+            .lean(),
 
-            // One-time activities only if they overlap the requested window.
+          this.activityModel.aggregate<{
+            _id: mongoose.Types.ObjectId;
+            anchor: Date;
+          }>([
             {
-              $and: [
-                {
-                  $or: [
-                    {
-                      recurring: RecurringType.ONE_TIME,
-                    },
-                    {
-                      recurring: {
-                        $exists: false,
-                      },
-                    },
-                    {
-                      recurring: null,
-                    },
-                  ],
-                },
-                {
-                  startDateTime: {
-                    $lte: windowEnd.toJSDate(),
-                  },
-                  endDateTime: {
-                    $gte: windowStart.toJSDate(),
-                  },
-                },
-              ],
+              $match: {
+                hostId: hostObjectId,
+                deleted_at: null,
+                seriesId: { $type: 'objectId' },
+              },
             },
-          ],
-        })
-        .select(
-          'title description category location date startDateTime endDateTime time picture price maxParticipants recurring status',
-        )
-        .sort({
-          startDateTime: 1,
-        })
-        .lean(); /**
-       * Build UTC day buckets.
+            {
+              $group: {
+                _id: '$seriesId',
+                anchor: { $min: '$startDateTime' },
+              },
+            },
+          ]),
+        ]);
+
+      const seriesAnchorById = new Map<string, Date>(
+        seriesAnchorRows.map((row) => [row._id.toString(), row.anchor]),
+      );
+
+      const activeSeriesById = new Map(
+        activeSeries.map((series) => [series._id.toString(), series]),
+      );
+
+      /**
+       * Build UTC calendar day buckets (same zone as stored instants and from/to params).
        */
       const dayKeys: string[] = [];
 
@@ -2244,23 +2761,379 @@ export class ActivityService {
         byDayHour.set(dayKey, hourMap);
       }
 
-      /**
-       * Process activities.
-       */
-      for (const act of rawActivities) {
+      type ScheduleActivityRow = (typeof realActivities)[number];
+
+      const addScheduleOccurrence = (
+        occurrenceStart: DateTime,
+        occurrenceEnd: DateTime,
+        activityPayload: Record<string, unknown>,
+      ) => {
+        if (occurrenceEnd <= occurrenceStart) {
+          return;
+        }
+
+        if (occurrenceStart > windowEnd || occurrenceEnd < windowStart) {
+          return;
+        }
+
+        const startUtc = occurrenceStart.toUTC();
+        const dayKey = startUtc.toFormat('yyyy-MM-dd');
+        const dayBuckets = byDayHour.get(dayKey);
+
+        if (!dayBuckets) {
+          return;
+        }
+
+        const list = dayBuckets.get(startUtc.hour);
+
+        if (!list) {
+          return;
+        }
+
+        const dedupeKey = `${String(
+          activityPayload.seriesId ?? activityPayload._id,
+        )}:${String(activityPayload.startDateTime)}`;
+
+        if (
+          list.some(
+            (existing) =>
+              `${String(existing.seriesId ?? existing._id)}:${String(existing.startDateTime)}` ===
+              dedupeKey,
+          )
+        ) {
+          return;
+        }
+
+        list.push(activityPayload);
+      };
+
+      const buildPayload = (
+        source: ScheduleActivityRow | (typeof activeSeries)[number],
+        occurrenceStart: DateTime,
+        occurrenceEnd: DateTime,
+        options: {
+          isRecurringInstance: boolean;
+          activityId?: unknown;
+          seriesId?: string;
+          status?: ActivityStatus;
+          recurring?: RecurringType;
+        },
+      ): Record<string, unknown> => ({
+        _id:
+          options.activityId ??
+          (source as ScheduleActivityRow)._id ??
+          source._id,
+        seriesId: options.seriesId,
+        title: source.title,
+        description: source.description,
+        category: source.category,
+        location: source.location,
+        date: occurrenceStart.toUTC().toISO(),
+        startDateTime: occurrenceStart.toUTC().toISO(),
+        endDateTime: occurrenceEnd.toUTC().toISO(),
+        picture: source.picture,
+        price: (source as ScheduleActivityRow).price ?? source.price ?? 0,
+        maxParticipants: source.maxParticipants,
+        recurring:
+          options.recurring ??
+          (source as ScheduleActivityRow).recurring ??
+          (source as (typeof activeSeries)[number]).recurring,
+        status:
+          options.status ??
+          (source as ScheduleActivityRow).status ??
+          ActivityStatus.ACTIVE,
+        isRecurringInstance: options.isRecurringInstance,
+      });
+
+      const realBySlotKey = new Map<string, ScheduleActivityRow>();
+      const realActivitiesBySeriesId = new Map<string, ScheduleActivityRow[]>();
+
+      for (const act of realActivities) {
+        if (!act.seriesId || !act.startDateTime) {
+          continue;
+        }
+
+        const seriesIdStr = act.seriesId.toString();
+        const seriesList = realActivitiesBySeriesId.get(seriesIdStr) ?? [];
+        seriesList.push(act);
+        realActivitiesBySeriesId.set(seriesIdStr, seriesList);
+
+        const series = activeSeriesById.get(seriesIdStr);
+
+        if (!series) {
+          continue;
+        }
+
+        const key = occurrenceSlotKey(
+          seriesIdStr,
+          new Date(act.startDateTime),
+          series.scheduleRule,
+          series.recurring,
+        );
+
+        realBySlotKey.set(key, act);
+      }
+
+      const seriesHasRealOccurrenceInPeriod = (
+        seriesId: string,
+        recurring: RecurringType,
+        scheduleRule: RecurringScheduleRule,
+        virtualSlotStart: DateTime,
+        seriesAnchorStart: Date,
+      ): boolean => {
+        const acts = realActivitiesBySeriesId.get(seriesId) ?? [];
+        const anchor = DateTime.fromJSDate(seriesAnchorStart, { zone: 'utc' });
+
+        return acts.some((act) => {
+          if (!act.startDateTime) {
+            return false;
+          }
+
+          const realStart = DateTime.fromJSDate(new Date(act.startDateTime), {
+            zone: 'utc',
+          });
+
+          if (
+            !isOccurrenceAlignedWithScheduleRule(
+              realStart.toJSDate(),
+              recurring,
+              scheduleRule,
+            )
+          ) {
+            return false;
+          }
+
+          if (recurring === RecurringType.WEEKLY) {
+            const virtualPeriod = Math.floor(
+              virtualSlotStart.diff(anchor, 'days').days / 7,
+            );
+            const realPeriod = Math.floor(
+              realStart.diff(anchor, 'days').days / 7,
+            );
+
+            return (
+              virtualPeriod === realPeriod &&
+              Math.abs(realStart.diff(virtualSlotStart, 'days').days) <= 6
+            );
+          }
+
+          if (recurring === RecurringType.DAILY) {
+            return realStart.toISODate() === virtualSlotStart.toISODate();
+          }
+
+          if (recurring === RecurringType.MONTHLY) {
+            return (
+              realStart.year === virtualSlotStart.year &&
+              realStart.month === virtualSlotStart.month
+            );
+          }
+
+          if (recurring === RecurringType.YEARLY) {
+            return realStart.year === virtualSlotStart.year;
+          }
+
+          return false;
+        });
+      };
+
+      const processedSlotKeys = new Set<string>();
+      const scheduleNowJs = new Date();
+
+      for (const series of activeSeries) {
+        const seriesId = series._id.toString();
+        const anchor =
+          seriesAnchorById.get(seriesId) ?? series.lastOccurrenceStartDateTime;
+        const plainScheduleRule = toPlainScheduleRule(series.scheduleRule);
+
+        const futureSeriesActives = (realActivitiesBySeriesId.get(seriesId) ?? [])
+          .filter(
+            (act) =>
+              act.status === ActivityStatus.ACTIVE &&
+              act.startDateTime &&
+              new Date(act.startDateTime) > scheduleNowJs,
+          )
+          .sort(
+            (a, b) =>
+              new Date(a.startDateTime!).getTime() -
+              new Date(b.startDateTime!).getTime(),
+          );
+
+        const nextFutureRealStart = futureSeriesActives[0]?.startDateTime
+          ? new Date(futureSeriesActives[0].startDateTime)
+          : null;
+
+        const scheduleFloor = getSeriesScheduleFloorUtc(
+          series.recurring,
+          plainScheduleRule,
+          anchor,
+          scheduleNowJs,
+          nextFutureRealStart,
+        );
+
+        const effectiveWindowStartJs =
+          windowStartJs > scheduleFloor ? windowStartJs : scheduleFloor;
+
+        const occurrenceStarts = enumerateOccurrencesInWindow(
+          series.recurring,
+          plainScheduleRule,
+          anchor,
+          effectiveWindowStartJs,
+          windowEndJs,
+        );
+
+        for (const occurrenceStartDate of occurrenceStarts) {
+          const occurrenceStart = DateTime.fromJSDate(occurrenceStartDate, {
+            zone: 'UTC',
+          });
+          const occurrenceEnd = occurrenceStart.plus({
+            minutes: series.scheduleRule.durationMinutes,
+          });
+          const slotKey = occurrenceSlotKey(
+            seriesId,
+            occurrenceStartDate,
+            plainScheduleRule,
+            series.recurring,
+          );
+
+          processedSlotKeys.add(slotKey);
+
+          const realActivity = realBySlotKey.get(slotKey);
+
+          if (realActivity) {
+            addScheduleOccurrence(
+              occurrenceStart,
+              DateTime.fromJSDate(new Date(realActivity.endDateTime), {
+                zone: 'UTC',
+              }),
+              buildPayload(realActivity, occurrenceStart, occurrenceEnd, {
+                isRecurringInstance: true,
+                activityId: realActivity._id,
+                seriesId,
+                status: realActivity.status,
+                recurring: realActivity.recurring,
+              }),
+            );
+            continue;
+          }
+
+          if (
+            seriesHasRealOccurrenceInPeriod(
+              seriesId,
+              series.recurring,
+              plainScheduleRule,
+              occurrenceStart,
+              anchor,
+            )
+          ) {
+            continue;
+          }
+
+          addScheduleOccurrence(occurrenceStart, occurrenceEnd, {
+            ...buildPayload(series, occurrenceStart, occurrenceEnd, {
+              isRecurringInstance: true,
+              activityId: series._id,
+              seriesId,
+              status: ActivityStatus.ACTIVE,
+              recurring: series.recurring,
+            }),
+            isVirtualOccurrence: true,
+          });
+        }
+      }
+
+      for (const act of realActivities) {
+        if (act.seriesId) {
+          const series = activeSeriesById.get(act.seriesId.toString());
+
+          if (series && act.startDateTime) {
+            const seriesIdStr = act.seriesId.toString();
+            const scheduleRule = series.scheduleRule as RecurringScheduleRule;
+            const slotKey = occurrenceSlotKey(
+              seriesIdStr,
+              new Date(act.startDateTime),
+              scheduleRule,
+              series.recurring,
+            );
+
+            if (processedSlotKeys.has(slotKey)) {
+              continue;
+            }
+
+            const start = DateTime.fromJSDate(new Date(act.startDateTime), {
+              zone: 'UTC',
+            });
+
+            if (
+              !isOccurrenceAlignedWithScheduleRule(
+                start.toJSDate(),
+                series.recurring,
+                scheduleRule,
+              ) &&
+              hasCanonicalSlotInSamePeriod(
+                seriesIdStr,
+                series.recurring,
+                scheduleRule,
+                start.toJSDate(),
+                processedSlotKeys,
+              )
+            ) {
+              continue;
+            }
+          } else if (series) {
+            const slotKey = occurrenceSlotKey(
+              act.seriesId.toString(),
+              new Date(act.startDateTime),
+              series.scheduleRule,
+              series.recurring,
+            );
+
+            if (processedSlotKeys.has(slotKey)) {
+              continue;
+            }
+          }
+        } else if (isRecurringType(act.recurring)) {
+          continue;
+        }
+
         if (!act.startDateTime || !act.endDateTime) {
           continue;
         }
 
-        /**
-         * DB values are already UTC.
-         *
-         * DO NOT use ukLocalDateTimeToUtcDate().
-         */
         const start = DateTime.fromJSDate(new Date(act.startDateTime), {
           zone: 'UTC',
         });
+        const end = DateTime.fromJSDate(new Date(act.endDateTime), {
+          zone: 'UTC',
+        });
 
+        if (
+          !start.isValid ||
+          !end.isValid ||
+          start > windowEnd ||
+          end < windowStart
+        ) {
+          continue;
+        }
+
+        addScheduleOccurrence(
+          start,
+          end,
+          buildPayload(act, start, end, {
+            isRecurringInstance: isRecurringType(act.recurring),
+            activityId: act._id,
+            seriesId: act.seriesId?.toString(),
+          }),
+        );
+      }
+
+      for (const act of legacyRecurring) {
+        if (!act.startDateTime || !act.endDateTime) {
+          continue;
+        }
+
+        const start = DateTime.fromJSDate(new Date(act.startDateTime), {
+          zone: 'UTC',
+        });
         const end = DateTime.fromJSDate(new Date(act.endDateTime), {
           zone: 'UTC',
         });
@@ -2276,157 +3149,75 @@ export class ActivityService {
         }
 
         const normalizedDuration = Math.min(durationMs, 24 * 60 * 60 * 1000);
-
         const occurrences: DateTime[] = [];
+        let cursor = start;
 
-        /**
-         * ONE TIME ACTIVITY
-         */
-        if (act.recurring === RecurringType.ONE_TIME || !act.recurring) {
-          if (start <= windowEnd && end >= windowStart) {
-            occurrences.push(start);
-          }
-        } else {
-          /**
-           * RECURRING ACTIVITY
-           */
-          let cursor = start;
+        if (cursor < windowStart) {
+          if (act.recurring === RecurringType.DAILY) {
+            const days = Math.floor(windowStart.diff(cursor, 'days').days);
 
-          /**
-           * Fast-forward recurring activity.
-           */
-          if (cursor < windowStart) {
-            if (act.recurring === RecurringType.DAILY) {
-              const days = Math.floor(windowStart.diff(cursor, 'days').days);
-
-              if (days > 0) {
-                cursor = cursor.plus({
-                  days,
-                });
-              }
-            } else if (act.recurring === RecurringType.WEEKLY) {
-              const weeks = Math.floor(windowStart.diff(cursor, 'weeks').weeks);
-
-              if (weeks > 0) {
-                cursor = cursor.plus({
-                  weeks,
-                });
-              }
-            } else if (act.recurring === RecurringType.MONTHLY) {
-              while (cursor < windowStart) {
-                cursor = cursor.plus({
-                  months: 1,
-                });
-              }
-            } else if (act.recurring === RecurringType.YEARLY) {
-              while (cursor < windowStart) {
-                cursor = cursor.plus({
-                  years: 1,
-                });
-              }
+            if (days > 0) {
+              cursor = cursor.plus({ days });
             }
-          }
+          } else if (act.recurring === RecurringType.WEEKLY) {
+            const weeks = Math.floor(windowStart.diff(cursor, 'weeks').weeks);
 
-          let safetyLimit = 400;
-
-          while (cursor <= windowEnd && safetyLimit-- > 0) {
-            const occurrenceEnd = cursor.plus({
-              milliseconds: normalizedDuration,
-            });
-
-            if (cursor >= windowStart || occurrenceEnd > windowStart) {
-              occurrences.push(cursor);
+            if (weeks > 0) {
+              cursor = cursor.plus({ weeks });
             }
-
-            if (act.recurring === RecurringType.DAILY) {
-              cursor = cursor.plus({
-                days: 1,
-              });
-            } else if (act.recurring === RecurringType.WEEKLY) {
-              cursor = cursor.plus({
-                weeks: 1,
-              });
-            } else if (act.recurring === RecurringType.MONTHLY) {
-              cursor = cursor.plus({
-                months: 1,
-              });
-            } else if (act.recurring === RecurringType.YEARLY) {
-              cursor = cursor.plus({
-                years: 1,
-              });
-            } else {
-              break;
+          } else if (act.recurring === RecurringType.MONTHLY) {
+            while (cursor < windowStart) {
+              cursor = cursor.plus({ months: 1 });
+            }
+          } else if (act.recurring === RecurringType.YEARLY) {
+            while (cursor < windowStart) {
+              cursor = cursor.plus({ years: 1 });
             }
           }
         }
 
-        /**
-         * Add occurrences to UTC buckets.
-         */
+        let safetyLimit = 400;
+
+        while (cursor <= windowEnd && safetyLimit-- > 0) {
+          const occurrenceEnd = cursor.plus({
+            milliseconds: normalizedDuration,
+          });
+
+          if (cursor <= windowEnd && occurrenceEnd >= windowStart) {
+            occurrences.push(cursor);
+          }
+
+          if (act.recurring === RecurringType.DAILY) {
+            cursor = cursor.plus({ days: 1 });
+          } else if (act.recurring === RecurringType.WEEKLY) {
+            cursor = cursor.plus({ weeks: 1 });
+          } else if (act.recurring === RecurringType.MONTHLY) {
+            cursor = cursor.plus({ months: 1 });
+          } else if (act.recurring === RecurringType.YEARLY) {
+            cursor = cursor.plus({ years: 1 });
+          } else {
+            break;
+          }
+        }
+
         for (const occurrenceStart of occurrences) {
           const occurrenceEnd = occurrenceStart.plus({
             milliseconds: normalizedDuration,
           });
 
-          const activityPayload = {
-            _id: act._id,
-            title: act.title,
-            description: act.description,
-            category: act.category,
-            location: act.location,
-
-            /**
-             * ALWAYS UTC.
-             */
-            date: occurrenceStart.toUTC().toISO(),
-
-            startDateTime: occurrenceStart.toUTC().toISO(),
-
-            endDateTime: occurrenceEnd.toUTC().toISO(),
-
-            picture: act.picture,
-            price: act.price ?? 0,
-            maxParticipants: act.maxParticipants,
-            recurring: act.recurring,
-            status: act.status,
-
-            isRecurringInstance: act.recurring !== RecurringType.ONE_TIME,
-          };
-
-          /**
-           * Fill UTC hourly buckets.
-           */
-          let bucketCursor = occurrenceStart.startOf('hour');
-
-          while (bucketCursor < occurrenceEnd) {
-            const dayKey = bucketCursor.toFormat('yyyy-MM-dd');
-
-            const dayBuckets = byDayHour.get(dayKey);
-
-            if (dayBuckets) {
-              const hour = bucketCursor.hour;
-
-              const list = dayBuckets.get(hour);
-
-              if (list) {
-                list.push(activityPayload);
-              }
-            }
-
-            bucketCursor = bucketCursor.plus({
-              hours: 1,
-            });
-          }
+          addScheduleOccurrence(
+            occurrenceStart,
+            occurrenceEnd,
+            buildPayload(act, occurrenceStart, occurrenceEnd, {
+              isRecurringInstance: true,
+              activityId: act._id,
+            }),
+          );
         }
       }
 
       /**
-       * Build response.
-       *
-       * IMPORTANT:
-       * These are UTC buckets.
-       * FE should convert activity timestamps
-       * to the user's local timezone.
+       * Build response. Day keys and hour buckets are UTC; activity instants are UTC ISO.
        */
       const days = dayKeys.map((dateStr) => {
         const hourMap = byDayHour.get(dateStr)!;
@@ -2451,9 +3242,6 @@ export class ActivityService {
         timeZone: 'UTC',
         hostId,
 
-        /**
-         * Return exact UTC range.
-         */
         from: from.toUTC().toISO(),
 
         to: to.toUTC().toISO(),

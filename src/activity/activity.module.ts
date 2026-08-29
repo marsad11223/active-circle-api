@@ -1,8 +1,15 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { ActivityService } from './activity.service';
 import { ActivityController } from './activity.controller';
+import { RecurringActivitySpawnService } from './recurring-activity-spawn.service';
+import { RecurringSeriesMaintenanceService } from './recurring-series-maintenance.service';
+import { RecurringSeriesBootstrapService } from './recurring-series-bootstrap.service';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Activity, ActivitySchema } from 'src/schemas/activity.schema';
+import {
+  RecurringSeries,
+  RecurringSeriesSchema,
+} from 'src/schemas/recurring-series.schema';
 import { User, UserSchema } from 'src/schemas/user.schema';
 import { Rating, RatingSchema } from 'src/schemas/rating.schema';
 import { Booking, BookingSchema } from 'src/schemas/booking.schema';
@@ -18,6 +25,7 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
   imports: [
     MongooseModule.forFeature([
       { name: Activity.name, schema: ActivitySchema },
+      { name: RecurringSeries.name, schema: RecurringSeriesSchema },
       { name: User.name, schema: UserSchema },
       { name: Rating.name, schema: RatingSchema },
       { name: Booking.name, schema: BookingSchema },
@@ -28,7 +36,16 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
     NotificationsModule,
   ],
   controllers: [ActivityController],
-  providers: [ActivityService],
-  exports: [ActivityService],
+  providers: [
+    ActivityService,
+    RecurringActivitySpawnService,
+    RecurringSeriesMaintenanceService,
+    RecurringSeriesBootstrapService,
+  ],
+  exports: [
+    ActivityService,
+    RecurringActivitySpawnService,
+    RecurringSeriesMaintenanceService,
+  ],
 })
 export class ActivityModule {}

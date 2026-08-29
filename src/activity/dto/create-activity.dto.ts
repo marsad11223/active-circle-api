@@ -53,11 +53,16 @@ export class CreateActivityDto {
 
   @IsNotEmpty()
   @IsString()
-  startDateTime!: string; // UK-local ISO datetime string in 24-hour format
+  startDateTime!: string; // UTC ISO datetime, e.g. 2026-08-15T18:10:00.000Z
 
   @IsNotEmpty()
   @IsString()
-  endDateTime!: string; // UK-local ISO datetime string in 24-hour format
+  endDateTime!: string; // UTC ISO datetime
+
+  @IsOptional()
+  @IsString()
+  /** IANA zone used to derive recurring scheduleRule from the first occurrence (e.g. Asia/Karachi). Send the user's local timezone. */
+  timezone?: string;
 
   @IsNotEmpty()
   @IsNumber()

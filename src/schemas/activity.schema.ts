@@ -91,8 +91,15 @@ export class Activity extends Document {
   @Prop({ default: false })
   reminded1h: boolean;
 
+  /**
+   * @deprecated Legacy series link. New occurrences use `seriesId` instead.
+   * Kept for historical data and rating aggregation on migrated activities.
+   */
   @Prop({ type: Types.ObjectId, ref: 'Activity', required: false })
-  originalActivityId?: Types.ObjectId; // Reference to original activity if this is a re-occurred activity
+  originalActivityId?: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'RecurringSeries', required: false })
+  seriesId?: Types.ObjectId;
 
   @Prop({ default: Date.now })
   created_at: Date;
@@ -105,3 +112,25 @@ export class Activity extends Document {
 }
 
 export const ActivitySchema = SchemaFactory.createForClass(Activity);
+
+ActivitySchema.index(
+  { originalActivityId: 1, startDateTime: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      originalActivityId: { $type: 'objectId' },
+      deleted_at: null,
+    },
+  },
+);
+
+ActivitySchema.index(
+  { seriesId: 1, startDateTime: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      seriesId: { $type: 'objectId' },
+      deleted_at: null,
+    },
+  },
+);

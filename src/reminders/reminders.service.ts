@@ -7,9 +7,15 @@ import { OutboxService } from 'src/notifications/outbox.service';
 import { buildNotificationData } from 'src/notifications/notification-payload.util';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { activityDateTimeRangeLondon, UK_TZ } from 'src/utils/uk-time';
-import { Activity, ActivityStatus } from 'src/schemas/activity.schema';
+import {
+  Activity,
+  ActivityStatus,
+  RecurringType,
+} from 'src/schemas/activity.schema';
 import { Booking, BookingStatus } from 'src/schemas/booking.schema';
 import { NotificationToken } from 'src/schemas/notifications.schema';
+import { RecurringSeries } from 'src/schemas/recurring-series.schema';
+import { RecurringActivitySpawnService } from 'src/activity/recurring-activity-spawn.service';
 
 @Injectable()
 export class RemindersService {
@@ -18,17 +24,21 @@ export class RemindersService {
   constructor(
     @InjectModel(Activity.name)
     private readonly activityModel: Model<Activity>,
+    @InjectModel(RecurringSeries.name)
+    private readonly recurringSeriesModel: Model<RecurringSeries>,
     @InjectModel(Booking.name)
     private readonly bookingModel: Model<Booking>,
     @InjectModel(NotificationToken.name)
     private readonly notificationTokenModel: Model<NotificationToken>,
     private readonly outboxService: OutboxService,
+    private readonly recurringActivitySpawnService: RecurringActivitySpawnService,
   ) {}
 
   /**
    * Auto-complete past activities so hosts don't need to mark completion manually.
+   * TODO: revert to every 30 minutes before production.
    */
-  @Cron('*/30 * * * *')
+  @Cron('*/5 * * * *')
   async autoCompletePastActivities(): Promise<void> {
     try {
       const nowLondon = DateTime.now().setZone(UK_TZ);
@@ -83,6 +93,12 @@ export class RemindersService {
           continue;
         }
         completedCount++;
+
+        if (updated.recurring !== RecurringType.ONE_TIME && updated.recurring) {
+          await this.recurringActivitySpawnService.triggerSpawnAfterCompletion(
+            updated,
+          );
+        }
 
         const bookings = await this.bookingModel
           .find({
@@ -480,6 +496,64 @@ export class RemindersService {
     } catch (error) {
       this.logger.error(
         'Abandoned booking cleanup cron failed',
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+  }
+
+  /**
+   * Ensure every active recurring series has its next occurrence spawned.
+   * Safe to run concurrently with completion-triggered spawns (idempotent).
+   * TODO: revert to every 6 hours before production.
+   */
+  @Cron('*/10 * * * *')
+  async reconcileRecurringSeries(): Promise<void> {
+    try {
+      const activeSeries = await this.recurringSeriesModel
+        .find({ active: true })
+        .select('_id')
+        .lean();
+
+      let created = 0;
+      let alreadyExists = 0;
+      let futureScheduled = 0;
+      let notApplicable = 0;
+      let errors = 0;
+
+      for (const series of activeSeries) {
+        const result =
+          await this.recurringActivitySpawnService.ensureNextOccurrenceForSeries(
+            series._id as Types.ObjectId,
+          );
+
+        switch (result.status) {
+          case 'created':
+            created++;
+            break;
+          case 'already_exists':
+            alreadyExists++;
+            break;
+          case 'future_already_scheduled':
+            futureScheduled++;
+            break;
+          case 'not_applicable':
+            notApplicable++;
+            break;
+          case 'error':
+            errors++;
+            this.logger.warn(
+              `Reconcile failed for series ${series._id}: ${result.message}`,
+            );
+            break;
+        }
+      }
+
+      this.logger.log(
+        `Recurring series reconcile finished. active=${activeSeries.length} created=${created} already_exists=${alreadyExists} future_scheduled=${futureScheduled} not_applicable=${notApplicable} errors=${errors}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        'Recurring series reconcile cron failed',
         error instanceof Error ? error.stack : undefined,
       );
     }

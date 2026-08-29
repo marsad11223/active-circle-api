@@ -7,6 +7,7 @@ import {
   Delete,
   UseGuards,
   Put,
+  Patch,
   Query,
   ForbiddenException,
 } from '@nestjs/common';
@@ -18,6 +19,11 @@ import { BrowseActivitiesDto } from './dto/browse-activities.dto';
 import { NearbyActivitiesDto } from './dto/nearby-activities.dto';
 import { HostScheduleQueryDto } from './dto/host-schedule-query.dto';
 import { ReoccurActivityDto } from './dto/reoccur-activity.dto';
+import {
+  ResumeRecurringSeriesDto,
+  StopRecurringSeriesDto,
+  UpdateRecurringSeriesDto,
+} from './dto/recurring-series.dto';
 import {
   AdminListActivitiesDto,
   ActivityStatusFilter,
@@ -99,6 +105,60 @@ export class ActivityController {
     @Query() query: HostScheduleQueryDto,
   ) {
     return this.activityService.getHostSchedule(hostId, query);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('series/:seriesId')
+  getRecurringSeries(
+    @Param('seriesId') seriesId: string,
+    @GetUser() user: AuthUser,
+  ) {
+    return this.activityService.getRecurringSeries(
+      seriesId,
+      user._id.toString(),
+    );
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('series/:seriesId/stop')
+  stopRecurringSeries(
+    @Param('seriesId') seriesId: string,
+    @Body() body: StopRecurringSeriesDto,
+    @GetUser() user: AuthUser,
+  ) {
+    return this.activityService.stopRecurringSeries(
+      seriesId,
+      user._id.toString(),
+      body,
+    );
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('series/:seriesId/resume')
+  resumeRecurringSeries(
+    @Param('seriesId') seriesId: string,
+    @Body() body: ResumeRecurringSeriesDto,
+    @GetUser() user: AuthUser,
+  ) {
+    return this.activityService.resumeRecurringSeries(
+      seriesId,
+      user._id.toString(),
+      body,
+    );
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Patch('series/:seriesId')
+  updateRecurringSeries(
+    @Param('seriesId') seriesId: string,
+    @Body() body: UpdateRecurringSeriesDto,
+    @GetUser() user: AuthUser,
+  ) {
+    return this.activityService.updateRecurringSeries(
+      seriesId,
+      user._id.toString(),
+      body,
+    );
   }
 
   @UseGuards(OptionalJwtAuthGuard)

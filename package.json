@@ -21,7 +21,11 @@
     "schedule:e2e:setup": "bash scripts/host-schedule-e2e.sh setup",
     "schedule:e2e:check": "bash scripts/host-schedule-e2e.sh check",
     "schedule:e2e:cleanup": "bash scripts/host-schedule-e2e.sh cleanup",
-    "schedule:e2e:all": "bash scripts/host-schedule-e2e.sh all"
+    "schedule:e2e:all": "bash scripts/host-schedule-e2e.sh all",
+    "migrate:recurring-series": "ts-node -r tsconfig-paths/register scripts/migrate-recurring-series.ts",
+    "maintain:recurring-series": "ts-node -r tsconfig-paths/register scripts/maintain-recurring-series.ts",
+    "repair:recurring-series": "npm run maintain:recurring-series",
+    "reconcile:recurring-series": "npm run maintain:recurring-series"
   },
   "dependencies": {
     "@apple/app-store-server-library": "^3.1.0",
