@@ -2138,7 +2138,6 @@ export class ActivityService {
       }
 
       const now = new Date();
-      now.setHours(0, 0, 0, 0); // Start of today
 
       const allowedStatuses = new Set<string>([
         ActivityStatus.ACTIVE,
@@ -2154,25 +2153,62 @@ export class ActivityService {
 
       const normalizedStatuses = requestedStatuses
         .map((value) => value.trim())
+        .filter((value) => value)
         .filter(
-          (value) => value && value !== (ActivityStatusFilter.ALL as string),
-        )
-        .filter((value) => allowedStatuses.has(value));
+          (value) =>
+            value === (ActivityStatusFilter.ALL as string) ||
+            allowedStatuses.has(value),
+        );
+
+      const includesAll = normalizedStatuses.includes(
+        ActivityStatusFilter.ALL as string,
+      );
+
+      const buildStatusPastClause = (
+        status: string,
+      ): Record<string, unknown> => {
+        if (status === (ActivityStatus.COMPLETED as string)) {
+          return { status: ActivityStatus.COMPLETED };
+        }
+        return {
+          status,
+          endDateTime: { $lt: now },
+        };
+      };
+
+      let pastCondition: Record<string, unknown>;
+
+      if (normalizedStatuses.length === 0) {
+        pastCondition = { status: ActivityStatus.COMPLETED };
+      } else if (includesAll) {
+        pastCondition = {
+          $or: [
+            { status: ActivityStatus.COMPLETED },
+            {
+              status: {
+                $in: [ActivityStatus.ACTIVE, ActivityStatus.CANCELLED],
+              },
+              endDateTime: { $lt: now },
+            },
+          ],
+        };
+      } else {
+        const statusClauses = normalizedStatuses
+          .filter((status) => status !== (ActivityStatusFilter.ALL as string))
+          .map(buildStatusPastClause);
+        pastCondition =
+          statusClauses.length === 1
+            ? statusClauses[0]
+            : { $or: statusClauses };
+      }
 
       const query: any = {
         hostId: new mongoose.Types.ObjectId(hostId),
         deleted_at: null,
-        date: { $lt: now },
+        ...pastCondition,
       };
 
-      if (normalizedStatuses.length > 0) {
-        query.status =
-          normalizedStatuses.length === 1
-            ? normalizedStatuses[0]
-            : { $in: normalizedStatuses };
-      }
-
-      // Get only activities from before today, with optional status filtering
+      // Default (no status param) = completed only. Use ?status=all for every past session.
       const activities = await this.activityModel
         .find(query)
         .populate('hostId', 'name email profilePhoto')

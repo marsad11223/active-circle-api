@@ -36,9 +36,8 @@ export class RemindersService {
 
   /**
    * Auto-complete past activities so hosts don't need to mark completion manually.
-   * TODO: revert to every 30 minutes before production.
    */
-  @Cron('*/5 * * * *')
+  @Cron('*/20 * * * *')
   async autoCompletePastActivities(): Promise<void> {
     try {
       const nowLondon = DateTime.now().setZone(UK_TZ);
@@ -503,8 +502,8 @@ export class RemindersService {
 
   /**
    * Ensure every active recurring series has its next occurrence spawned.
-   * Safe to run concurrently with completion-triggered spawns (idempotent).
-   * TODO: revert to every 6 hours before production.
+   * Safety net when completion-triggered spawn was missed; also keeps the next
+   * session visible on browse/home without waiting for auto-complete.
    */
   @Cron('*/10 * * * *')
   async reconcileRecurringSeries(): Promise<void> {

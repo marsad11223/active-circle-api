@@ -190,8 +190,7 @@ export class ActivityController {
     @GetUser() user: AuthUser,
     @Query('status') status?: ActivityStatusFilter | ActivityStatusFilter[],
   ) {
-    // Get past activities strictly before today for the current host
-    // Optional status filter can narrow results to active, completed, or cancelled
+    // Default: completed sessions only. Optional ?status= for filters (see ActivityStatusFilter).
     return this.activityService.getPastActivities(user._id.toString(), status);
   }
 
