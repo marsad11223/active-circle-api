@@ -16,9 +16,13 @@ export class EmailService {
     }
     this.resend = new Resend(apiKey);
 
-    // Set default from email (use EMAIL_USERNAME if available, otherwise use a default)
-    const emailUsername = this.configService.get<string>('EMAIL_USERNAME');
-    this.defaultFrom = emailUsername || 'noreply@mail.theactivecircle.com';
+    // Display name in inbox (e.g. "The Active Circle") + verified sender address
+    const emailUsername =
+      this.configService.get<string>('EMAIL_USERNAME') ||
+      'noreply@mail.theactivecircle.com';
+    const fromName =
+      this.configService.get<string>('EMAIL_FROM_NAME') || 'The Active Circle';
+    this.defaultFrom = `${fromName} <${emailUsername}>`;
   }
 
   /**
