@@ -6,6 +6,7 @@ import {
   IsString,
   Max,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -70,10 +71,17 @@ export class UpdateRecurringSeriesDto {
   @IsString()
   difficultyLevel?: string;
 
+  /** When true, the series has no participant cap. `maxParticipants` may be omitted. */
   @IsOptional()
+  @IsBoolean()
+  unlimitedParticipants?: boolean;
+
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
   @IsInt()
   @Min(1)
-  maxParticipants?: number;
+  @Max(1000)
+  maxParticipants?: number | null;
 
   @IsOptional()
   @Min(0)

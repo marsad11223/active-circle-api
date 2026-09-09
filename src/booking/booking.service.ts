@@ -37,6 +37,7 @@ import {
   NotificationEventType,
   buildNotificationData,
 } from 'src/notifications/notification-payload.util';
+import { isUnlimitedCapacity } from 'src/utils/activity-capacity';
 
 @Injectable()
 export class BookingService {
@@ -96,17 +97,19 @@ export class BookingService {
       }
 
       // Check if there are remaining seats available (only count CONFIRMED bookings)
-      const bookedCount = await this.bookingModel.countDocuments({
-        activityId: new mongoose.Types.ObjectId(createBookingDto.activityId),
-        status: BookingStatus.CONFIRMED,
-        deleted_at: null,
-      });
+      if (!isUnlimitedCapacity(activity.maxParticipants)) {
+        const bookedCount = await this.bookingModel.countDocuments({
+          activityId: new mongoose.Types.ObjectId(createBookingDto.activityId),
+          status: BookingStatus.CONFIRMED,
+          deleted_at: null,
+        });
 
-      const remainingSeats = activity.maxParticipants - bookedCount;
-      if (remainingSeats <= 0) {
-        throw new BadRequestException(
-          'No seats available. This activity is fully booked.',
-        );
+        const remainingSeats = activity.maxParticipants - bookedCount;
+        if (remainingSeats <= 0) {
+          throw new BadRequestException(
+            'No seats available. This activity is fully booked.',
+          );
+        }
       }
 
       // 3. Check if member already has a booking for this activity
@@ -495,18 +498,19 @@ export class BookingService {
         throw new NotFoundException('Activity not found');
       }
 
-      // Count current confirmed bookings for this activity
-      const currentConfirmedCount = await this.bookingModel.countDocuments({
-        activityId: new mongoose.Types.ObjectId(activity._id || activity),
-        status: BookingStatus.CONFIRMED,
-        deleted_at: null,
-      });
-
       // Check if accepting this booking would exceed maxParticipants
-      if (currentConfirmedCount >= activity.maxParticipants) {
-        throw new BadRequestException(
-          'Cannot approve booking. Activity is already fully booked.',
-        );
+      if (!isUnlimitedCapacity(activity.maxParticipants)) {
+        const currentConfirmedCount = await this.bookingModel.countDocuments({
+          activityId: new mongoose.Types.ObjectId(activity._id || activity),
+          status: BookingStatus.CONFIRMED,
+          deleted_at: null,
+        });
+
+        if (currentConfirmedCount >= activity.maxParticipants) {
+          throw new BadRequestException(
+            'Cannot approve booking. Activity is already fully booked.',
+          );
+        }
       }
 
       // If paid activity, capture the payment (release from escrow)
@@ -1926,7 +1930,8 @@ export class BookingService {
     totalAttendees: number;
     confirmed: number;
     pending: number;
-    maxParticipants: number;
+    maxParticipants: number | null;
+    unlimitedParticipants: boolean;
     members: any[];
   }> {
     try {
@@ -2012,6 +2017,7 @@ export class BookingService {
         confirmed: confirmedCount,
         pending: pendingCount,
         maxParticipants: activity.maxParticipants,
+        unlimitedParticipants: isUnlimitedCapacity(activity.maxParticipants),
         members: members,
       };
     } catch (err) {
@@ -2285,7 +2291,7 @@ export class BookingService {
             endDateTime: activity?.endDateTime || null,
             picture: activity?.picture || null,
             category: activity?.category || [],
-            maxParticipants: activity?.maxParticipants || 0,
+            maxParticipants: activity?.maxParticipants ?? null,
             price: activity?.price || 0,
             status: activity?.status || null,
           },

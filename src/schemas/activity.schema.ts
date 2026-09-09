@@ -58,8 +58,18 @@ export class Activity extends Document {
   @Prop({ required: true })
   date: Date; // Activity date
 
-  @Prop({ required: true, min: 1 })
-  maxParticipants: number; // Maximum number of participants
+  /** Maximum number of participants. Null means unlimited. */
+  @Prop({
+    type: Number,
+    required: false,
+    default: null,
+    validate: {
+      validator: (value: number | null) =>
+        value == null || (Number.isFinite(value) && value >= 1),
+      message: 'maxParticipants must be at least 1, or null for unlimited',
+    },
+  })
+  maxParticipants: number | null;
 
   @Prop({ required: false, default: 0 })
   price?: number; // Price (0 or empty means free)

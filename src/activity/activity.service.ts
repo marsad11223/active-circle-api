@@ -74,6 +74,10 @@ import {
   ResumeRecurringSeriesDto,
   UpdateRecurringSeriesDto,
 } from './dto/recurring-series.dto';
+import {
+  bookingCapacityInfo,
+  resolveMaxParticipants,
+} from 'src/utils/activity-capacity';
 
 type ScheduleHour = {
   hour: number;
@@ -286,7 +290,7 @@ export class ActivityService {
           location: createActivityDto.location,
           coordinates: createActivityDto.coordinates,
           difficultyLevel: createActivityDto.difficultyLevel,
-          maxParticipants: createActivityDto.maxParticipants,
+          maxParticipants: resolveMaxParticipants(createActivityDto, 'create'),
           price: createActivityDto.price ?? 0,
           additionalInformation: createActivityDto.additionalInformation,
           picture: primaryPicture,
@@ -317,14 +321,20 @@ export class ActivityService {
         return createdOccurrence;
       }
 
+      const {
+        unlimitedParticipants: _unlimitedParticipants,
+        ...activityFields
+      } = createActivityDto;
+
       const newActivity = await this.activityModel.create({
-        ...createActivityDto,
+        ...activityFields,
         hostId: new mongoose.Types.ObjectId(hostId),
         startDateTime,
         endDateTime,
         date: startDateTime,
         picture: primaryPicture,
         pictures,
+        maxParticipants: resolveMaxParticipants(createActivityDto, 'create'),
         price: createActivityDto.price ?? 0, // Default to 0 if not provided
         recurring: RecurringType.ONE_TIME,
         status: ActivityStatus.ACTIVE, // New activities are active by default
@@ -505,10 +515,6 @@ export class ActivityService {
       };
 
       const bookedCount = bookingCountsMap.get(activityId) || 0;
-      const remainingSeats = Math.max(
-        0,
-        activity.maxParticipants - bookedCount,
-      );
 
       return {
         ...activityObj,
@@ -516,11 +522,7 @@ export class ActivityService {
           averageRating: ratingInfo.averageRating,
           totalReviews: ratingInfo.totalReviews,
         },
-        bookingInfo: {
-          bookedCount: bookedCount,
-          remainingSeats: remainingSeats,
-          maxParticipants: activity.maxParticipants,
-        },
+        bookingInfo: bookingCapacityInfo(activity.maxParticipants, bookedCount),
       };
     });
   }
@@ -565,8 +567,6 @@ export class ActivityService {
       deleted_at: null,
     });
 
-    const remainingSeats = Math.max(0, activity.maxParticipants - bookedCount);
-
     return {
       ...activityObj,
       rating: {
@@ -597,11 +597,7 @@ export class ActivityService {
           };
         }),
       },
-      bookingInfo: {
-        bookedCount: bookedCount,
-        remainingSeats: remainingSeats,
-        maxParticipants: activity.maxParticipants,
-      },
+      bookingInfo: bookingCapacityInfo(activity.maxParticipants, bookedCount),
     };
   }
 
@@ -753,11 +749,9 @@ export class ActivityService {
             bookingStatus: memberBookingStatus.bookingStatus,
             bookingId: memberBookingStatus.bookingId,
             // Explicitly preserve bookingInfo if it exists
-            bookingInfo: activity.bookingInfo || {
-              bookedCount: 0,
-              remainingSeats: activity.maxParticipants || 0,
-              maxParticipants: activity.maxParticipants || 0,
-            },
+            bookingInfo:
+              activity.bookingInfo ||
+              bookingCapacityInfo(activity.maxParticipants, 0),
           };
         });
       } else {
@@ -1146,10 +1140,23 @@ export class ActivityService {
         );
       }
 
+      const {
+        unlimitedParticipants: _unlimitedParticipants,
+        ...activityFields
+      } = updateActivityDto;
+
       const updateData: any = {
-        ...updateActivityDto,
+        ...activityFields,
         updated_at: new Date(),
       };
+
+      const resolvedMaxParticipants = resolveMaxParticipants(
+        updateActivityDto,
+        'update',
+      );
+      if (resolvedMaxParticipants !== undefined) {
+        updateData.maxParticipants = resolvedMaxParticipants;
+      }
 
       if (updateActivityDto.startDateTime) {
         const startDateTime = new Date(updateActivityDto.startDateTime);
@@ -1581,8 +1588,9 @@ export class ActivityService {
     if (dto.difficultyLevel !== undefined) {
       update.difficultyLevel = dto.difficultyLevel;
     }
-    if (dto.maxParticipants !== undefined) {
-      update.maxParticipants = dto.maxParticipants;
+    const resolvedMaxParticipants = resolveMaxParticipants(dto, 'update');
+    if (resolvedMaxParticipants !== undefined) {
+      update.maxParticipants = resolvedMaxParticipants;
     }
     if (dto.price !== undefined) update.price = dto.price;
     if (dto.additionalInformation !== undefined) {

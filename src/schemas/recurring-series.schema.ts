@@ -77,8 +77,18 @@ export class RecurringSeries extends Document {
   @Prop({ required: false })
   difficultyLevel?: string;
 
-  @Prop({ required: true, min: 1 })
-  maxParticipants: number;
+  /** Maximum number of participants. Null means unlimited. */
+  @Prop({
+    type: Number,
+    required: false,
+    default: null,
+    validate: {
+      validator: (value: number | null) =>
+        value == null || (Number.isFinite(value) && value >= 1),
+      message: 'maxParticipants must be at least 1, or null for unlimited',
+    },
+  })
+  maxParticipants: number | null;
 
   @Prop({ required: false, default: 0 })
   price?: number;

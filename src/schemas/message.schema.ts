@@ -11,6 +11,7 @@ export enum BroadcastType {
   REMINDER = 'reminder',
   EVENT_CANCEL = 'event_cancel',
   GENERAL_INFO = 'general_info',
+  WEATHER = 'weather',
 }
 
 @Schema()

@@ -5,8 +5,10 @@ import {
   IsOptional,
   IsEnum,
   IsArray,
+  IsBoolean,
   Min,
   Max,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { RecurringType } from 'src/schemas/activity.schema';
@@ -64,11 +66,23 @@ export class CreateActivityDto {
   /** IANA zone used to derive recurring scheduleRule from the first occurrence (e.g. Asia/Karachi). Send the user's local timezone. */
   timezone?: string;
 
+  /** When true, the activity has no participant cap. `maxParticipants` may be omitted. */
+  @IsOptional()
+  @IsBoolean()
+  unlimitedParticipants?: boolean;
+
+  /**
+   * Maximum number of participants (1–1000).
+   * Omit or send null together with `unlimitedParticipants: true` for unlimited.
+   */
+  @ValidateIf(
+    (o) => o.unlimitedParticipants !== true && o.maxParticipants !== null,
+  )
   @IsNotEmpty()
   @IsNumber()
   @Min(1)
   @Max(1000)
-  maxParticipants!: number;
+  maxParticipants?: number | null;
 
   @IsOptional()
   @IsNumber()
