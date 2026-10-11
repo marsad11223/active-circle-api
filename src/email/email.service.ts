@@ -69,7 +69,22 @@ export class EmailService {
           : {}),
       });
 
-      console.log('[Resend] Email sent successfully to:', options.to);
+      if (result.error) {
+        console.error('[Resend] rejected', {
+          to: options.to,
+          subject: options.subject,
+          statusCode: result.error.statusCode,
+          name: result.error.name,
+          message: result.error.message,
+        });
+        throw new Error(result.error.message || 'Resend rejected the email');
+      }
+
+      console.log('[Resend] accepted', {
+        to: options.to,
+        subject: options.subject,
+        id: result.data?.id ?? null,
+      });
       return result;
     } catch (error: any) {
       console.error('[Resend] Error sending email:', error);

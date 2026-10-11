@@ -98,6 +98,9 @@ export class AuthService {
       const emailsEnabled =
         this.configService.get<string>('EMAILS_ENABLED') === 'true';
       if (emailsEnabled && !skipEmailVerification) {
+        console.log('[REGISTER] sending verification email', {
+          email: newUser.email,
+        });
         setImmediate(() => {
           const html = emailVerificationOtp({
             recipientName: newUser.name,
@@ -110,12 +113,24 @@ export class AuthService {
               subject: 'Verify your email – Active Circle',
               html,
             })
-            .then(() => {
-              console.log('[REGISTER] OTP email sent to:', newUser.email);
+            .then((result) => {
+              console.log('[REGISTER] verification email response', {
+                email: newUser.email,
+                id: result?.data?.id ?? null,
+              });
             })
             .catch((err) => {
-              console.error('[REGISTER] OTP email failed:', err.message);
+              console.error('[REGISTER] verification email failed', {
+                email: newUser.email,
+                message: err.message,
+              });
             });
+        });
+      } else {
+        console.log('[REGISTER] verification email skipped', {
+          email: newUser.email,
+          emailsEnabled,
+          skipEmailVerification,
         });
       }
 
@@ -224,24 +239,24 @@ export class AuthService {
     };
   }
 
-  async resendVerificationOtp(email: string) {
-    const emailNormalized = normalizeEmail(email);
-    const user = await this.userModel.findOne({ email: emailNormalized });
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-    if ((user as any).emailVerified) {
-      throw new BadRequestException(
-        'Email is already verified. You can log in.',
-      );
-    }
-    const lastSent = (user as any).verificationOtpLastSentAt;
+  /**
+   * Creates a new OTP and emails it. Within the cooldown window the previous
+   * code stays valid and nothing new is sent.
+   */
+  private async issueVerificationOtp(user: {
+    _id: unknown;
+    email: string;
+    name?: string;
+    verificationOtpLastSentAt?: Date;
+  }): Promise<{ sent: boolean; retryAfterSeconds?: number; id?: string | null }> {
+    const lastSent = user.verificationOtpLastSentAt;
     if (lastSent) {
       const elapsed = (Date.now() - new Date(lastSent).getTime()) / 1000;
       if (elapsed < this.RESEND_COOLDOWN_SECONDS) {
-        throw new BadRequestException(
-          `Please wait ${Math.ceil(this.RESEND_COOLDOWN_SECONDS - elapsed)} seconds before requesting a new code.`,
-        );
+        return {
+          sent: false,
+          retryAfterSeconds: Math.ceil(this.RESEND_COOLDOWN_SECONDS - elapsed),
+        };
       }
     }
 
@@ -261,17 +276,59 @@ export class AuthService {
 
     const emailsEnabled =
       this.configService.get<string>('EMAILS_ENABLED') === 'true';
-    if (emailsEnabled) {
-      const html = emailVerificationOtp({
-        recipientName: (user as any).name,
-        otp,
-        expiresInMinutes: this.OTP_EXPIRY_MINUTES,
+    if (!emailsEnabled) {
+      console.log('[VERIFY-EMAIL] skipped because EMAILS_ENABLED is not true', {
+        email: user.email,
       });
-      await this.emailService.sendMail({
-        to: user.email,
-        subject: 'Verify your email – Active Circle',
-        html,
+      return { sent: false };
+    }
+
+    const html = emailVerificationOtp({
+      recipientName: user.name || '',
+      otp,
+      expiresInMinutes: this.OTP_EXPIRY_MINUTES,
+    });
+    const result = await this.emailService.sendMail({
+      to: user.email,
+      subject: 'Verify your email – Active Circle',
+      html,
+    });
+    console.log('[VERIFY-EMAIL] verification email response', {
+      email: user.email,
+      id: result?.data?.id ?? null,
+    });
+    return { sent: true, id: result?.data?.id ?? null };
+  }
+
+  async resendVerificationOtp(email: string) {
+    const emailNormalized = normalizeEmail(email);
+    const user = await this.userModel.findOne({ email: emailNormalized });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    if ((user as any).emailVerified) {
+      throw new BadRequestException(
+        'Email is already verified. You can log in.',
+      );
+    }
+
+    console.log('[RESEND-OTP] verification email', { email: user.email });
+    try {
+      const result = await this.issueVerificationOtp(user);
+      if (!result.sent && result.retryAfterSeconds) {
+        throw new BadRequestException(
+          `Please wait ${result.retryAfterSeconds} seconds before requesting a new code.`,
+        );
+      }
+    } catch (err) {
+      if (err instanceof BadRequestException) {
+        throw err;
+      }
+      console.error('[RESEND-OTP] verification email failed', {
+        email: user.email,
+        message: (err as Error).message,
       });
+      throw err;
     }
 
     return { message: 'Verification code sent. Check your email.' };
@@ -295,10 +352,27 @@ export class AuthService {
       const skipEmailVerification =
         this.configService.get<string>('SKIP_EMAIL_VERIFICATION') === 'true';
       if (!skipEmailVerification && (user as any).emailVerified === false) {
+        let verificationEmailSent = false;
+        try {
+          const result = await this.issueVerificationOtp(user);
+          verificationEmailSent = result.sent;
+          console.log('[LOGIN] verification email', {
+            email: user.email,
+            sent: result.sent,
+            retryAfterSeconds: result.retryAfterSeconds ?? null,
+            id: result.id ?? null,
+          });
+        } catch (err) {
+          console.error('[LOGIN] verification email failed', {
+            email: user.email,
+            message: (err as Error).message,
+          });
+        }
         throw new ForbiddenException({
           message: 'Please verify your email before logging in.',
           code: 'EMAIL_NOT_VERIFIED',
           email: user.email,
+          verificationEmailSent,
         });
       }
 

@@ -93,8 +93,8 @@ export class RecurringSeriesMaintenanceService {
 
   private async clearStaleSeriesLinks(): Promise<number> {
     const validSeriesIds = new Set(
-      (await this.recurringSeriesModel.find({}).select('_id').lean()).map(
-        (s) => (s._id as Types.ObjectId).toString(),
+      (await this.recurringSeriesModel.find({}).select('_id').lean()).map((s) =>
+        (s._id as Types.ObjectId).toString(),
       ),
     );
 
@@ -131,7 +131,7 @@ export class RecurringSeriesMaintenanceService {
     originalActivityId?: Types.ObjectId | null;
   }): string {
     if (activity.originalActivityId) {
-      return (activity.originalActivityId as Types.ObjectId).toString();
+      return activity.originalActivityId.toString();
     }
 
     // Spawned occurrences without originalActivityId belong to the same series
@@ -176,8 +176,18 @@ export class RecurringSeriesMaintenanceService {
       const canonicalId = canonical._id as Types.ObjectId;
 
       for (const duplicate of duplicates) {
+        const duplicateActivities = await this.activityModel
+          .find({ seriesId: duplicate._id, deleted_at: null })
+          .select('_id')
+          .lean();
+
+        await this.assignActivitiesToSeries(
+          duplicateActivities.map((activity) => activity._id as Types.ObjectId),
+          canonicalId,
+        );
+        // Soft-deleted rows are outside the unique index, so they can move too.
         await this.activityModel.updateMany(
-          { seriesId: duplicate._id, deleted_at: null },
+          { seriesId: duplicate._id },
           { $set: { seriesId: canonicalId } },
         );
         await this.recurringSeriesModel.deleteOne({ _id: duplicate._id });
@@ -277,10 +287,11 @@ export class RecurringSeriesMaintenanceService {
     for (const activity of recurringActivities) {
       const chainKey = this.legacyChainKey({
         _id: activity._id,
-        hostId: activity.hostId as Types.ObjectId,
+        hostId: activity.hostId,
         title: activity.title,
-        recurring: activity.recurring as RecurringType,
-        originalActivityId: activity.originalActivityId as Types.ObjectId | null,
+        recurring: activity.recurring,
+        originalActivityId:
+          activity.originalActivityId as Types.ObjectId | null,
       });
 
       const bucket = chains.get(chainKey) ?? [];
@@ -293,8 +304,8 @@ export class RecurringSeriesMaintenanceService {
         ? new Types.ObjectId(chainKey)
         : ([...members].sort(
             (a, b) =>
-              new Date(a.startDateTime as Date).getTime() -
-              new Date(b.startDateTime as Date).getTime(),
+              new Date(a.startDateTime).getTime() -
+              new Date(b.startDateTime).getTime(),
           )[0]._id as Types.ObjectId);
 
       const existingSeries = await this.recurringSeriesModel
@@ -311,24 +322,22 @@ export class RecurringSeriesMaintenanceService {
         .lean();
 
       if (existingSeries) {
-        await this.activityModel.updateMany(
-          {
-            deleted_at: null,
-            _id: { $in: members.map((m) => m._id) },
-          },
-          { $set: { seriesId: existingSeries._id } },
+        await this.assignActivitiesToSeries(
+          members.map((member) => member._id as Types.ObjectId),
+          existingSeries._id as Types.ObjectId,
         );
         continue;
       }
 
       const root =
         members.find(
-          (m) => (m._id as Types.ObjectId).toString() === rootCandidateId.toString(),
+          (m) =>
+            (m._id as Types.ObjectId).toString() === rootCandidateId.toString(),
         ) ??
         [...members].sort(
           (a, b) =>
-            new Date(a.startDateTime as Date).getTime() -
-            new Date(b.startDateTime as Date).getTime(),
+            new Date(a.startDateTime).getTime() -
+            new Date(b.startDateTime).getTime(),
         )[0];
 
       if (!root?.startDateTime || !root.endDateTime) {
@@ -342,7 +351,7 @@ export class RecurringSeriesMaintenanceService {
         const scheduleRule = deriveScheduleRuleFromOccurrence(
           new Date(root.startDateTime),
           new Date(root.endDateTime),
-          root.recurring as RecurringType,
+          root.recurring,
           UK_TZ,
         );
 
@@ -358,10 +367,12 @@ export class RecurringSeriesMaintenanceService {
         const startTimes = chainActivities
           .map((a) => a.startDateTime)
           .filter(Boolean)
-          .map((d) => new Date(d as Date).getTime());
+          .map((d) => new Date(d).getTime());
 
         if (startTimes.length === 0) {
-          summary.failures.push(`migrate: chain ${chainKey} has no start times`);
+          summary.failures.push(
+            `migrate: chain ${chainKey} has no start times`,
+          );
           continue;
         }
 
@@ -393,16 +404,13 @@ export class RecurringSeriesMaintenanceService {
           migratedFromRootActivityId: rootCandidateId,
         });
 
-        const linked = await this.activityModel.updateMany(
-          {
-            deleted_at: null,
-            _id: { $in: memberIds },
-          },
-          { $set: { seriesId: series._id } },
+        const linkedCount = await this.assignActivitiesToSeries(
+          memberIds,
+          series._id as Types.ObjectId,
         );
 
         summary.migratedSeries++;
-        summary.activitiesLinked += linked.modifiedCount;
+        summary.activitiesLinked += linkedCount;
       } catch (error) {
         summary.failures.push(
           `migrate: chain ${chainKey}: ${
@@ -434,14 +442,13 @@ export class RecurringSeriesMaintenanceService {
     for (const orphan of orphans) {
       if (orphan.originalActivityId) {
         const linkedSeriesId = await this.findSeriesIdForLegacyChain(
-          orphan.originalActivityId as Types.ObjectId,
+          orphan.originalActivityId,
         );
         if (linkedSeriesId) {
-          await this.activityModel.updateOne(
-            { _id: orphan._id },
-            { $set: { seriesId: linkedSeriesId } },
+          summary.activitiesLinked += await this.assignActivitiesToSeries(
+            [orphan._id as Types.ObjectId],
+            linkedSeriesId,
           );
-          summary.activitiesLinked++;
           continue;
         }
       }
@@ -454,11 +461,10 @@ export class RecurringSeriesMaintenanceService {
         })
         .lean();
       if (matchingSeries) {
-        await this.activityModel.updateOne(
-          { _id: orphan._id },
-          { $set: { seriesId: matchingSeries._id } },
+        summary.activitiesLinked += await this.assignActivitiesToSeries(
+          [orphan._id as Types.ObjectId],
+          matchingSeries._id as Types.ObjectId,
         );
-        summary.activitiesLinked++;
         continue;
       }
 
@@ -473,7 +479,7 @@ export class RecurringSeriesMaintenanceService {
         const scheduleRule = deriveScheduleRuleFromOccurrence(
           new Date(orphan.startDateTime),
           new Date(orphan.endDateTime),
-          orphan.recurring as RecurringType,
+          orphan.recurring,
           UK_TZ,
         );
 
@@ -495,15 +501,16 @@ export class RecurringSeriesMaintenanceService {
           price: orphan.price ?? 0,
           additionalInformation: orphan.additionalInformation,
           picture: orphan.picture,
-          pictures: orphan.pictures?.length ? orphan.pictures : [orphan.picture],
+          pictures: orphan.pictures?.length
+            ? orphan.pictures
+            : [orphan.picture],
           migratedFromRootActivityId:
-            (orphan.originalActivityId as Types.ObjectId | undefined) ??
-            (orphan._id as Types.ObjectId),
+            orphan.originalActivityId ?? (orphan._id as Types.ObjectId),
         });
 
-        await this.activityModel.updateOne(
-          { _id: orphan._id },
-          { $set: { seriesId: series._id } },
+        await this.assignActivitiesToSeries(
+          [orphan._id as Types.ObjectId],
+          series._id as Types.ObjectId,
         );
         summary.orphanSeriesCreated++;
         summary.activitiesLinked++;
@@ -525,7 +532,7 @@ export class RecurringSeriesMaintenanceService {
       .select('seriesId')
       .lean();
     if (root?.seriesId) {
-      return root.seriesId as Types.ObjectId;
+      return root.seriesId;
     }
 
     const chainMate = await this.activityModel
@@ -537,7 +544,7 @@ export class RecurringSeriesMaintenanceService {
       .select('seriesId')
       .lean();
 
-    return (chainMate?.seriesId as Types.ObjectId | undefined) ?? null;
+    return chainMate?.seriesId ?? null;
   }
 
   async syncSeriesAnchors(): Promise<number> {
@@ -641,6 +648,74 @@ export class RecurringSeriesMaintenanceService {
     }
 
     return removed;
+  }
+
+  /**
+   * Point these activities at a series. When two live activities share a start
+   * time, keep the one with bookings and soft-delete the other first so the
+   * unique seriesId + startDateTime index is not violated.
+   */
+  private async assignActivitiesToSeries(
+    activityIds: Types.ObjectId[],
+    targetSeriesId: Types.ObjectId,
+  ): Promise<number> {
+    if (activityIds.length === 0) {
+      return 0;
+    }
+
+    const incoming = await this.activityModel
+      .find({ _id: { $in: activityIds }, deleted_at: null })
+      .select('_id startDateTime status created_at')
+      .lean();
+
+    const alreadyOnSeries = await this.activityModel
+      .find({
+        seriesId: targetSeriesId,
+        deleted_at: null,
+        _id: { $nin: activityIds },
+      })
+      .select('_id startDateTime status created_at')
+      .lean();
+
+    const byStart = new Map<string, ActivityLean[]>();
+    for (const activity of [...alreadyOnSeries, ...incoming]) {
+      const startKey = activity.startDateTime
+        ? new Date(activity.startDateTime).toISOString()
+        : `missing:${activity._id.toString()}`;
+      const bucket = byStart.get(startKey) ?? [];
+      bucket.push({
+        _id: activity._id as Types.ObjectId,
+        startDateTime: activity.startDateTime as Date | undefined,
+        status: activity.status as ActivityStatus | undefined,
+        created_at: activity.created_at as Date | undefined,
+      });
+      byStart.set(startKey, bucket);
+    }
+
+    const now = new Date();
+    for (const group of byStart.values()) {
+      if (group.length <= 1) {
+        continue;
+      }
+
+      const keeper = await this.pickOccurrenceToKeep(group);
+      const keeperId = keeper._id.toString();
+      for (const duplicate of group) {
+        if (duplicate._id.toString() === keeperId) {
+          continue;
+        }
+        await this.activityModel.updateOne(
+          { _id: duplicate._id, deleted_at: null },
+          { $set: { deleted_at: now, updated_at: now } },
+        );
+      }
+    }
+
+    const result = await this.activityModel.updateMany(
+      { _id: { $in: activityIds }, deleted_at: null },
+      { $set: { seriesId: targetSeriesId } },
+    );
+    return result.modifiedCount;
   }
 
   private async pickOccurrenceToKeep(

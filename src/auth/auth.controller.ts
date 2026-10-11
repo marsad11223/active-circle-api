@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Logger, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
 import { AuthService } from './auth.service';
@@ -11,21 +11,38 @@ import { GetUser } from './GetUser.Decorator';
 
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(private authService: AuthService) {}
 
   @Post('signup')
   async register(@Body() createUserDto: CreateUserDto): Promise<any> {
-    return await this.authService.register(createUserDto);
+    this.logger.log(`POST /auth/signup hit email=${createUserDto.email}`);
+    const response = await this.authService.register(createUserDto);
+    this.logger.log(
+      `POST /auth/signup response email=${response?.email} requiresEmailVerification=${response?.requiresEmailVerification}`,
+    );
+    return response;
   }
 
   @Post('verify-email')
   async verifyEmail(@Body() dto: VerifyEmailDto): Promise<any> {
-    return await this.authService.verifyEmail(dto.email, dto.otp);
+    this.logger.log(`POST /auth/verify-email hit email=${dto.email}`);
+    const response = await this.authService.verifyEmail(dto.email, dto.otp);
+    this.logger.log(
+      `POST /auth/verify-email response email=${response?.data?.email} hasAccessToken=${Boolean(response?.accessToken)}`,
+    );
+    return response;
   }
 
   @Post('resend-email-otp')
   async resendEmailOtp(@Body() dto: ResendOtpDto): Promise<{ message: string }> {
-    return await this.authService.resendVerificationOtp(dto.email);
+    this.logger.log(`POST /auth/resend-email-otp hit email=${dto.email}`);
+    const response = await this.authService.resendVerificationOtp(dto.email);
+    this.logger.log(
+      `POST /auth/resend-email-otp response ${JSON.stringify(response)}`,
+    );
+    return response;
   }
 
   @Post('login')
