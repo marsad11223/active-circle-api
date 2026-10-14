@@ -100,7 +100,9 @@ export class PayoutService {
     const completedBookings = await this.bookingModel
       .find({
         hostId: new mongoose.Types.ObjectId(hostId),
-        status: BookingStatus.CONFIRMED,
+        // Late member cancellations stay paid, so the host still earns the
+        // activity price. Refunded cancellations are excluded by paymentStatus.
+        status: { $in: [BookingStatus.CONFIRMED, BookingStatus.CANCELLED] },
         paymentStatus: { $in: [PaymentStatus.PAID, PaymentStatus.TRANSFERRED] },
         deleted_at: null,
       })
@@ -165,10 +167,10 @@ export class PayoutService {
   }> {
     const skip = (page - 1) * limit;
 
-    // Get all bookings that generated earnings (only for completed activities)
+    // Confirmed bookings and late cancellations that were not refunded.
     const query = {
       hostId: new mongoose.Types.ObjectId(hostId),
-      status: BookingStatus.CONFIRMED,
+      status: { $in: [BookingStatus.CONFIRMED, BookingStatus.CANCELLED] },
       paymentStatus: { $in: [PaymentStatus.PAID, PaymentStatus.TRANSFERRED] },
       deleted_at: null,
     };

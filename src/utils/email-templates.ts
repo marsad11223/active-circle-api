@@ -378,6 +378,7 @@ export function bookingCancelledFreeToMember(data: {
 
 /**
  * Booking Cancelled with Refund (to Member)
+ * Monetary amounts are in pence.
  */
 export function bookingCancelledWithRefundToMember(data: {
   memberName: string;
@@ -385,8 +386,10 @@ export function bookingCancelledWithRefundToMember(data: {
   activityTitle: string;
   cancelReason?: string;
   originalAmount: number;
+  activityAmount: number;
+  serviceFee: number;
+  transactionFee: number;
   refundAmount: number;
-  refundPercentage: number;
   refundId: string;
 }): string {
   const {
@@ -395,25 +398,54 @@ export function bookingCancelledWithRefundToMember(data: {
     activityTitle,
     cancelReason,
     originalAmount,
+    activityAmount,
+    serviceFee,
+    transactionFee,
     refundAmount,
-    refundPercentage,
     refundId,
   } = data;
+  const formatPounds = (pence: number) => `£${(pence / 100).toFixed(2)}`;
   const body = `
     <p style="color: #374151; font-size: 16px; margin: 0 0 12px 0;">Hello ${memberName || memberEmail},</p>
     <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 12px 0;">
-      Your booking for <strong>${activityTitle}</strong> has been cancelled.
+      Your booking for <strong>${activityTitle}</strong> has been cancelled more than 24 hours before the activity.
     </p>
     ${emailReasonBlock(cancelReason)}
     <div style="background-color: #f9fafb; border-radius: 6px; padding: 16px; margin: 16px 0;">
       <p style="color: #1a365d; font-size: 16px; font-weight: bold; margin: 0 0 8px 0;">Refund Details</p>
-      <p style="color: #333; font-size: 14px; margin: 0 0 4px 0;">Original Amount: £${originalAmount}</p>
-      <p style="color: #333; font-size: 14px; margin: 0 0 4px 0;">Refund Amount: £${(refundAmount / 100).toFixed(2)} (${refundPercentage}%)</p>
+      <p style="color: #333; font-size: 14px; margin: 0 0 4px 0;">Original Amount: ${formatPounds(originalAmount)}</p>
+      <p style="color: #333; font-size: 14px; margin: 0 0 4px 0;">Activity price refunded: ${formatPounds(activityAmount)}</p>
+      <p style="color: #333; font-size: 14px; margin: 0 0 4px 0;">Service fee refunded: ${formatPounds(serviceFee)}</p>
+      <p style="color: #333; font-size: 14px; margin: 0 0 4px 0;">Transaction fee (non-refundable): ${formatPounds(transactionFee)}</p>
+      <p style="color: #333; font-size: 14px; margin: 0 0 4px 0;">Refund Amount: ${formatPounds(refundAmount)}</p>
       <p style="color: #6b7280; font-size: 13px; margin: 8px 0 0 0;">Refund ID: ${refundId}</p>
     </div>
-    <p style="color: #6b7280; font-size: 14px; margin: 0;">Refund will be processed to your original payment method within 5-10 business days.</p>
+    <p style="color: #6b7280; font-size: 14px; margin: 0;">The activity price and service fee will be returned to your original payment method within 5-10 business days. The third-party payment fee is not refundable.</p>
   `;
   return wrapEmailTemplate('Booking Cancelled — Refund Issued', body);
+}
+
+/**
+ * Booking Cancelled within 24 hours (to Member, no refund)
+ */
+export function bookingCancelledNoRefundToMember(data: {
+  memberName: string;
+  memberEmail: string;
+  activityTitle: string;
+  cancelReason?: string;
+}): string {
+  const { memberName, memberEmail, activityTitle, cancelReason } = data;
+  const body = `
+    <p style="color: #374151; font-size: 16px; margin: 0 0 12px 0;">Hello ${memberName || memberEmail},</p>
+    <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 12px 0;">
+      Your booking for <strong>${activityTitle}</strong> has been cancelled within 24 hours of the activity.
+    </p>
+    ${emailReasonBlock(cancelReason)}
+    <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0;">
+      No refund will be issued. The activity price, service fee, and transaction fee are not refundable.
+    </p>
+  `;
+  return wrapEmailTemplate('Booking Cancelled — No Refund', body);
 }
 
 // ─── MESSAGE TEMPLATES ───────────────────────────────────────────

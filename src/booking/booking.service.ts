@@ -30,6 +30,7 @@ import {
   bookingConfirmedToMember,
   bookingDeclinedToMember,
   bookingCancelledFreeToMember,
+  bookingCancelledNoRefundToMember,
   bookingCancelledWithRefundToMember,
 } from 'src/utils/email-templates';
 import { NotificationsService } from 'src/notifications/notifications.service';
@@ -1349,7 +1350,7 @@ export class BookingService {
         return booking;
       }
 
-      // Now handle refunds for confirmed bookings
+      // Confirmed paid bookings follow the member cancellation policy.
       if (!booking.paymentIntentId) {
         throw new BadRequestException(
           'Payment information not found for this booking',
@@ -1361,15 +1362,19 @@ export class BookingService {
         throw new BadRequestException('This booking has already been refunded');
       }
 
-      let refundAmount: number;
-      let refundPercentage: number;
       const activityAmountPence = Math.round(Number(booking.amount) * 100);
+      const platformFeePence = Math.round(
+        Number(booking.platformFee || 0) * 100,
+      );
+      const stripeFeePence = Math.round(Number(booking.stripeFee || 0) * 100);
       const totalAmountPaidPence = Math.round(
         Number(booking.totalAmountPaid) * 100,
       );
 
       if (
         !Number.isFinite(activityAmountPence) ||
+        !Number.isFinite(platformFeePence) ||
+        !Number.isFinite(stripeFeePence) ||
         !Number.isFinite(totalAmountPaidPence) ||
         activityAmountPence <= 0 ||
         totalAmountPaidPence <= 0
@@ -1379,50 +1384,88 @@ export class BookingService {
         );
       }
 
-      if (hoursUntilEvent > 48) {
-        // More than 48 hours:
-        // Refund everything the member paid, including platform and
-        // processing fees. The platform absorbs Stripe's unrecoverable fee.
-        refundAmount = totalAmountPaidPence;
-        refundPercentage = 100;
-      } else if (hoursUntilEvent >= 24) {
-        // 24-48 hours:
-        // Refund exactly half of the session price. Platform and Stripe fees
-        // are not returned; the host remains entitled to the other half.
-        refundAmount = Math.round(activityAmountPence * 0.5);
-        refundPercentage = 50;
-      } else {
-        // Less than 24 hours: no refund
-        throw new BadRequestException(
-          'Cancellation is not allowed less than 24 hours before the event. No refund will be issued.',
+      const bookingDocId = (booking._id as any).toString();
+      const hostId = (booking.hostId as any)._id
+        ? (booking.hostId as any)._id.toString()
+        : (booking.hostId as any).toString();
+      const emailsEnabled =
+        this.configService.get<string>('EMAILS_ENABLED') === 'true';
+
+      // Within 24 hours: cancel with no refund. The host still receives the
+      // activity price because the payment stays paid.
+      if (hoursUntilEvent <= 24) {
+        booking.status = BookingStatus.CANCELLED;
+        booking.declineReason =
+          cancelReason ||
+          'Cancelled by member within 24 hours of the activity. No refund issued.';
+        booking.updated_at = new Date();
+        await booking.save();
+
+        const member = await this.userModel.findById(memberId);
+        if (member && emailsEnabled) {
+          try {
+            await this.emailService.sendMail({
+              to: member.email,
+              subject: 'Booking Cancelled - No Refund',
+              html: bookingCancelledNoRefundToMember({
+                memberName: member.name,
+                memberEmail: member.email,
+                activityTitle: activity.title,
+                cancelReason: cancelReason,
+              }),
+            });
+          } catch (emailError: any) {
+            console.error('Error sending cancellation email:', emailError);
+          }
+        }
+
+        await this.sendPushSafely(
+          hostId,
+          'Booking Cancelled',
+          'A member cancelled a confirmed booking within 24 hours. No refund was issued.',
+          'booking_declined',
+          '/(host)/bookings',
+          bookingDocId,
+          {
+            id: bookingDocId,
+            bookingId: bookingDocId,
+            activityId: activity._id?.toString?.() || '',
+          },
         );
+
+        return booking;
       }
 
-      // If booking was pending (authorized but not captured) and member withdraws,
-      // cancelling the payment intent will release the authorization (similar to host decline)
-      // Process Stripe refund / cancellation
+      // More than 24 hours: refund the activity price and service fee.
+      // The Stripe transaction fee stays with the payment processor.
+      const refundAmount = Math.min(
+        activityAmountPence + platformFeePence,
+        totalAmountPaidPence,
+      );
+      if (refundAmount <= 0) {
+        throw new BadRequestException('Invalid refund amount');
+      }
+
       try {
-        // First, retrieve the payment intent to get the charge ID
         const paymentIntent = await this.stripe.paymentIntents.retrieve(
           booking.paymentIntentId,
         );
 
-        // Get charge ID from payment intent or booking
         const chargeId =
           (paymentIntent.latest_charge as string) || booking.stripeChargeId;
         if (!chargeId) {
           throw new BadRequestException('Charge ID not found');
         }
 
-        // Create the full or partial refund calculated by the policy above.
         const refund = await this.stripe.refunds.create({
           charge: chargeId,
-          amount: refundAmount, // Amount in pence (GBP)
+          amount: refundAmount,
           reason: 'requested_by_customer',
           metadata: {
             bookingId: bookingId,
             memberId: memberId,
-            refundPercentage: refundPercentage.toString(),
+            refundType: 'activity_and_service_fee',
+            stripeFeeWithheld: stripeFeePence.toString(),
             hoursUntilEvent: hoursUntilEvent.toFixed(2),
           },
         });
@@ -1431,13 +1474,11 @@ export class BookingService {
         booking.paymentStatus = PaymentStatus.REFUNDED;
         booking.stripeRefundId = refund.id;
         booking.declineReason =
-          cancelReason || `Cancelled by member. ${refundPercentage}% refunded.`;
+          cancelReason ||
+          'Cancelled by member. Activity price and service fee refunded. Transaction fee not refunded.';
         booking.updated_at = new Date();
         await booking.save();
 
-        // Send cancellation email with refund details
-        const emailsEnabled =
-          this.configService.get<string>('EMAILS_ENABLED') === 'true';
         const member = await this.userModel.findById(memberId);
         if (member && emailsEnabled) {
           try {
@@ -1449,9 +1490,11 @@ export class BookingService {
                 memberEmail: member.email,
                 activityTitle: activity.title,
                 cancelReason: cancelReason,
-                originalAmount: totalAmountPaidPence / 100,
-                refundAmount: refundAmount / 100,
-                refundPercentage: refundPercentage,
+                originalAmount: totalAmountPaidPence,
+                activityAmount: activityAmountPence,
+                serviceFee: platformFeePence,
+                transactionFee: stripeFeePence,
+                refundAmount: refundAmount,
                 refundId: refund.id,
               }),
             });
@@ -1460,10 +1503,6 @@ export class BookingService {
           }
         }
 
-        const bookingDocId = (booking._id as any).toString();
-        const hostId = (booking.hostId as any)._id
-          ? (booking.hostId as any)._id.toString()
-          : (booking.hostId as any).toString();
         await this.sendPushSafely(
           hostId,
           'Booking Cancelled',
