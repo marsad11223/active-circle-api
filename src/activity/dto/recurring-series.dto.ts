@@ -1,6 +1,7 @@
 import {
   IsBoolean,
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -10,7 +11,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { RecurringType } from 'src/schemas/activity.schema';
+import { DifficultyLevel, RecurringType } from 'src/schemas/activity.schema';
 
 export class ScheduleRuleDto {
   @IsOptional()
@@ -68,8 +69,8 @@ export class UpdateRecurringSeriesDto {
   coordinates?: { lat: number; lng: number };
 
   @IsOptional()
-  @IsString()
-  difficultyLevel?: string;
+  @IsIn(Object.values(DifficultyLevel))
+  difficultyLevel?: DifficultyLevel;
 
   /** When true, the series has no participant cap. `maxParticipants` may be omitted. */
   @IsOptional()

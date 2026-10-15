@@ -4,6 +4,7 @@ import {
   IsNumber,
   IsOptional,
   IsEnum,
+  IsIn,
   IsArray,
   IsBoolean,
   Min,
@@ -11,7 +12,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { RecurringType } from 'src/schemas/activity.schema';
+import { DifficultyLevel, RecurringType } from 'src/schemas/activity.schema';
 import { Type } from 'class-transformer';
 
 class ActivityCoordinatesDto {
@@ -50,8 +51,8 @@ export class CreateActivityDto {
   coordinates?: ActivityCoordinatesDto;
 
   @IsOptional()
-  @IsString()
-  difficultyLevel?: string;
+  @IsIn(Object.values(DifficultyLevel))
+  difficultyLevel?: DifficultyLevel;
 
   @IsNotEmpty()
   @IsString()

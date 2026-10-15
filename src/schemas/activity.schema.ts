@@ -15,6 +15,13 @@ export enum ActivityStatus {
   CANCELLED = 'cancelled', // Activity was cancelled
 }
 
+export enum DifficultyLevel {
+  BEGINNER = 'Beginner',
+  INTERMEDIATE = 'Intermediate',
+  ADVANCED = 'Advanced',
+  ALL_LEVELS = 'All levels',
+}
+
 export type ActivityCoordinates = {
   lat?: number;
   lng?: number;
@@ -47,7 +54,7 @@ export class Activity extends Document {
   coordinates?: ActivityCoordinates; // Optional location coordinates
 
   @Prop({ required: false })
-  difficultyLevel?: string; // Optional difficulty level (e.g. Beginner, Intermediate, Advanced)
+  difficultyLevel?: string; // Beginner, Intermediate, Advanced, or All levels
 
   @Prop({ required: true })
   startDateTime: Date; // Activity start datetime (stored in UTC)
